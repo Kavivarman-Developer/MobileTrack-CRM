@@ -11,6 +11,9 @@ const productSchema = new mongoose.Schema(
     stockQty: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 5, min: 0 },
     images: [String],
+    type: { type: String, enum: ["standalone", "accessory"], default: "standalone" },
+    compatibleWith: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+    barcode: { type: String, unique: true, sparse: true, trim: true },
   },
   { timestamps: true }
 );

@@ -23,6 +23,7 @@ app.use("/api/inventory", require("./routes/inventoryRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
+app.use("/api/config", require("./routes/configRoutes"));
 app.use(notFound);
 app.use(errorHandler);
 

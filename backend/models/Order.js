@@ -9,6 +9,8 @@ const orderSchema = new mongoose.Schema(
     gst: { type: Number, default: 0 },
     total: { type: Number, required: true },
     paymentStatus: { type: String, enum: ["paid", "partial", "pending"], default: "paid" },
+    paymentMethod: { type: String, default: "cash" },
+    paymentRef: String,
   },
   { timestamps: true }
 );

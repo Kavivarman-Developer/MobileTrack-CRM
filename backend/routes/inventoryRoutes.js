@@ -6,10 +6,15 @@ const {
   createCategory,
   createProduct,
   deleteProduct,
+  getCompatibleAccessories,
   getProduct,
+  getStockSummary,
+  listStockMovements,
   listBrands,
   listCategories,
   listProducts,
+  restockProduct,
+  scanProduct,
   uploadProductImage,
   updateProduct,
 } = require("../controllers/inventoryController");
@@ -27,7 +32,12 @@ const upload = multer({ storage });
 
 router.use(protect);
 router.route("/products").get(listProducts).post(createProduct);
+router.get("/products/scan/:code", scanProduct);
+router.get("/stock-summary", getStockSummary);
 router.route("/products/:id").get(getProduct).put(updateProduct).delete(deleteProduct);
+router.get("/products/:id/accessories", getCompatibleAccessories);
+router.post("/products/:id/restock", restockProduct);
+router.get("/products/:id/movements", listStockMovements);
 router.post("/products/:id/images", upload.single("image"), uploadProductImage);
 router.route("/categories").get(listCategories).post(createCategory);
 router.route("/brands").get(listBrands).post(createBrand);

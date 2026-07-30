@@ -1,10 +1,10 @@
+const fs = require("fs/promises");
 const Brand = require("../models/Brand");
 const Category = require("../models/Category");
 const Product = require("../models/Product");
+const cloudinary = require("../config/cloudinary");
 
-function absoluteUploadUrl(req, path) {
-  return `${req.protocol}://${req.get("host")}${path}`;
-}
+const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
 async function listProducts(req, res, next) {
   try {
@@ -32,17 +32,24 @@ async function createProduct(req, res, next) {
 async function uploadProductImage(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ message: "Image file is required" });
-    const imageUrl = absoluteUploadUrl(req, `/uploads/${req.file.filename}`);
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      { $push: { images: imageUrl } },
-      { returnDocument: "after" }
-    ).populate("category brand");
+    const product = await Product.findById(req.params.id).populate("category brand");
     if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: PRODUCT_IMAGE_FOLDER,
+      resource_type: "image",
+    });
+    const imageUrl = result.secure_url;
+    product.images.push(imageUrl);
+    await product.save();
     req.app.get("io")?.emit("inventory:changed", product);
     res.status(201).json({ imageUrl, product });
   } catch (error) {
     next(error);
+  } finally {
+    if (req.file?.path) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
   }
 }
 

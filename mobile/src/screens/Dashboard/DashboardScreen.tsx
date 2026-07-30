@@ -99,7 +99,7 @@ export default function DashboardScreen() {
                 chartConfig={{
                   backgroundGradientFrom: colors.surface,
                   backgroundGradientTo: colors.surface,
-                  color: (opacity = 1) => `rgba(8, 145, 178, ${opacity})`,
+                  color: (opacity = 1) => `rgba(252, 128, 25, ${opacity})`,
                   decimalPlaces: 0,
                   labelColor: () => colors.muted,
                   propsForBackgroundLines: { stroke: "#dbeafe" },

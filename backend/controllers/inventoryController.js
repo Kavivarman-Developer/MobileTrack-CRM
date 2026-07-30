@@ -9,14 +9,19 @@ const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
 function productPayload(body) {
   const payload = { ...body };
-  ["name", "sku", "barcode"].forEach((field) => {
+  ["name", "sku", "barcode", "category", "brand"].forEach((field) => {
     if (typeof payload[field] === "string") payload[field] = payload[field].trim();
   });
   if (payload.compatibleWith && !Array.isArray(payload.compatibleWith)) {
     payload.compatibleWith = [payload.compatibleWith];
   }
+  if (Array.isArray(payload.compatibleWith)) {
+    payload.compatibleWith = payload.compatibleWith.filter(Boolean);
+  }
   if (payload.type && payload.type !== "accessory") payload.compatibleWith = [];
   if (!payload.barcode) delete payload.barcode;
+  if (!payload.category) delete payload.category;
+  if (!payload.brand) delete payload.brand;
   return payload;
 }
 
@@ -27,6 +32,9 @@ function sendProductError(error, res, next) {
   }
   if (error.name === "ValidationError") {
     return res.status(400).json({ message: Object.values(error.errors).map((item) => item.message).join(", ") });
+  }
+  if (error.name === "CastError") {
+    return res.status(400).json({ message: `Invalid ${error.path}` });
   }
   return next(error);
 }
@@ -50,7 +58,7 @@ async function createProduct(req, res, next) {
     req.app.get("io")?.emit("inventory:changed", product);
     res.status(201).json(await product.populate("category brand"));
   } catch (error) {
-    next(error);
+    sendProductError(error, res, next);
   }
 }
 

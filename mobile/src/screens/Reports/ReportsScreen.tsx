@@ -65,7 +65,7 @@ export default function ReportsScreen({ navigation }: any) {
               chartConfig={{
                 backgroundGradientFrom: colors.surface,
                 backgroundGradientTo: colors.surface,
-                color: (opacity = 1) => `rgba(15, 118, 110, ${opacity})`,
+                color: (opacity = 1) => `rgba(252, 128, 25, ${opacity})`,
                 decimalPlaces: 0,
                 labelColor: () => colors.muted,
               }}

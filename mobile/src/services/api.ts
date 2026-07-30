@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
+import { logout } from "../redux/authSlice";
+import { store } from "../redux/store";
 
 const DEFAULT_API_URL = Platform.OS === "web" ? "http://localhost:8000/api" : "http://192.168.7.4:8000/api";
 
@@ -9,10 +11,28 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
 export const api = axios.create({ baseURL: API_BASE_URL });
 
 api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("accessToken");
+  const token = store.getState().auth.accessToken || await AsyncStorage.getItem("accessToken");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+let sessionAlertShown = false;
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401 && !String(error.config?.url || "").includes("/auth/login")) {
+      store.dispatch(logout());
+      if (!sessionAlertShown) {
+        sessionAlertShown = true;
+        Alert.alert("Session expired", "Please log in again.", [
+          { text: "OK", onPress: () => { sessionAlertShown = false; } },
+        ]);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export type Product = {
   _id: string;

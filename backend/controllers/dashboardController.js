@@ -1,6 +1,7 @@
 const Order = require("../models/Order");
 const OrderItem = require("../models/OrderItem");
 const Product = require("../models/Product");
+const Expense = require("../models/Expense");
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -26,7 +27,8 @@ async function getDashboard(req, res, next) {
     const selectedRange = getDateRange(req.query);
     const selectedMatch = selectedRange ? { createdAt: selectedRange } : { createdAt: { $gte: today } };
 
-    const [totalProducts, lowStockProductCount, todaySalesAgg, monthSalesAgg, selectedSalesAgg, profitItems, monthlySales] = await Promise.all([
+    const expenseMatch = selectedRange ? { date: selectedRange } : { date: { $gte: today } };
+    const [totalProducts, lowStockProductCount, todaySalesAgg, monthSalesAgg, selectedSalesAgg, profitItems, expenseAgg, monthlySales] = await Promise.all([
       Product.countDocuments(),
       Product.countDocuments({ $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }),
       Order.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" } } }]),
@@ -36,6 +38,7 @@ async function getDashboard(req, res, next) {
         { $match: selectedMatch },
         { $group: { _id: null, profit: { $sum: { $multiply: [{ $subtract: ["$price", "$costPrice"] }, "$qty"] } } } },
       ]),
+      Expense.aggregate([{ $match: expenseMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Order.aggregate([
         { $match: { createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } } },
         { $group: { _id: { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } }, total: { $sum: "$total" } } },
@@ -50,7 +53,8 @@ async function getDashboard(req, res, next) {
       monthSales: monthSalesAgg[0]?.total || 0,
       selectedSales: selectedSalesAgg[0]?.total || 0,
       selectedOrderCount: selectedSalesAgg[0]?.count || 0,
-      todayProfit: profitItems[0]?.profit || 0,
+      todayProfit: (profitItems[0]?.profit || 0) - (expenseAgg[0]?.total || 0),
+      selectedExpenses: expenseAgg[0]?.total || 0,
       lowStockProductCount,
       lowStockProducts,
       monthlySales: monthlySales.map((row) => ({ month: `${row._id.m}/${row._id.y}`, total: row.total })),

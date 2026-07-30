@@ -9,12 +9,26 @@ const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
 function productPayload(body) {
   const payload = { ...body };
+  ["name", "sku", "barcode"].forEach((field) => {
+    if (typeof payload[field] === "string") payload[field] = payload[field].trim();
+  });
   if (payload.compatibleWith && !Array.isArray(payload.compatibleWith)) {
     payload.compatibleWith = [payload.compatibleWith];
   }
   if (payload.type && payload.type !== "accessory") payload.compatibleWith = [];
   if (!payload.barcode) delete payload.barcode;
   return payload;
+}
+
+function sendProductError(error, res, next) {
+  if (error.code === 11000) {
+    const field = Object.keys(error.keyPattern || error.keyValue || {})[0] || "field";
+    return res.status(409).json({ message: `${field.toUpperCase()} already exists` });
+  }
+  if (error.name === "ValidationError") {
+    return res.status(400).json({ message: Object.values(error.errors).map((item) => item.message).join(", ") });
+  }
+  return next(error);
 }
 
 async function listProducts(req, res, next) {
@@ -81,7 +95,7 @@ async function updateProduct(req, res, next) {
     req.app.get("io")?.emit("inventory:changed", product);
     res.json(product);
   } catch (error) {
-    next(error);
+    sendProductError(error, res, next);
   }
 }
 

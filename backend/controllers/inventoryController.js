@@ -7,8 +7,28 @@ const cloudinary = require("../config/cloudinary");
 
 const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
-function productPayload(body) {
+function isObjectId(value) {
+  return typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+}
+
+async function findOrCreateNamedModel(Model, value) {
+  if (!value) return undefined;
+  if (isObjectId(value)) return value;
+  if (typeof value === "object" && value._id) return value._id;
+  if (typeof value !== "string") return undefined;
+  const name = value.trim();
+  if (!name) return undefined;
+  const doc = await Model.findOneAndUpdate({ name }, { name }, { upsert: true, returnDocument: "after" });
+  return doc._id;
+}
+
+function scoped(req, extra = {}) {
+  return req.orgId ? { ...extra, organizationId: req.orgId } : { ...extra, _id: null };
+}
+
+async function productPayload(body, orgId) {
   const payload = { ...body };
+  if (orgId) payload.organizationId = orgId;
   ["name", "sku", "barcode", "category", "brand"].forEach((field) => {
     if (typeof payload[field] === "string") payload[field] = payload[field].trim();
   });
@@ -20,8 +40,14 @@ function productPayload(body) {
   }
   if (payload.type && payload.type !== "accessory") payload.compatibleWith = [];
   if (!payload.barcode) delete payload.barcode;
+  payload.category = await findOrCreateNamedModel(Category, payload.category);
+  payload.brand = await findOrCreateNamedModel(Brand, payload.brand);
   if (!payload.category) delete payload.category;
   if (!payload.brand) delete payload.brand;
+  if (payload.sellingPrice !== undefined) payload.price = Number(payload.sellingPrice);
+  if (payload.price !== undefined) payload.sellingPrice = Number(payload.price);
+  if (payload.reorderPoint !== undefined) payload.lowStockThreshold = Number(payload.reorderPoint);
+  if (payload.lowStockThreshold !== undefined) payload.reorderPoint = Number(payload.lowStockThreshold);
   return payload;
 }
 
@@ -42,10 +68,10 @@ function sendProductError(error, res, next) {
 async function listProducts(req, res, next) {
   try {
     const { search, category } = req.query;
-    const query = {};
+    const query = scoped(req);
     if (search) query.$or = [{ name: new RegExp(search, "i") }, { sku: new RegExp(search, "i") }];
     if (category) query.category = category;
-    const products = await Product.find(query).populate("category brand").sort({ createdAt: -1 });
+    const products = await Product.find(query).populate("category brand preferredVendor").sort({ createdAt: -1 });
     res.json(products);
   } catch (error) {
     next(error);
@@ -54,9 +80,9 @@ async function listProducts(req, res, next) {
 
 async function createProduct(req, res, next) {
   try {
-    const product = await Product.create(productPayload(req.body));
+    const product = await Product.create(await productPayload(req.body, req.orgId));
     req.app.get("io")?.emit("inventory:changed", product);
-    res.status(201).json(await product.populate("category brand"));
+    res.status(201).json(await product.populate("category brand preferredVendor"));
   } catch (error) {
     sendProductError(error, res, next);
   }
@@ -65,7 +91,7 @@ async function createProduct(req, res, next) {
 async function uploadProductImage(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ message: "Image file is required" });
-    const product = await Product.findById(req.params.id).populate("category brand");
+    const product = await Product.findOne(scoped(req, { _id: req.params.id })).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     const result = await cloudinary.uploader.upload(req.file.path, {
@@ -88,7 +114,7 @@ async function uploadProductImage(req, res, next) {
 
 async function getProduct(req, res, next) {
   try {
-    const product = await Product.findById(req.params.id).populate("category brand");
+    const product = await Product.findOne(scoped(req, { _id: req.params.id })).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
   } catch (error) {
@@ -98,7 +124,7 @@ async function getProduct(req, res, next) {
 
 async function updateProduct(req, res, next) {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, productPayload(req.body), { returnDocument: "after" }).populate("category brand");
+    const product = await Product.findOneAndUpdate(scoped(req, { _id: req.params.id }), await productPayload(req.body, req.orgId), { returnDocument: "after" }).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
     req.app.get("io")?.emit("inventory:changed", product);
     res.json(product);
@@ -109,8 +135,8 @@ async function updateProduct(req, res, next) {
 
 async function getCompatibleAccessories(req, res, next) {
   try {
-    const accessories = await Product.find({ type: "accessory", compatibleWith: req.params.id })
-      .populate("category brand")
+    const accessories = await Product.find(scoped(req, { type: "accessory", compatibleWith: req.params.id }))
+      .populate("category brand preferredVendor")
       .sort({ name: 1 });
     res.json(accessories);
   } catch (error) {
@@ -120,9 +146,9 @@ async function getCompatibleAccessories(req, res, next) {
 
 async function scanProduct(req, res, next) {
   try {
-    const product = await Product.findOne({
+    const product = await Product.findOne(scoped(req, {
       $or: [{ sku: req.params.code }, { barcode: req.params.code }],
-    }).populate("category brand");
+    })).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
   } catch (error) {
@@ -140,7 +166,7 @@ async function restockProduct(req, res, next) {
 
     let product;
     await session.withTransaction(async () => {
-      product = await Product.findById(req.params.id).session(session);
+      product = await Product.findOne(scoped(req, { _id: req.params.id })).session(session);
       if (!product) {
         const error = new Error("Product not found");
         error.statusCode = 404;
@@ -150,6 +176,7 @@ async function restockProduct(req, res, next) {
       await product.save({ session });
       await StockMovement.create([{
         product: product._id,
+        organizationId: req.orgId,
         type: "IN",
         quantity,
         reason: "purchase",
@@ -158,7 +185,7 @@ async function restockProduct(req, res, next) {
       }], { session });
     });
 
-    const saved = await Product.findById(product._id).populate("category brand");
+    const saved = await Product.findOne(scoped(req, { _id: product._id })).populate("category brand preferredVendor");
     req.app.get("io")?.emit("inventory:changed", saved);
     res.json(saved);
   } catch (error) {
@@ -174,12 +201,12 @@ async function listStockMovements(req, res, next) {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
     const [items, total] = await Promise.all([
-      StockMovement.find({ product: req.params.id })
+      StockMovement.find(scoped(req, { product: req.params.id }))
         .populate("createdBy", "name email")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
-      StockMovement.countDocuments({ product: req.params.id }),
+      StockMovement.countDocuments(scoped(req, { product: req.params.id })),
     ]);
     res.json({ items, page, limit, total, hasMore: page * limit < total });
   } catch (error) {
@@ -200,7 +227,7 @@ function dateRange(query) {
 
 async function getStockSummary(req, res, next) {
   try {
-    const match = dateRange(req.query);
+    const match = scoped(req, dateRange(req.query));
     const rows = await StockMovement.aggregate([
       { $match: match },
       {
@@ -211,7 +238,7 @@ async function getStockSummary(req, res, next) {
         },
       },
     ]);
-    const products = await Product.find({ _id: { $in: rows.map((row) => row._id) } }).select("name sku stockQty lowStockThreshold images");
+    const products = await Product.find(scoped(req, { _id: { $in: rows.map((row) => row._id) } })).select("name sku stockQty lowStockThreshold images");
     const byId = new Map(products.map((product) => [product._id.toString(), product]));
     res.json(rows.map((row) => ({
       product: byId.get(row._id.toString()),
@@ -226,7 +253,7 @@ async function getStockSummary(req, res, next) {
 
 async function deleteProduct(req, res, next) {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findOneAndDelete(scoped(req, { _id: req.params.id }));
     if (!product) return res.status(404).json({ message: "Product not found" });
     req.app.get("io")?.emit("inventory:changed", { id: req.params.id });
     res.status(204).send();

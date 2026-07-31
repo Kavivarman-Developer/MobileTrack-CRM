@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const orderItemSchema = new mongoose.Schema(
   {
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", required: true, index: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true },
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
     qty: { type: Number, required: true, min: 1 },

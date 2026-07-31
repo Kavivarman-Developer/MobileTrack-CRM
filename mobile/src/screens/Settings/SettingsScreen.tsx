@@ -49,6 +49,18 @@ export default function SettingsScreen() {
             <Text style={styles.moduleLabel}>Expenses</Text>
             <Text style={styles.moduleStatus}>Open</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Vendors")} style={styles.moduleLink}>
+            <Text style={styles.moduleLabel}>Vendors</Text>
+            <Text style={styles.moduleStatus}>Open</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Purchases")} style={styles.moduleLink}>
+            <Text style={styles.moduleLabel}>Purchases</Text>
+            <Text style={styles.moduleStatus}>Open</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("InventoryAdjustments")} style={styles.moduleLink}>
+            <Text style={styles.moduleLabel}>Inventory Adjustments</Text>
+            <Text style={styles.moduleStatus}>Open</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.dangerPanel}>
           <Text style={styles.section}>Session</Text>

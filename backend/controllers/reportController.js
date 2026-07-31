@@ -14,7 +14,7 @@ function dateMatch(query) {
 
 async function getSalesReport(req, res, next) {
   try {
-    const match = dateMatch(req.query);
+    const match = { ...dateMatch(req.query), organizationId: req.orgId };
     const [salesRows, profitRows] = await Promise.all([
       Order.aggregate([
         { $match: match },

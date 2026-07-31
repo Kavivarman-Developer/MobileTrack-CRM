@@ -4,9 +4,18 @@ import { Alert, Platform } from "react-native";
 import { logout } from "../redux/authSlice";
 import { store } from "../redux/store";
 
-const DEFAULT_API_URL = Platform.OS === "web" ? "http://localhost:8000/api" : "http://192.168.7.4:8000/api";
+const LOCAL_WEB_API_URL = "http://localhost:8000/api";
+const DEFAULT_API_URL = Platform.OS === "web" ? LOCAL_WEB_API_URL : "http://192.168.7.4:8000/api";
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL;
+function resolveApiBaseUrl() {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const hostname = Platform.OS === "web" && typeof window !== "undefined" ? window.location.hostname : "";
+  const isLocalWebPreview = hostname === "localhost" || hostname === "127.0.0.1";
+  if (isLocalWebPreview) return LOCAL_WEB_API_URL;
+  return envUrl || DEFAULT_API_URL;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({ baseURL: API_BASE_URL });
 
@@ -40,14 +49,37 @@ export type Product = {
   sku: string;
   barcode?: string;
   price: number;
+  sellingPrice?: number;
   costPrice: number;
   stockQty: number;
   lowStockThreshold: number;
+  itemType?: "goods" | "service";
+  unit?: string;
+  returnable?: boolean;
+  salesAccount?: string;
+  salesDescription?: string;
+  purchaseAccount?: string;
+  purchaseDescription?: string;
+  preferredVendor?: string | Vendor;
+  trackInventory?: boolean;
+  inventoryAccount?: string;
+  openingStock?: number;
+  openingStockRatePerUnit?: number;
+  inventoryValuationMethod?: "FIFO" | "LIFO" | "Average";
+  reorderPoint?: number;
+  dimensions?: { length?: number | null; width?: number | null; height?: number | null; unit?: string };
+  weight?: number | null;
+  weightUnit?: string;
+  manufacturer?: string;
+  upc?: string;
+  mpn?: string;
+  ean?: string;
+  isbn?: string;
   images?: string[];
   type?: "standalone" | "accessory";
   compatibleWith?: string[] | Product[];
-  category?: { _id: string; name: string };
-  brand?: { _id: string; name: string };
+  category?: string | { _id: string; name: string };
+  brand?: string | { _id: string; name: string };
 };
 
 export type Order = {
@@ -97,6 +129,37 @@ export type Expense = {
   notes?: string;
 };
 
+export type Vendor = {
+  _id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  gstNumber?: string;
+  notes?: string;
+};
+
+export type PurchaseOrder = {
+  _id: string;
+  vendor: string | Vendor;
+  items: { product: string | Product; quantity: number; costPrice: number }[];
+  status: "draft" | "ordered" | "received" | "cancelled";
+  totalAmount: number;
+  orderDate: string;
+  receivedDate?: string;
+  notes?: string;
+};
+
+export type InventoryAdjustment = {
+  _id: string;
+  product: string | Product;
+  adjustmentType: "increase" | "decrease";
+  quantity: number;
+  reason: string;
+  notes?: string;
+  createdAt: string;
+};
+
 export type Customer = {
   _id: string;
   name: string;
@@ -105,8 +168,34 @@ export type Customer = {
   pendingBalance: number;
 };
 
+export type AdminOrganizationRow = {
+  _id: string;
+  name: string;
+  ownerEmail: string;
+  ownerName: string;
+  createdAt: string;
+  isActive: boolean;
+  plan: string;
+  stats: {
+    productCount: number;
+    customerCount: number;
+    totalSales: number;
+    totalOrders: number;
+    todaySales: number;
+    monthSales: number;
+    totalExpenses: number;
+    totalProfit: number;
+    lowStockProductCount: number;
+  };
+};
+
 export async function login(email: string, password: string) {
   const { data } = await api.post("/auth/login", { email, password });
+  return data;
+}
+
+export async function googleLogin(idToken: string, businessName?: string) {
+  const { data } = await api.post("/auth/google", { idToken, businessName });
   return data;
 }
 
@@ -243,4 +332,77 @@ export async function updateExpense(id: string, payload: Partial<Expense>) {
 
 export async function deleteExpense(id: string) {
   await api.delete(`/expenses/${id}`);
+}
+
+export async function getVendors(search = "") {
+  const { data } = await api.get<Vendor[]>("/vendors", { params: { search } });
+  return data;
+}
+
+export async function createVendor(payload: Partial<Vendor>) {
+  const { data } = await api.post<Vendor>("/vendors", payload);
+  return data;
+}
+
+export async function updateVendor(id: string, payload: Partial<Vendor>) {
+  const { data } = await api.put<Vendor>(`/vendors/${id}`, payload);
+  return data;
+}
+
+export async function deleteVendor(id: string) {
+  await api.delete(`/vendors/${id}`);
+}
+
+export async function getPurchaseOrders() {
+  const { data } = await api.get<PurchaseOrder[]>("/purchase-orders");
+  return data;
+}
+
+export async function createPurchaseOrder(payload: Partial<PurchaseOrder>) {
+  const { data } = await api.post<PurchaseOrder>("/purchase-orders", payload);
+  return data;
+}
+
+export async function updatePurchaseOrder(id: string, payload: Partial<PurchaseOrder>) {
+  const { data } = await api.put<PurchaseOrder>(`/purchase-orders/${id}`, payload);
+  return data;
+}
+
+export async function deletePurchaseOrder(id: string) {
+  await api.delete(`/purchase-orders/${id}`);
+}
+
+export async function receivePurchaseOrder(id: string) {
+  const { data } = await api.post<PurchaseOrder>(`/purchase-orders/${id}/receive`);
+  return data;
+}
+
+export async function createInventoryAdjustment(payload: { productId: string; adjustmentType: "increase" | "decrease"; quantity: number; reason: string; notes?: string }) {
+  const { data } = await api.post<InventoryAdjustment>("/inventory-adjustments", payload);
+  return data;
+}
+
+export async function getInventoryAdjustments() {
+  const { data } = await api.get<InventoryAdjustment[]>("/inventory-adjustments");
+  return data;
+}
+
+export async function getAdminOrganizations() {
+  const { data } = await api.get<AdminOrganizationRow[]>("/admin/organizations");
+  return data;
+}
+
+export async function getAdminOrganization(id: string) {
+  const { data } = await api.get<{ organization: AdminOrganizationRow; dashboard: AdminOrganizationRow["stats"] }>(`/admin/organizations/${id}`);
+  return data;
+}
+
+export async function getAdminOrganizationUsers(id: string) {
+  const { data } = await api.get<{ _id: string; name: string; email: string; role: string; authProvider?: string }[]>(`/admin/organizations/${id}/users`);
+  return data;
+}
+
+export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string }) {
+  const { data } = await api.patch(`/admin/organizations/${id}`, payload);
+  return data;
 }

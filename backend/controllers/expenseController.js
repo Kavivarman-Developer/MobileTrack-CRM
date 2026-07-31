@@ -14,9 +14,13 @@ function rangeQuery(query) {
   return filter;
 }
 
+function scoped(req, extra = {}) {
+  return req.orgId ? { ...extra, organizationId: req.orgId } : { ...extra, _id: null };
+}
+
 async function listExpenses(req, res, next) {
   try {
-    const filter = rangeQuery(req.query);
+    const filter = scoped(req, rangeQuery(req.query));
     const [items, totalAgg] = await Promise.all([
       Expense.find(filter).sort({ date: -1, createdAt: -1 }),
       Expense.aggregate([{ $match: filter }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
@@ -31,7 +35,7 @@ async function createExpense(req, res, next) {
   try {
     const { description, amount, category, date, notes } = req.body;
     if (!description || Number(amount) < 0) return res.status(400).json({ message: "Description and amount are required" });
-    res.status(201).json(await Expense.create({ description, amount: Number(amount), category, date, notes }));
+    res.status(201).json(await Expense.create({ organizationId: req.orgId, description, amount: Number(amount), category, date, notes }));
   } catch (error) {
     next(error);
   }
@@ -41,7 +45,7 @@ async function updateExpense(req, res, next) {
   try {
     const payload = { ...req.body };
     if (payload.amount !== undefined) payload.amount = Number(payload.amount);
-    const expense = await Expense.findByIdAndUpdate(req.params.id, payload, { new: true });
+    const expense = await Expense.findOneAndUpdate(scoped(req, { _id: req.params.id }), payload, { new: true });
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     res.json(expense);
   } catch (error) {
@@ -51,7 +55,7 @@ async function updateExpense(req, res, next) {
 
 async function deleteExpense(req, res, next) {
   try {
-    const expense = await Expense.findByIdAndDelete(req.params.id);
+    const expense = await Expense.findOneAndDelete(scoped(req, { _id: req.params.id }));
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     res.status(204).send();
   } catch (error) {

@@ -1,9 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { useState } from "react";
-import { Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { useMemo, useState } from "react";
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { createCustomer, Customer, deleteCustomer, getCustomers, updateCustomer } from "../../services/api";
 
 const blank = { name: "", phone: "", address: "" };
@@ -22,7 +22,7 @@ export default function CustomersScreen() {
     };
   }, [customers.data]);
   const save = useMutation({
-    mutationFn: () => editing ? updateCustomer(editing._id, form) : createCustomer(form),
+    mutationFn: () => (editing ? updateCustomer(editing._id, form) : createCustomer(form)),
     onSuccess: () => {
       closeForm();
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -55,25 +55,35 @@ export default function CustomersScreen() {
           <Text style={styles.title}>Customers</Text>
         </View>
         <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
-          <Text style={styles.addButtonText}>+</Text>
+          <Ionicons color="#fff" name="add" size={22} />
         </TouchableOpacity>
       </View>
+
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { backgroundColor: colors.blueSoft }]}>
+            <Ionicons color={colors.info} name="people-outline" size={16} />
+          </View>
           <Text style={styles.statValue}>{stats.count}</Text>
           <Text style={styles.statLabel}>Customers</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, stats.pending > 0 && styles.pendingValue]}>Rs {formatMoney(stats.pending)}</Text>
+        <View style={[styles.statCard, styles.statCardLast]}>
+          <View style={[styles.statIconWrap, { backgroundColor: colors.orangeSoft }]}>
+            <Ionicons color={colors.accent} name="alert-circle-outline" size={16} />
+          </View>
+          <Text style={[styles.statValue, stats.pending > 0 && styles.pendingValue]}>₹{formatMoney(stats.pending)}</Text>
           <Text style={styles.statLabel}>Pending balance</Text>
         </View>
       </View>
+
       <View style={styles.toolbar}>
         <Text style={styles.section}>Recent customers</Text>
         <TouchableOpacity onPress={() => openForm()} style={styles.toolbarButton}>
+          <Ionicons color={colors.primaryDark} name="add" size={15} />
           <Text style={styles.toolbarButtonText}>Add new</Text>
         </TouchableOpacity>
       </View>
+
       <FlatList
         data={customers.data || []}
         keyExtractor={(item) => item._id}
@@ -82,14 +92,17 @@ export default function CustomersScreen() {
         renderItem={({ item }) => (
           <CustomerRow
             item={item}
-            onDelete={() => Alert.alert("Delete customer?", `Remove ${item.name}?`, [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => remove.mutate(item._id) },
-            ])}
+            onDelete={() =>
+              Alert.alert("Delete customer?", `Remove ${item.name}?`, [
+                { text: "Cancel", style: "cancel" },
+                { text: "Delete", style: "destructive", onPress: () => remove.mutate(item._id) },
+              ])
+            }
             onEdit={() => openForm(item)}
           />
         )}
       />
+
       <Modal animationType="slide" visible={open}>
         <Screen>
           <View style={styles.modalHeader}>
@@ -98,10 +111,10 @@ export default function CustomersScreen() {
               <Text style={styles.title}>{editing ? "Edit Customer" : "Add Customer"}</Text>
             </View>
             <TouchableOpacity onPress={closeForm} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>x</Text>
+              <Ionicons color={colors.text} name="close" size={20} />
             </TouchableOpacity>
           </View>
-          <View style={styles.formCard}>
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled" style={styles.formCard}>
             <Text style={styles.fieldLabel}>Customer name</Text>
             <Field onChangeText={(value) => setForm((prev) => ({ ...prev, name: value }))} placeholder="Name" value={form.name} />
             <Text style={styles.fieldLabel}>Phone number</Text>
@@ -109,7 +122,7 @@ export default function CustomersScreen() {
             <Text style={styles.fieldLabel}>Address</Text>
             <Field onChangeText={(value) => setForm((prev) => ({ ...prev, address: value }))} placeholder="Address" value={form.address} />
             <Button loading={save.isPending} onPress={() => save.mutate()} title="Save customer" />
-          </View>
+          </ScrollView>
         </Screen>
       </Modal>
     </Screen>
@@ -126,17 +139,26 @@ function CustomerRow({ item, onDelete, onEdit }: { item: Customer; onDelete: () 
         </View>
         <View style={styles.customerInfo}>
           <Text numberOfLines={1} style={styles.name}>{item.name}</Text>
-          <Text style={styles.meta}>{item.phone}</Text>
-          <Text numberOfLines={1} style={styles.meta}>{item.address || "No address added"}</Text>
+          <View style={styles.metaRow}>
+            <Ionicons color={colors.muted} name="call-outline" size={12} />
+            <Text style={styles.meta}>{item.phone}</Text>
+          </View>
+          <Text numberOfLines={1} style={styles.address}>{item.address || "No address added"}</Text>
         </View>
-        <View style={[styles.balancePill, hasPending ? styles.balanceHot : styles.balanceCalm]}>
-          <Text style={[styles.balanceValue, hasPending ? styles.balanceHotText : styles.balanceCalmText]}>Rs {formatMoney(item.pendingBalance || 0)}</Text>
-          <Text style={styles.balanceLabel}>pending</Text>
+        <View style={styles.balanceCol}>
+          <Text style={[styles.balanceValue, hasPending ? styles.balanceHotText : styles.balanceCalmText]}>₹{formatMoney(item.pendingBalance || 0)}</Text>
+          <Badge label="Pending" tone={hasPending ? "danger" : "success"} />
         </View>
       </TouchableOpacity>
       <View style={styles.actionRow}>
-        <TouchableOpacity onPress={onEdit} style={styles.actionButton}><Text style={styles.actionText}>Edit</Text></TouchableOpacity>
-        <TouchableOpacity onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>
+        <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
+          <Ionicons color={colors.primaryDark} name="create-outline" size={15} />
+          <Text style={styles.actionText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}>
+          <Ionicons color={colors.danger} name="trash-outline" size={15} />
+          <Text style={styles.deleteText}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -147,43 +169,48 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 30, fontWeight: "900", marginTop: 2 },
-  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 46, justifyContent: "center", width: 46 },
-  addButtonText: { color: "#fff", fontSize: 28, fontWeight: "700", marginTop: -2 },
-  statsGrid: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  statCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flex: 1, padding: spacing.md },
-  statValue: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, fontSize: 24, marginTop: 2 },
+  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card, shadowOpacity: 0.18 },
+
+  statsGrid: { flexDirection: "row", marginBottom: spacing.sm },
+  statCard: { backgroundColor: colors.surface, borderRadius: radius.md, flex: 1, marginRight: spacing.sm, padding: spacing.sm, ...shadows.card },
+  statCardLast: { marginRight: 0 },
+  statIconWrap: { alignItems: "center", borderRadius: radius.sm, height: 28, justifyContent: "center", marginBottom: 6, width: 28 },
+  statValue: { color: colors.text, fontSize: 17, fontWeight: "900" },
   pendingValue: { color: colors.accent },
-  statLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  statLabel: { color: colors.muted, fontSize: 11, fontWeight: "600", marginTop: 3 },
+
   toolbar: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  toolbarButton: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  toolbarButtonText: { color: colors.primaryDark, fontWeight: "900" },
+  section: { color: colors.text, ...typography.h3, fontSize: 15 },
+  toolbarButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.sm, flexDirection: "row", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 7, ...shadows.card },
+  toolbarButtonText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800" },
+
   listContent: { paddingBottom: spacing.lg },
-  customerCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, overflow: "hidden" },
+  customerCard: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
   customerMain: { alignItems: "center", flexDirection: "row", padding: spacing.md },
-  avatar: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: 8, height: 48, justifyContent: "center", marginRight: spacing.sm, width: 48 },
+  avatar: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: radius.sm, height: 46, justifyContent: "center", marginRight: spacing.sm, width: 46 },
   avatarText: { color: colors.primaryDark, fontWeight: "900" },
   customerInfo: { flex: 1, paddingRight: spacing.sm },
-  name: { color: colors.text, fontSize: 16, fontWeight: "900" },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  balancePill: { alignItems: "center", borderRadius: 8, minWidth: 78, padding: spacing.xs },
-  balanceHot: { backgroundColor: colors.orangeSoft },
-  balanceCalm: { backgroundColor: colors.greenSoft },
-  balanceValue: { fontSize: 12, fontWeight: "900" },
+  name: { color: colors.text, fontSize: 15, fontWeight: "800" },
+  metaRow: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 3 },
+  meta: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  address: { color: colors.muted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  balanceCol: { alignItems: "flex-end" },
+  balanceValue: { fontSize: 14, fontWeight: "900", marginBottom: 4 },
   balanceHotText: { color: colors.accent },
   balanceCalmText: { color: colors.success },
-  balanceLabel: { color: colors.muted, fontSize: 10, marginTop: 2 },
+
   actionRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row" },
-  actionButton: { alignItems: "center", flex: 1, paddingVertical: spacing.sm },
-  actionText: { color: colors.primaryDark, fontWeight: "900" },
+  actionButton: { alignItems: "center", flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", paddingVertical: spacing.sm },
+  actionText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800" },
   deleteButton: { borderLeftColor: colors.border, borderLeftWidth: 1 },
-  deleteText: { color: colors.danger, fontWeight: "900" },
+  deleteText: { color: colors.danger, fontSize: 12, fontWeight: "800" },
+
   modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 42, justifyContent: "center", width: 42 },
-  closeButtonText: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.md },
-  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.xs },
+  closeButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.sm, height: 40, justifyContent: "center", width: 40, ...shadows.card },
+  formCard: { backgroundColor: colors.surface, borderRadius: radius.md, ...shadows.card },
+  modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
+  fieldLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginBottom: spacing.xs, textTransform: "uppercase", letterSpacing: 0.3 },
 });

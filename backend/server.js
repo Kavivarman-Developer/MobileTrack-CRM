@@ -26,6 +26,10 @@ app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/config", require("./routes/configRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/expenses", require("./routes/expenseRoutes"));
+app.use("/api/vendors", require("./routes/vendors"));
+app.use("/api/purchase-orders", require("./routes/purchaseOrders"));
+app.use("/api/inventory-adjustments", require("./routes/inventoryAdjustments"));
+app.use("/api/admin", require("./routes/admin"));
 app.use(notFound);
 app.use(errorHandler);
 

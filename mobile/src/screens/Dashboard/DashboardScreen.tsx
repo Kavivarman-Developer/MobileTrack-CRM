@@ -1,9 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LineChart } from "react-native-chart-kit";
-import { Card, Empty, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { Empty, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { getDashboard, getStockSummary } from "../../services/api";
 
 type DatePreset = "today" | "week" | "month";
@@ -22,11 +23,12 @@ export default function DashboardScreen() {
     };
   }, [stockSummary.data]);
   const chartData = data?.monthlySales?.length ? data.monthlySales : [{ month: "Now", total: 0 }];
-  const chartWidth = Dimensions.get("window").width - 64;
+  const chartWidth = Dimensions.get("window").width - spacing.md * 2 - spacing.md * 2;
 
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>Shop overview</Text>
@@ -37,17 +39,29 @@ export default function DashboardScreen() {
             <Text style={styles.liveText}>Live</Text>
           </View>
         </View>
+
         {isLoading && <Empty text="Loading dashboard..." />}
         {error && <Empty text="Could not load dashboard." />}
+
         {data && (
           <>
+            {/* Date filter */}
             <View style={styles.filterRow}>
               <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
               <FilterChip active={datePreset === "week"} label="7 Days" onPress={() => setDatePreset("week")} />
               <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
             </View>
+
+            {/* Alert banner */}
             <View style={[styles.alertBanner, data.lowStockProductCount > 0 ? styles.alertHot : styles.alertCalm]}>
-              <View>
+              <View style={styles.alertIconWrap}>
+                <Ionicons
+                  color={data.lowStockProductCount > 0 ? colors.warning : colors.success}
+                  name={data.lowStockProductCount > 0 ? "alert-circle" : "checkmark-circle"}
+                  size={22}
+                />
+              </View>
+              <View style={styles.alertCopy}>
                 <Text style={styles.alertTitle}>
                   {data.lowStockProductCount > 0 ? "Stock needs attention" : "Inventory looks healthy"}
                 </Text>
@@ -57,65 +71,76 @@ export default function DashboardScreen() {
                     : "No low-stock products right now"}
                 </Text>
               </View>
-              <Text style={styles.alertCount}>{data.lowStockProductCount}</Text>
             </View>
+
+            {/* Metric grid */}
             <View style={styles.grid}>
-              <Metric accent={colors.primary} label="Products" sublabel="Active SKUs" value={data.totalProducts} />
-              <Metric accent={colors.info} label="Filtered Sales" sublabel={`${data.selectedOrderCount || 0} invoices`} value={`Rs ${formatMoney(data.selectedSales)}`} />
-              <Metric accent={colors.purple} label="Month Sales" sublabel="Running month" value={`Rs ${formatMoney(data.monthSales)}`} />
-              <Metric accent={colors.accent} label="Filtered Profit" sublabel="Gross margin" value={`Rs ${formatMoney(data.todayProfit)}`} />
+              <Metric icon="cube-outline" iconBg={colors.blueSoft} iconColor={colors.info} label="Products" sublabel="Active SKUs" value={data.totalProducts} />
+              <Metric icon="receipt-outline" iconBg={colors.tealSoft} iconColor={colors.primary} label="Filtered Sales" sublabel={`${data.selectedOrderCount || 0} invoices`} value={`₹${formatMoney(data.selectedSales)}`} />
+              <Metric icon="trending-up-outline" iconBg={"#F1EBFE"} iconColor={colors.purple} label="Month Sales" sublabel="Running month" value={`₹${formatMoney(data.monthSales)}`} />
+              <Metric icon="cash-outline" iconBg={colors.orangeSoft} iconColor={colors.accent} label="Filtered Profit" sublabel="Gross margin" value={`₹${formatMoney(data.todayProfit)}`} />
             </View>
+
+            {/* Stock movement */}
             <View style={styles.panel}>
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.section}>Stock Movement</Text>
                   <Text style={styles.sectionHint}>This month stock in vs stock out</Text>
                 </View>
-                <Text style={styles.panelPill}>Month</Text>
+                <View style={styles.panelPill}><Text style={styles.panelPillText}>Month</Text></View>
               </View>
               <View style={styles.movementGrid}>
-                <View style={styles.movementBox}>
+                <View style={[styles.movementBox, styles.movementBoxIn]}>
+                  <Ionicons color={colors.success} name="arrow-down-circle" size={20} />
                   <Text style={styles.movementIn}>{movementTotals.totalIn}</Text>
                   <Text style={styles.movementLabel}>Stock In</Text>
                 </View>
-                <View style={styles.movementBox}>
+                <View style={[styles.movementBox, styles.movementBoxOut]}>
+                  <Ionicons color={colors.danger} name="arrow-up-circle" size={20} />
                   <Text style={styles.movementOut}>{movementTotals.totalOut}</Text>
                   <Text style={styles.movementLabel}>Stock Out</Text>
                 </View>
               </View>
             </View>
+
+            {/* Sales chart */}
             <View style={styles.panel}>
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.section}>Monthly sales</Text>
                   <Text style={styles.sectionHint}>Last available sales totals</Text>
                 </View>
-                <Text style={styles.panelPill}>Rs</Text>
+                <View style={styles.panelPill}><Text style={styles.panelPillText}>₹</Text></View>
               </View>
               <LineChart
                 data={{ labels: chartData.map((item: any) => item.month), datasets: [{ data: chartData.map((item: any) => item.total) }] }}
                 width={chartWidth}
-                height={210}
+                height={200}
                 chartConfig={{
                   backgroundGradientFrom: colors.surface,
                   backgroundGradientTo: colors.surface,
-                  color: (opacity = 1) => `rgba(252, 128, 25, ${opacity})`,
+                  color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
                   decimalPlaces: 0,
                   labelColor: () => colors.muted,
-                  propsForBackgroundLines: { stroke: "#dbeafe" },
+                  propsForBackgroundLines: { stroke: colors.border },
                   propsForDots: { r: "4", strokeWidth: "2", stroke: colors.surface },
                 }}
                 bezier
                 style={styles.chart}
               />
             </View>
+
+            {/* Low stock list */}
             <View style={styles.panel}>
               <View style={styles.panelHeader}>
                 <View>
                   <Text style={styles.section}>Low stock alerts</Text>
                   <Text style={styles.sectionHint}>Products below threshold</Text>
                 </View>
-                <Text style={styles.panelPill}>{data.lowStockProductCount}</Text>
+                <View style={[styles.panelPill, data.lowStockProductCount > 0 && styles.panelPillWarn]}>
+                  <Text style={[styles.panelPillText, data.lowStockProductCount > 0 && styles.panelPillTextWarn]}>{data.lowStockProductCount}</Text>
+                </View>
               </View>
               {data.lowStockProducts?.length ? (
                 data.lowStockProducts.map((item: any) => (
@@ -159,10 +184,12 @@ function getDateRange(preset: DatePreset) {
   return { dateFrom: from.toISOString(), dateTo: now.toISOString() };
 }
 
-function Metric({ accent, label, sublabel, value }: { accent: string; label: string; sublabel: string; value: string | number }) {
+function Metric({ icon, iconBg, iconColor, label, sublabel, value }: { icon: any; iconBg: string; iconColor: string; label: string; sublabel: string; value: string | number }) {
   return (
     <View style={styles.metric}>
-      <View style={[styles.metricAccent, { backgroundColor: accent }]} />
+      <View style={[styles.metricIconWrap, { backgroundColor: iconBg }]}>
+        <Ionicons color={iconColor} name={icon} size={18} />
+      </View>
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricSubLabel}>{sublabel}</Text>
@@ -176,45 +203,58 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "800", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 30, fontWeight: "900", marginTop: 2 },
-  liveBadge: { alignItems: "center", backgroundColor: colors.greenSoft, borderColor: colors.success, borderRadius: 999, borderWidth: 1, flexDirection: "row", paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  liveDot: { backgroundColor: colors.success, borderRadius: 5, height: 10, marginRight: 6, width: 10 },
-  liveText: { color: colors.text, fontWeight: "800" },
-  filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  filterChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  filterChipActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
-  filterChipText: { color: colors.text, fontWeight: "800" },
-  filterChipTextActive: { color: colors.primaryDark },
-  alertBanner: { alignItems: "center", borderRadius: 8, flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md, padding: spacing.md },
-  alertHot: { backgroundColor: colors.orangeSoft, borderColor: colors.warning, borderWidth: 1 },
-  alertCalm: { backgroundColor: colors.greenSoft, borderColor: colors.success, borderWidth: 1 },
-  alertTitle: { color: colors.text, fontSize: 16, fontWeight: "900" },
-  alertText: { color: colors.muted, marginTop: 4 },
-  alertCount: { color: colors.accent, fontSize: 30, fontWeight: "900" },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, fontSize: 26, marginTop: 2 },
+  liveBadge: { alignItems: "center", backgroundColor: colors.greenSoft, borderRadius: radius.pill, flexDirection: "row", paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  liveDot: { backgroundColor: colors.success, borderRadius: 4, height: 8, marginRight: 6, width: 8 },
+  liveText: { color: colors.success, fontSize: 12, fontWeight: "800" },
+
+  filterRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.md },
+  filterChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: 9 },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterChipText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  filterChipTextActive: { color: "#fff" },
+
+  alertBanner: { alignItems: "center", borderRadius: radius.md, flexDirection: "row", marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  alertHot: { backgroundColor: colors.orangeSoft },
+  alertCalm: { backgroundColor: colors.greenSoft },
+  alertIconWrap: { marginRight: spacing.sm },
+  alertCopy: { flex: 1 },
+  alertTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  alertText: { color: colors.muted, fontSize: 12, fontWeight: "600", marginTop: 2 },
+
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  metric: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minHeight: 126, overflow: "hidden", padding: spacing.md, width: "48%" },
-  metricAccent: { borderRadius: 999, height: 5, marginBottom: spacing.md, width: 42 },
-  metricValue: { color: colors.text, fontSize: 22, fontWeight: "900" },
-  metricLabel: { color: colors.text, fontWeight: "800", marginTop: spacing.xs },
-  metricSubLabel: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  metric: { backgroundColor: colors.surface, borderRadius: radius.md, minHeight: 128, padding: spacing.md, width: "48%", ...shadows.card },
+  metricIconWrap: { alignItems: "center", borderRadius: radius.sm, height: 34, justifyContent: "center", marginBottom: spacing.sm, width: 34 },
+  metricValue: { color: colors.text, fontSize: 19, fontWeight: "900" },
+  metricLabel: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 4 },
+  metricSubLabel: { color: colors.muted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+
+  panel: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  sectionHint: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  panelPill: { backgroundColor: colors.background, borderRadius: 999, color: colors.primaryDark, fontWeight: "900", minWidth: 34, overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: "center" },
-  chart: { borderRadius: 8, marginLeft: -spacing.sm },
-  stockRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", paddingVertical: spacing.sm },
-  stockMarker: { backgroundColor: colors.danger, borderRadius: 999, height: 34, marginRight: spacing.sm, width: 5 },
-  stockInfo: { flex: 1 },
-  stockName: { color: colors.text, fontWeight: "800" },
-  stockSku: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  stockQty: { alignItems: "center", backgroundColor: colors.orangeSoft, borderRadius: 8, minWidth: 58, padding: spacing.xs },
-  stockQtyNumber: { color: colors.danger, fontSize: 18, fontWeight: "900" },
-  stockQtyLabel: { color: colors.muted, fontSize: 11 },
+  section: { color: colors.text, ...typography.h3 },
+  sectionHint: { color: colors.muted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  panelPill: { backgroundColor: colors.surfaceTint, borderRadius: radius.pill, minWidth: 40, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  panelPillWarn: { backgroundColor: colors.orangeSoft },
+  panelPillText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  panelPillTextWarn: { color: colors.warning },
+
+  chart: { borderRadius: radius.sm, marginLeft: -spacing.sm },
+
   movementGrid: { flexDirection: "row", gap: spacing.sm },
-  movementBox: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flex: 1, padding: spacing.md },
-  movementIn: { color: colors.success, fontSize: 26, fontWeight: "900" },
-  movementOut: { color: colors.danger, fontSize: 26, fontWeight: "900" },
-  movementLabel: { color: colors.muted, fontWeight: "800", marginTop: 4 },
+  movementBox: { alignItems: "flex-start", borderRadius: radius.sm, flex: 1, padding: spacing.md },
+  movementBoxIn: { backgroundColor: colors.greenSoft },
+  movementBoxOut: { backgroundColor: colors.redSoft },
+  movementIn: { color: colors.success, fontSize: 24, fontWeight: "900", marginTop: 6 },
+  movementOut: { color: colors.danger, fontSize: 24, fontWeight: "900", marginTop: 6 },
+  movementLabel: { color: colors.muted, fontSize: 11, fontWeight: "700", marginTop: 2 },
+
+  stockRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", paddingVertical: spacing.sm },
+  stockMarker: { backgroundColor: colors.danger, borderRadius: radius.pill, height: 30, marginRight: spacing.sm, width: 4 },
+  stockInfo: { flex: 1 },
+  stockName: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  stockSku: { color: colors.muted, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  stockQty: { alignItems: "center", backgroundColor: colors.orangeSoft, borderRadius: radius.sm, minWidth: 54, paddingVertical: 6 },
+  stockQtyNumber: { color: colors.danger, fontSize: 16, fontWeight: "900" },
+  stockQtyLabel: { color: colors.muted, fontSize: 10, fontWeight: "700" },
 });

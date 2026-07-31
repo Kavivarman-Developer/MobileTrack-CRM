@@ -25,14 +25,15 @@ async function getDashboard(req, res, next) {
     const today = startOfDay(now);
     const month = new Date(now.getFullYear(), now.getMonth(), 1);
     const selectedRange = getDateRange(req.query);
-    const selectedMatch = selectedRange ? { createdAt: selectedRange } : { createdAt: { $gte: today } };
+    const orgMatch = { organizationId: req.orgId };
+    const selectedMatch = selectedRange ? { ...orgMatch, createdAt: selectedRange } : { ...orgMatch, createdAt: { $gte: today } };
 
-    const expenseMatch = selectedRange ? { date: selectedRange } : { date: { $gte: today } };
+    const expenseMatch = selectedRange ? { ...orgMatch, date: selectedRange } : { ...orgMatch, date: { $gte: today } };
     const [totalProducts, lowStockProductCount, todaySalesAgg, monthSalesAgg, selectedSalesAgg, profitItems, expenseAgg, monthlySales] = await Promise.all([
-      Product.countDocuments(),
-      Product.countDocuments({ $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }),
-      Order.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" } } }]),
-      Order.aggregate([{ $match: { createdAt: { $gte: month } } }, { $group: { _id: null, total: { $sum: "$total" } } }]),
+      Product.countDocuments(orgMatch),
+      Product.countDocuments({ ...orgMatch, $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }),
+      Order.aggregate([{ $match: { ...orgMatch, createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" } } }]),
+      Order.aggregate([{ $match: { ...orgMatch, createdAt: { $gte: month } } }, { $group: { _id: null, total: { $sum: "$total" } } }]),
       Order.aggregate([{ $match: selectedMatch }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
       OrderItem.aggregate([
         { $match: selectedMatch },
@@ -40,13 +41,13 @@ async function getDashboard(req, res, next) {
       ]),
       Expense.aggregate([{ $match: expenseMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Order.aggregate([
-        { $match: { createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } } },
+        { $match: { ...orgMatch, createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } } },
         { $group: { _id: { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } }, total: { $sum: "$total" } } },
         { $sort: { "_id.y": 1, "_id.m": 1 } },
       ]),
     ]);
 
-    const lowStockProducts = await Product.find({ $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }).limit(8);
+    const lowStockProducts = await Product.find({ ...orgMatch, $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }).limit(8);
     res.json({
       totalProducts,
       todaySales: todaySalesAgg[0]?.total || 0,

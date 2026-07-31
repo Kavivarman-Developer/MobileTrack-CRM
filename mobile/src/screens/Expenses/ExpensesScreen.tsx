@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, spacing } from "../../constants/theme";
 import { createExpense, deleteExpense, Expense, getExpenses, updateExpense } from "../../services/api";
@@ -98,7 +98,7 @@ export default function ExpensesScreen({ navigation }: any) {
             <Text style={styles.title}>{editing ? "Edit Expense" : "Add Expense"}</Text>
             <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeButton}><Text style={styles.closeText}>x</Text></TouchableOpacity>
           </View>
-          <View style={styles.formCard}>
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled" style={styles.formCard}>
             <Text style={styles.label}>Description</Text>
             <Field onChangeText={(value) => setForm((prev) => ({ ...prev, description: value }))} value={form.description} />
             <Text style={styles.label}>Amount</Text>
@@ -110,7 +110,7 @@ export default function ExpensesScreen({ navigation }: any) {
             <Text style={styles.label}>Notes</Text>
             <Field onChangeText={(value) => setForm((prev) => ({ ...prev, notes: value }))} value={form.notes} />
             <Button loading={save.isPending} onPress={() => save.mutate()} title="Save expense" />
-          </View>
+          </ScrollView>
         </Screen>
       </Modal>
     </Screen>
@@ -122,15 +122,15 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
+  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
-  backButton: { alignItems: "center", backgroundColor: colors.blueSoft, borderColor: colors.secondary, borderRadius: 8, borderWidth: 1, minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.md },
-  backText: { color: colors.secondary, fontWeight: "900" },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 30, fontWeight: "900" },
-  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 48, justifyContent: "center", width: 48 },
-  addButtonText: { color: "#fff", fontSize: 28, fontWeight: "700", marginTop: -2 },
-  filters: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  backButton: { alignItems: "center", backgroundColor: colors.blueSoft, borderColor: colors.secondary, borderRadius: 8, borderWidth: 1, minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.sm },
+  backText: { color: colors.secondary, fontWeight: "900", fontSize: 12 },
+  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  title: { color: colors.text, fontSize: 24, fontWeight: "900" },
+  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 42, justifyContent: "center", width: 42 },
+  addButtonText: { color: "#fff", fontSize: 24, fontWeight: "700", marginTop: -2 },
+  filters: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   filterHalf: { flex: 1 },
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.xs },
   totalCard: { backgroundColor: colors.accent, borderRadius: 8, marginBottom: spacing.md, padding: spacing.md },
@@ -149,5 +149,6 @@ const styles = StyleSheet.create({
   deleteText: { color: colors.danger, fontWeight: "900" },
   closeButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 42, justifyContent: "center", width: 42 },
   closeText: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.md },
+  formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1 },
+  modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
 });

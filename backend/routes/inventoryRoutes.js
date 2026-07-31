@@ -19,6 +19,7 @@ const {
   updateProduct,
 } = require("../controllers/inventoryController");
 const { protect } = require("../middleware/auth");
+const { tenantScope } = require("../middleware/tenantScope");
 
 const router = express.Router();
 const storage = multer.diskStorage({
@@ -30,7 +31,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-router.use(protect);
+router.use(protect, tenantScope);
 router.route("/products").get(listProducts).post(createProduct);
 router.get("/products/scan/:code", scanProduct);
 router.get("/stock-summary", getStockSummary);

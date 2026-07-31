@@ -4,6 +4,10 @@ const OrderItem = require("../models/OrderItem");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
 
+function scoped(orgId, extra = {}) {
+  return orgId ? { ...extra, organizationId: orgId } : { ...extra, _id: null };
+}
+
 function normalizeItems(items) {
   return items.map((item) => ({
     product: item.product || item.productId,
@@ -11,7 +15,7 @@ function normalizeItems(items) {
   }));
 }
 
-async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, paymentStatus = "paid", paymentMethod, paymentRef, createdBy }, session) {
+async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, paymentStatus = "paid", paymentMethod, paymentRef, createdBy, organizationId }, session) {
   const normalizedItems = normalizeItems(items);
   if (!normalizedItems.length) {
     const error = new Error("At least one product is required");
@@ -25,7 +29,15 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
   }
 
   const productIds = normalizedItems.map((item) => item.product);
-  const products = await Product.find({ _id: { $in: productIds } }).session(session);
+  if (customer) {
+    const customerExists = await Customer.exists(scoped(organizationId, { _id: customer })).session(session);
+    if (!customerExists) {
+      const error = new Error("Customer not found");
+      error.statusCode = 404;
+      throw error;
+    }
+  }
+  const products = await Product.find(scoped(organizationId, { _id: { $in: productIds } })).session(session);
   const byId = new Map(products.map((product) => [product._id.toString(), product]));
 
   let subtotal = 0;
@@ -45,7 +57,7 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
   }
 
   const total = Math.max(subtotal - Number(discount) + Number(gst), 0);
-  const [order] = await Order.create([{ customer, subtotal, discount, gst, total, paymentStatus, paymentMethod, paymentRef }], { session });
+  const [order] = await Order.create([{ organizationId, customer, subtotal, discount, gst, total, paymentStatus, paymentMethod, paymentRef }], { session });
   const orderItems = [];
   const movements = [];
 
@@ -55,6 +67,7 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
     await product.save({ session });
     const [orderItem] = await OrderItem.create([{
       order: order._id,
+      organizationId,
       product: product._id,
       qty: item.qty,
       price: product.price,
@@ -63,6 +76,7 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
     orderItems.push(orderItem._id);
     movements.push({
       product: product._id,
+      organizationId,
       type: "OUT",
       quantity: item.qty,
       reason: "sale",
@@ -75,7 +89,7 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
   order.items = orderItems;
   await order.save({ session });
   if (customer && paymentStatus !== "paid") {
-    await Customer.findByIdAndUpdate(customer, { $inc: { pendingBalance: total } }, { session });
+    await Customer.findOneAndUpdate(scoped(organizationId, { _id: customer }), { $inc: { pendingBalance: total } }, { session });
   }
 
   return order;
@@ -86,9 +100,9 @@ async function createOrder(req, res, next) {
   try {
     let order;
     await session.withTransaction(async () => {
-      order = await createSaleOrder({ ...req.body, createdBy: req.user?._id }, session);
+      order = await createSaleOrder({ ...req.body, createdBy: req.user?._id, organizationId: req.orgId }, session);
     });
-    const saved = await Order.findById(order._id).populate("customer items").populate({ path: "items", populate: "product" });
+    const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
     req.app.get("io")?.emit("sales:created", saved);
     res.status(201).json(saved);
   } catch (error) {
@@ -111,9 +125,10 @@ async function quickSale(req, res, next) {
         paymentMethod: req.body.paymentMethod || "cash",
         paymentRef: req.body.paymentRef,
         createdBy: req.user?._id,
+        organizationId: req.orgId,
       }, session);
     });
-    const saved = await Order.findById(order._id).populate("customer items").populate({ path: "items", populate: "product" });
+    const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
     req.app.get("io")?.emit("sales:created", saved);
     res.status(201).json(saved);
   } catch (error) {
@@ -126,7 +141,7 @@ async function quickSale(req, res, next) {
 
 async function listOrders(req, res, next) {
   try {
-    const query = req.query.customer ? { customer: req.query.customer } : {};
+    const query = scoped(req.orgId, req.query.customer ? { customer: req.query.customer } : {});
     if (req.query.dateFrom || req.query.dateTo) {
       query.createdAt = {};
       if (req.query.dateFrom) query.createdAt.$gte = new Date(req.query.dateFrom);

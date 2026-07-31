@@ -8,7 +8,8 @@
     "seed": "node scripts/seed.js",
     "migrate:products": "node scripts/migrateProductFields.js",
     "migrate:tenants": "node scripts/migrateToMultiTenant.js",
-    "seed:superadmin": "node scripts/createSuperAdmin.js"
+    "seed:superadmin": "node scripts/createSuperAdmin.js",
+    "debug:user": "node scripts/debugUser.js"
   },
   "keywords": [],
   "author": "",

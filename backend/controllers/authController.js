@@ -3,6 +3,12 @@ const Organization = require("../models/Organization");
 const User = require("../models/User");
 const { signAccessToken, signRefreshToken } = require("../utils/tokens");
 
+const GOOGLE_AUDIENCE = [
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_ID_ANDROID,
+  process.env.GOOGLE_CLIENT_ID_IOS,
+].filter(Boolean);
+
 async function authPayload(user) {
   if (user.role && !["superadmin", "admin", "staff"].includes(user.role)) user.role = "admin";
   if (user.role !== "superadmin" && user.organizationId) {
@@ -67,10 +73,10 @@ async function googleLogin(req, res, next) {
   try {
     const { idToken, businessName } = req.body;
     if (!idToken) return res.status(400).json({ message: "Google ID token is required" });
-    if (!process.env.GOOGLE_CLIENT_ID) return res.status(500).json({ message: "Google login is not configured" });
+    if (!GOOGLE_AUDIENCE.length) return res.status(500).json({ message: "Google login is not configured" });
 
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-    const ticket = await client.verifyIdToken({ idToken, audience: process.env.GOOGLE_CLIENT_ID });
+    const client = new OAuth2Client();
+    const ticket = await client.verifyIdToken({ idToken, audience: GOOGLE_AUDIENCE });
     const payload = ticket.getPayload();
     if (!payload?.email) return res.status(401).json({ message: "Google account email is required" });
 

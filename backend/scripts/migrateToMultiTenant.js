@@ -24,6 +24,12 @@ async function updateModel(Model, organizationId) {
 
 async function migrate() {
   await connectDB();
+
+  await Product.collection.dropIndex("organizationId_1_barcode_1").catch(() => {});
+  await Product.collection.dropIndex("organizationId_1_sku_1").catch(() => {});
+  await Product.collection.dropIndex("sku_1").catch(() => {});
+  await Product.collection.dropIndex("barcode_1").catch(() => {});
+
   const owner = await User.findOne({ email: DEFAULT_ADMIN_EMAIL });
   if (!owner) throw new Error(`Owner user not found: ${DEFAULT_ADMIN_EMAIL}`);
 
@@ -50,8 +56,6 @@ async function migrate() {
     stockMovements: await updateModel(StockMovement, organization._id),
   };
 
-  await Product.collection.dropIndex("sku_1").catch(() => {});
-  await Product.collection.dropIndex("barcode_1").catch(() => {});
   await Product.syncIndexes();
 
   console.log("Migration complete", {

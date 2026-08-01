@@ -14,7 +14,7 @@ const productSchema = new mongoose.Schema(
     images: [String],
     type: { type: String, enum: ["standalone", "accessory"], default: "standalone" },
     compatibleWith: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
-    barcode: { type: String, sparse: true, trim: true },
+    barcode: { type: String, trim: true },
     itemType: { type: String, enum: ["goods", "service"], default: "goods" },
     unit: { type: String, default: "pcs" },
     returnable: { type: Boolean, default: true },
@@ -48,8 +48,14 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productSchema.index({ organizationId: 1, sku: 1 }, { unique: true });
-productSchema.index({ organizationId: 1, barcode: 1 }, { unique: true, sparse: true });
+productSchema.index(
+  { organizationId: 1, sku: 1 },
+  { unique: true, partialFilterExpression: { sku: { $type: "string", $gt: "" } } }
+);
+productSchema.index(
+  { organizationId: 1, barcode: 1 },
+  { unique: true, partialFilterExpression: { barcode: { $type: "string", $gt: "" } } }
+);
 
 productSchema.pre("validate", function syncZohoInventoryFields(next) {
   if (this.sellingPrice === undefined || this.sellingPrice === null) this.sellingPrice = this.price;

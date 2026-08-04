@@ -21,11 +21,12 @@ export default function VendorsScreen({ navigation }: any) {
   const [callsOpen, setCallsOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [callDate, setCallDate] = useState(todayKey());
   const [callNote, setCallNote] = useState("");
   const [form, setForm] = useState(blank);
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
   const callSummary = useQuery({ queryKey: ["vendor-call-summary"], queryFn: () => getVendorCallSummary(7) });
-  const calls = useQuery({ queryKey: ["vendor-calls", selectedVendor?._id], queryFn: () => getVendorCalls(selectedVendor!._id), enabled: !!selectedVendor?._id && callsOpen });
+  const calls = useQuery({ queryKey: ["vendor-calls", selectedVendor?._id, callDate], queryFn: () => getVendorCalls(selectedVendor!._id, callDate), enabled: !!selectedVendor?._id && callsOpen });
   const queryClient = useQueryClient();
   const save = useMutation({
     mutationFn: () => (editing ? updateVendor(editing._id, form) : createVendor(form)),
@@ -46,7 +47,7 @@ export default function VendorsScreen({ navigation }: any) {
       createVendorCall(selectedVendor!._id, { type, note, phone: selectedVendor?.phone }),
     onSuccess: () => {
       setCallNote("");
-      queryClient.invalidateQueries({ queryKey: ["vendor-calls", selectedVendor?._id] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-calls", selectedVendor?._id, callDate] });
       queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
     },
     onError: (error: Error) => Alert.alert("Call log failed", error.message),
@@ -77,7 +78,14 @@ export default function VendorsScreen({ navigation }: any) {
   function openCalls(vendor: Vendor) {
     setSelectedVendor(vendor);
     setCallNote("");
+    setCallDate(todayKey());
     setCallsOpen(true);
+  }
+
+  function shiftCallDate(days: number) {
+    const date = new Date(`${callDate}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    setCallDate(date.toISOString().slice(0, 10));
   }
 
   return (
@@ -199,6 +207,14 @@ export default function VendorsScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
           <View style={styles.formCard}>
+            <View style={styles.dateSwitcher}>
+              <TouchableOpacity onPress={() => shiftCallDate(-1)} style={styles.dateButton}><Ionicons color={colors.primaryDark} name="chevron-back" size={18} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setCallDate(todayKey())} style={styles.dateCenter}>
+                <Text style={styles.dateTitle}>{formatDay(callDate)}</Text>
+                <Text style={styles.dateHint}>{callDate === todayKey() ? "Today selected" : callDate}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => shiftCallDate(1)} style={styles.dateButton}><Ionicons color={colors.primaryDark} name="chevron-forward" size={18} /></TouchableOpacity>
+            </View>
             <View style={styles.callActions}>
               <TouchableOpacity onPress={() => selectedVendor && callVendor(selectedVendor)} style={[styles.callAction, styles.callActionDial]}>
                 <Ionicons color="#fff" name="call" size={18} />
@@ -257,6 +273,10 @@ function formatDay(value: string) {
   return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
@@ -304,6 +324,11 @@ const styles = StyleSheet.create({
   fieldLabelRow: { alignItems: "center", flexDirection: "row", gap: 5, marginBottom: spacing.xs },
   label: { color: colors.text, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
   callActions: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  dateSwitcher: { alignItems: "center", flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  dateButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 44, justifyContent: "center", width: 44 },
+  dateCenter: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, minHeight: 44, justifyContent: "center" },
+  dateTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  dateHint: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   callAction: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, gap: 4, justifyContent: "center", minHeight: 58 },
   callActionDial: { backgroundColor: colors.success, borderColor: colors.success },
   callActionText: { color: colors.text, fontSize: 12, fontWeight: "800" },

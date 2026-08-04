@@ -58,7 +58,15 @@ async function listVendorCalls(req, res, next) {
   try {
     const vendor = await Vendor.exists(scoped(req, { _id: req.params.id }));
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-    res.json(await VendorCall.find(scoped(req, { vendor: req.params.id })).sort({ occurredAt: -1 }).limit(50));
+    const query = { vendor: req.params.id };
+    if (req.query.date) {
+      const start = new Date(req.query.date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      query.occurredAt = { $gte: start, $lt: end };
+    }
+    res.json(await VendorCall.find(scoped(req, query)).sort({ occurredAt: -1 }).limit(100));
   } catch (error) {
     next(error);
   }

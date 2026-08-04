@@ -1,10 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as AuthSession from "expo-auth-session";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { z } from "zod";
@@ -12,27 +9,14 @@ import { Button, Field } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
-import { googleLogin, login } from "../../services/api";
-
-WebBrowser.maybeCompleteAuthSession();
+import { login } from "../../services/api";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(6) });
 type FormValues = z.infer<typeof schema>;
 
-const nativeRedirectUri = AuthSession.makeRedirectUri({ scheme: "mobiletrackcrm" });
-
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const [showPassword, setShowPassword] = useState(false);
-  const handledWebRedirect = useRef(false);
-  const redirectUri = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : nativeRedirectUri;
-  console.log("Google redirect URI", redirectUri);
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    redirectUri,
-    scopes: ["openid", "profile", "email"],
-  });
   const { control, handleSubmit } = useForm<FormValues>({
     defaultValues: { email: "", password: "" },
     resolver: zodResolver(schema),
@@ -42,52 +26,6 @@ export default function LoginScreen() {
     onSuccess: (data) => dispatch(setCredentials(data)),
     onError: (error: Error) => Alert.alert("Login failed", error.message),
   });
-  const googleMutation = useMutation({
-    mutationFn: (idToken: string) => googleLogin(idToken),
-    onSuccess: (data) => dispatch(setCredentials(data)),
-    onError: (error: Error) => Alert.alert("Google login failed", error.message),
-  });
-
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined" || handledWebRedirect.current) return;
-    const query = new URLSearchParams(window.location.search);
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const idToken = query.get("id_token") || hash.get("id_token");
-    const authError = query.get("error") || hash.get("error");
-    if (authError) {
-      handledWebRedirect.current = true;
-      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
-      Alert.alert("Google login failed", authError);
-      return;
-    }
-    if (!idToken) return;
-    handledWebRedirect.current = true;
-    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
-    googleMutation.mutate(idToken);
-  }, []);
-
-  useEffect(() => {
-    if (response?.type !== "success") return;
-    const idToken = response.authentication?.idToken || response.params?.id_token;
-    if (!idToken) {
-      Alert.alert("Google login failed", "Google did not return an ID token.");
-      return;
-    }
-    googleMutation.mutate(idToken);
-  }, [response]);
-
-  function continueWithGoogle() {
-    if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID) {
-      Alert.alert("Google login not configured", "Set EXPO_PUBLIC_GOOGLE_CLIENT_ID in mobile/.env first.");
-      return;
-    }
-    if (Platform.OS === "web") {
-      if (!request?.url || typeof window === "undefined") return;
-      window.location.assign(request.url);
-      return;
-    }
-    promptAsync();
-  }
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
@@ -146,15 +84,6 @@ export default function LoginScreen() {
         />
 
         <Button loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.divider} />
-        </View>
-        <Pressable disabled={!request || googleMutation.isPending} onPress={continueWithGoogle} style={({ pressed }) => [styles.googleButton, pressed && styles.googleButtonPressed]}>
-          <Ionicons color={colors.text} name="logo-google" size={18} />
-          <Text style={styles.googleText}>{googleMutation.isPending ? "Signing in..." : "Continue with Google"}</Text>
-        </Pressable>
       </View>
 
       <Text style={styles.footer}>Secured with encrypted session tokens</Text>

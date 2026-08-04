@@ -191,6 +191,10 @@ export type AdminOrganizationRow = {
   createdAt: string;
   isActive: boolean;
   plan: string;
+  billingCycle?: "monthly" | "yearly";
+  subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled";
+  subscriptionStartDate?: string;
+  subscriptionEndDate?: string;
   stats: {
     productCount: number;
     customerCount: number;
@@ -368,8 +372,8 @@ export async function deleteVendor(id: string) {
   await api.delete(`/vendors/${id}`);
 }
 
-export async function getVendorCalls(id: string) {
-  const { data } = await api.get<VendorCall[]>(`/vendors/${id}/calls`);
+export async function getVendorCalls(id: string, date?: string) {
+  const { data } = await api.get<VendorCall[]>(`/vendors/${id}/calls`, { params: { date } });
   return data;
 }
 
@@ -432,7 +436,12 @@ export async function getAdminOrganizationUsers(id: string) {
   return data;
 }
 
-export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string }) {
+export async function createShopOwner(payload: { name: string; email: string; password: string; phone?: string; businessName: string; plan?: string; billingCycle?: "monthly" | "yearly" }) {
+  const { data } = await api.post("/admin/shop-owners", payload);
+  return data;
+}
+
+export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string; billingCycle?: "monthly" | "yearly"; subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled"; renewSubscription?: boolean }) {
   const { data } = await api.patch(`/admin/organizations/${id}`, payload);
   return data;
 }

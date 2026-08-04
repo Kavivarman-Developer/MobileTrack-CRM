@@ -17,13 +17,21 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
     },
   });
+  const updateSub = useMutation({
+    mutationFn: (payload: any) => updateAdminOrganization(organizationId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-organization", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
+    },
+  });
   const dashboard = detail.data?.dashboard;
+  const organization = detail.data?.organization;
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+          <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}><Text style={styles.backText}>Back</Text></TouchableOpacity>
-          <View style={styles.headerCopy}><Text style={styles.eyebrow}>Tenant detail</Text><Text style={styles.title}>{detail.data?.organization.name || "Organization"}</Text></View>
+          <View style={styles.headerCopy}><Text style={styles.eyebrow}>Tenant detail</Text><Text style={styles.title}>{organization?.name || "Organization"}</Text></View>
         </View>
         {detail.isLoading && <Empty text="Loading organization..." />}
         {dashboard && (
@@ -37,6 +45,21 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
               <Metric icon="alert-circle-outline" label="Low Stock" value={dashboard.lowStockProductCount} />
             </View>
             <View style={styles.panel}>
+              <Text style={styles.section}>Subscription</Text>
+              <View style={styles.subscriptionCard}>
+                <Text style={styles.subscriptionTitle}>{organization?.plan || "free"} / {organization?.billingCycle || "monthly"}</Text>
+                <Text style={styles.meta}>Status: {organization?.subscriptionStatus || "trial"}</Text>
+                <Text style={styles.meta}>Ends: {organization?.subscriptionEndDate ? new Date(organization.subscriptionEndDate).toLocaleDateString() : "Not set"}</Text>
+                <View style={styles.segment}>
+                  <Choice active={organization?.billingCycle === "monthly"} label="Monthly" onPress={() => updateSub.mutate({ billingCycle: "monthly", renewSubscription: true })} />
+                  <Choice active={organization?.billingCycle === "yearly"} label="Yearly" onPress={() => updateSub.mutate({ billingCycle: "yearly", renewSubscription: true })} />
+                </View>
+                <View style={styles.segment}>
+                  <Choice active={organization?.subscriptionStatus === "active"} label="Active" onPress={() => updateSub.mutate({ subscriptionStatus: "active", isActive: true })} />
+                  <Choice active={organization?.subscriptionStatus === "past_due"} label="Past due" onPress={() => updateSub.mutate({ subscriptionStatus: "past_due" })} />
+                  <Choice active={organization?.subscriptionStatus === "cancelled"} label="Cancel" onPress={() => updateSub.mutate({ subscriptionStatus: "cancelled", isActive: false })} />
+                </View>
+              </View>
               <Text style={styles.section}>Users</Text>
               {(users.data || []).map((user) => (
                 <View key={user._id} style={styles.userRow}>
@@ -45,7 +68,7 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
                 </View>
               ))}
             </View>
-            <Button loading={toggle.isPending} onPress={() => toggle.mutate()} title={detail.data?.organization.isActive ? "Suspend organization" : "Reactivate organization"} />
+            <Button loading={toggle.isPending} onPress={() => toggle.mutate()} title={organization?.isActive ? "Suspend organization" : "Reactivate organization"} />
           </>
         )}
       </ScrollView>
@@ -55,6 +78,10 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
 
 function Metric({ icon, label, value }: { icon: any; label: string; value: string | number }) {
   return <View style={styles.metric}><Ionicons color={colors.primaryDark} name={icon} size={20} /><Text numberOfLines={1} style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+}
+
+function Choice({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  return <TouchableOpacity onPress={onPress} style={[styles.choice, active && styles.choiceActive]}><Text style={styles.choiceText}>{label}</Text></TouchableOpacity>;
 }
 
 function formatMoney(value: number) {
@@ -75,6 +102,12 @@ const styles = StyleSheet.create({
   metricLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
   panel: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
   section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
+  subscriptionCard: { backgroundColor: colors.background, borderRadius: radius.sm, marginBottom: spacing.md, padding: spacing.md },
+  subscriptionTitle: { color: colors.text, fontSize: 16, fontWeight: "900", marginBottom: 2, textTransform: "capitalize" },
+  segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  choiceActive: { backgroundColor: colors.orangeSoft, borderColor: colors.primary },
+  choiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
   userRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
   userName: { color: colors.text, fontWeight: "900" },
   meta: { color: colors.muted, fontSize: 12, marginTop: 2 },

@@ -74,9 +74,9 @@ export default function PurchasesScreen({ navigation }: any) {
           <DateTimePicker
             mode="date"
             value={new Date(`${customDate}T00:00:00`)}
-            onChange={(_, date) => {
+            onChange={(event, date) => {
               setShowDatePicker(false);
-              if (date) {
+              if ((event as any)?.type !== "dismissed" && date) {
                 setCustomDate(toDateKey(date));
                 setDatePreset("custom");
               }
@@ -204,7 +204,7 @@ function formatDay(value: string) {
 
 function getDateParams(preset: DatePreset, customDate: string) {
   const now = new Date();
-  if (preset === "custom") return { from: new Date(`${customDate}T00:00:00`).toISOString(), to: new Date(`${customDate}T23:59:59`).toISOString() };
+  if (preset === "custom") return { date: customDate };
   if (preset === "month") return { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` };
   const from = new Date(now);
   if (preset === "today") from.setHours(0, 0, 0, 0);

@@ -21,8 +21,20 @@ function totalFor(items) {
   return items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.costPrice || 0), 0);
 }
 
+function localDayRange(dateKey) {
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || "")) ? dateKey : new Date().toISOString().slice(0, 10);
+  const start = new Date(`${key}T00:00:00+05:30`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
 function dateRange(query) {
   const range = {};
+  if (query.date) {
+    const day = localDayRange(query.date);
+    return { $gte: day.start, $lt: day.end };
+  }
   if (query.from) range.$gte = new Date(query.from);
   if (query.to) {
     const end = new Date(query.to);

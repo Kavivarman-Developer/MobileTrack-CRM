@@ -120,9 +120,9 @@ export default function VendorsScreen({ navigation }: any) {
     setCallDate(toDateKey(date));
   }
 
-  function changeCallDate(date?: Date) {
+  function onDatePickerChange(event: any, date?: Date) {
     setShowDatePicker(false);
-    if (date) setCallDate(toDateKey(date));
+    if (event?.type !== "dismissed" && date) setCallDate(toDateKey(date));
   }
 
   return (
@@ -164,7 +164,7 @@ export default function VendorsScreen({ navigation }: any) {
           <DateTimePicker
             mode="date"
             value={new Date(`${callDate}T00:00:00`)}
-            onChange={(_, date) => changeCallDate(date)}
+            onChange={onDatePickerChange}
           />
         )}
         {syncingCalls && <Text style={styles.syncText}>Syncing call logs...</Text>}
@@ -266,7 +266,7 @@ export default function VendorsScreen({ navigation }: any) {
           <View style={styles.formCard}>
             <View style={styles.dateSwitcher}>
               <TouchableOpacity onPress={() => shiftCallDate(-1)} style={styles.dateButton}><Ionicons color={colors.primaryDark} name="chevron-back" size={18} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => setCallDate(todayKey())} style={styles.dateCenter}>
+              <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateCenter}>
                 <Text style={styles.dateTitle}>{formatDayLong(callDate)}</Text>
                 <Text style={styles.dateHint}>{callDate === todayKey() ? "Today selected" : callDate}</Text>
               </TouchableOpacity>

@@ -398,7 +398,7 @@ export async function getVendorCallSummary(days = 7, date?: string) {
   return data;
 }
 
-export async function getPurchaseOrders(params?: { search?: string; from?: string; to?: string; month?: string }) {
+export async function getPurchaseOrders(params?: { search?: string; date?: string; from?: string; to?: string; month?: string }) {
   const { data } = await api.get<PurchaseOrder[] | PurchaseOrderList>("/purchase-orders", { params });
   if (Array.isArray(data)) return { items: data, summary: { totalAmount: data.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0), orderCount: data.length, monthly: [] } };
   return data;

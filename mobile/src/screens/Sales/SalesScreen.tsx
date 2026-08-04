@@ -70,6 +70,11 @@ export default function SalesScreen() {
     setTimeout(() => setLastScan(""), 1200);
   }
 
+  function closeCart() {
+    setCart([]);
+    setCartOpen(false);
+  }
+
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -130,7 +135,7 @@ export default function SalesScreen() {
               </View>
               <View style={styles.cartHeaderActions}>
                 <Text style={styles.panelPill}>{cart.length}</Text>
-                <TouchableOpacity onPress={() => setCartOpen(false)} style={styles.cartCloseButton}>
+                <TouchableOpacity onPress={closeCart} style={styles.cartCloseButton}>
                   <Text style={styles.cartCloseText}>x</Text>
                 </TouchableOpacity>
               </View>

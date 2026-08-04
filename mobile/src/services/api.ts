@@ -9,9 +9,7 @@ const DEFAULT_API_URL = Platform.OS === "web" ? LOCAL_WEB_API_URL : "http://192.
 
 function resolveApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  const hostname = Platform.OS === "web" && typeof window !== "undefined" ? window.location.hostname : "";
-  const isLocalWebPreview = hostname === "localhost" || hostname === "127.0.0.1";
-  if (isLocalWebPreview) return LOCAL_WEB_API_URL;
+  if (envUrl) return envUrl;
   return envUrl || DEFAULT_API_URL;
 }
 

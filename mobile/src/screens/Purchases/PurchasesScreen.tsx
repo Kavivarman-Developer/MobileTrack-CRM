@@ -1,3 +1,4 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -6,17 +7,25 @@ import { colors, spacing } from "../../constants/theme";
 import { Product, PurchaseOrder, createPurchaseOrder, getProducts, getPurchaseOrders, getVendors, receivePurchaseOrder } from "../../services/api";
 
 const blankLine = { product: "", quantity: "1", costPrice: "" };
+type DatePreset = "today" | "week" | "month" | "custom";
 
 export default function PurchasesScreen({ navigation }: any) {
   const [open, setOpen] = useState(false);
   const [vendor, setVendor] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState([blankLine]);
+  const [search, setSearch] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("week");
+  const [customDate, setCustomDate] = useState(todayKey());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
-  const purchaseOrders = useQuery({ queryKey: ["purchase-orders"], queryFn: getPurchaseOrders });
+  const filterParams = useMemo(() => ({ ...getDateParams(datePreset, customDate), search: search.trim() || undefined }), [customDate, datePreset, search]);
+  const purchaseOrders = useQuery({ queryKey: ["purchase-orders", filterParams], queryFn: () => getPurchaseOrders(filterParams) });
   const queryClient = useQueryClient();
   const total = useMemo(() => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0), [lines]);
+  const orderItems = purchaseOrders.data?.items || [];
+  const summary = purchaseOrders.data?.summary;
   const save = useMutation({
     mutationFn: () => createPurchaseOrder({ vendor, notes, status: "ordered", items: lines.map((line) => ({ product: line.product, quantity: Number(line.quantity), costPrice: Number(line.costPrice) })) as any }),
     onSuccess: (purchaseOrder) => {
@@ -24,7 +33,6 @@ export default function PurchasesScreen({ navigation }: any) {
       setVendor("");
       setNotes("");
       setLines([blankLine]);
-      queryClient.setQueryData<PurchaseOrder[]>(["purchase-orders"], (current = []) => [purchaseOrder, ...current.filter((item) => item._id !== purchaseOrder._id)]);
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       Alert.alert("Purchase order saved", "Use Receive stock when the vendor delivers the items.");
     },
@@ -33,7 +41,6 @@ export default function PurchasesScreen({ navigation }: any) {
   const receive = useMutation({
     mutationFn: receivePurchaseOrder,
     onSuccess: (purchaseOrder) => {
-      queryClient.setQueryData<PurchaseOrder[]>(["purchase-orders"], (current = []) => current.map((item) => item._id === purchaseOrder._id ? purchaseOrder : item));
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
@@ -55,10 +62,47 @@ export default function PurchasesScreen({ navigation }: any) {
         </View>
         <TouchableOpacity onPress={() => setOpen(true)} style={styles.addButton}><Text style={styles.addButtonText}>+</Text></TouchableOpacity>
       </View>
+      <View style={styles.filterPanel}>
+        <Field onChangeText={setSearch} placeholder="Search vendor name" value={search} />
+        <View style={styles.filterRow}>
+          <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
+          <FilterChip active={datePreset === "week"} label="7 Days" onPress={() => setDatePreset("week")} />
+          <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
+          <FilterChip active={datePreset === "custom"} label={formatDay(customDate)} onPress={() => { setDatePreset("custom"); setShowDatePicker(true); }} />
+        </View>
+        {showDatePicker && (
+          <DateTimePicker
+            mode="date"
+            value={new Date(`${customDate}T00:00:00`)}
+            onChange={(_, date) => {
+              setShowDatePicker(false);
+              if (date) {
+                setCustomDate(toDateKey(date));
+                setDatePreset("custom");
+              }
+            }}
+          />
+        )}
+        <View style={styles.summaryRow}>
+          <SummaryCard label="Orders" value={summary?.orderCount || 0} />
+          <SummaryCard label="Spend" value={`Rs ${formatMoney(summary?.totalAmount || 0)}`} />
+        </View>
+        {!!summary?.monthly?.length && (
+          <View style={styles.monthBox}>
+            <Text style={styles.monthTitle}>Monthly purchase report</Text>
+            {summary.monthly.slice(0, 3).map((month) => (
+              <View key={month.month} style={styles.monthRow}>
+                <Text style={styles.monthText}>{month.month}</Text>
+                <Text style={styles.monthAmount}>Rs {formatMoney(month.totalAmount)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
       <FlatList
-        data={purchaseOrders.data || []}
+        data={orderItems}
         keyExtractor={(item) => item._id}
-        ListEmptyComponent={<Empty text={purchaseOrders.isLoading ? "Loading purchase orders..." : "No purchase orders yet."} />}
+        ListEmptyComponent={<Empty text={purchaseOrders.isLoading ? "Loading purchase orders..." : "No purchases found for this filter."} />}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.main}>
@@ -125,6 +169,14 @@ function ProductSelect({ onChange, products, value }: { onChange: (value: string
   );
 }
 
+function FilterChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  return <TouchableOpacity onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}><Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text></TouchableOpacity>;
+}
+
+function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  return <View style={styles.summaryCard}><Text style={styles.summaryValue}>{value}</Text><Text style={styles.summaryLabel}>{label}</Text></View>;
+}
+
 function statusStyle(status: string) {
   if (status === "received") return { backgroundColor: colors.greenSoft };
   if (status === "cancelled") return { backgroundColor: colors.redSoft };
@@ -133,6 +185,31 @@ function statusStyle(status: string) {
 
 function formatMoney(value: number) {
   return Number(value || 0).toLocaleString("en-IN");
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function todayKey() {
+  return toDateKey(new Date());
+}
+
+function formatDay(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+}
+
+function getDateParams(preset: DatePreset, customDate: string) {
+  const now = new Date();
+  if (preset === "custom") return { from: new Date(`${customDate}T00:00:00`).toISOString(), to: new Date(`${customDate}T23:59:59`).toISOString() };
+  if (preset === "month") return { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` };
+  const from = new Date(now);
+  if (preset === "today") from.setHours(0, 0, 0, 0);
+  if (preset === "week") from.setDate(now.getDate() - 6);
+  return { from: from.toISOString(), to: now.toISOString() };
 }
 
 const styles = StyleSheet.create({
@@ -144,6 +221,21 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: "900" },
   addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 48, justifyContent: "center", width: 48 },
   addButtonText: { color: "#fff", fontSize: 28, fontWeight: "700", marginTop: -2 },
+  filterPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
+  filterChip: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  filterChipActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
+  filterChipText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  filterChipTextActive: { color: colors.primaryDark },
+  summaryRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  summaryCard: { backgroundColor: colors.background, borderRadius: 8, flex: 1, padding: spacing.sm },
+  summaryValue: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  summaryLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", marginTop: 2 },
+  monthBox: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: spacing.sm, paddingTop: spacing.sm },
+  monthTitle: { color: colors.text, fontSize: 13, fontWeight: "900", marginBottom: spacing.xs },
+  monthRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+  monthText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  monthAmount: { color: colors.primaryDark, fontSize: 12, fontWeight: "900" },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, overflow: "hidden" },
   main: { alignItems: "center", flexDirection: "row", padding: spacing.md },
   info: { flex: 1 },

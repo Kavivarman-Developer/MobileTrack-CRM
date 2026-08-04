@@ -21,9 +21,56 @@ function totalFor(items) {
   return items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.costPrice || 0), 0);
 }
 
+function dateRange(query) {
+  const range = {};
+  if (query.from) range.$gte = new Date(query.from);
+  if (query.to) {
+    const end = new Date(query.to);
+    end.setHours(23, 59, 59, 999);
+    range.$lte = end;
+  }
+  if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
+    const [year, month] = query.month.split("-").map(Number);
+    range.$gte = new Date(year, month - 1, 1);
+    range.$lt = new Date(year, month, 1);
+  }
+  return Object.keys(range).length ? range : null;
+}
+
+async function purchaseQuery(req) {
+  const query = scoped(req);
+  const range = dateRange(req.query);
+  if (range) query.orderDate = range;
+  if (req.query.search) {
+    const vendors = await Vendor.find(scoped(req, { name: new RegExp(String(req.query.search), "i") })).select("_id");
+    query.vendor = { $in: vendors.map((vendor) => vendor._id) };
+  }
+  return query;
+}
+
 async function listPurchaseOrders(req, res, next) {
   try {
-    res.json(await PurchaseOrder.find(scoped(req)).populate("vendor items.product").sort({ createdAt: -1 }));
+    const query = await purchaseQuery(req);
+    const orders = await PurchaseOrder.find(query).populate("vendor items.product").sort({ orderDate: -1, createdAt: -1 });
+    const summaryRows = await PurchaseOrder.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$orderDate", timezone: "Asia/Kolkata" } },
+          totalAmount: { $sum: "$totalAmount" },
+          orderCount: { $sum: 1 },
+          itemCount: { $sum: { $sum: "$items.quantity" } },
+        },
+      },
+      { $sort: { _id: -1 } },
+      { $limit: 12 },
+    ]);
+    const summary = {
+      totalAmount: orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0),
+      orderCount: orders.length,
+      monthly: summaryRows.map((row) => ({ month: row._id, totalAmount: row.totalAmount, orderCount: row.orderCount, itemCount: row.itemCount })),
+    };
+    res.json({ items: orders, summary });
   } catch (error) {
     next(error);
   }

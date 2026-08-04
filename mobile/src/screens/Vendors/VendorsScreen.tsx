@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Alert, AppState, FlatList, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -24,6 +23,7 @@ export default function VendorsScreen({ navigation }: any) {
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [callDate, setCallDate] = useState(todayKey());
+  const [pickerMonth, setPickerMonth] = useState(todayKey().slice(0, 7));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [syncingCalls, setSyncingCalls] = useState(false);
   const [permissionWarning, setPermissionWarning] = useState(false);
@@ -120,11 +120,6 @@ export default function VendorsScreen({ navigation }: any) {
     setCallDate(toDateKey(date));
   }
 
-  function onDatePickerChange(event: any, date?: Date) {
-    setShowDatePicker(false);
-    if (event?.type !== "dismissed" && date) setCallDate(toDateKey(date));
-  }
-
   return (
     <Screen>
       <View style={styles.header}>
@@ -160,13 +155,17 @@ export default function VendorsScreen({ navigation }: any) {
           <Ionicons color={colors.primaryDark} name="calendar-outline" size={16} />
           <Text style={styles.datePillText}>{formatDayLong(callDate)}</Text>
         </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            mode="date"
-            value={new Date(`${callDate}T00:00:00`)}
-            onChange={onDatePickerChange}
-          />
-        )}
+        <DateSelectModal
+          month={pickerMonth}
+          onChangeMonth={setPickerMonth}
+          onClose={() => setShowDatePicker(false)}
+          onSelect={(date) => {
+            setCallDate(date);
+            setShowDatePicker(false);
+          }}
+          selectedDate={callDate}
+          visible={showDatePicker}
+        />
         {syncingCalls && <Text style={styles.syncText}>Syncing call logs...</Text>}
         {permissionWarning && Platform.OS === "android" && (
           <View style={styles.permissionBanner}>
@@ -325,6 +324,31 @@ function CallStat({ label, tone, value }: { label: string; tone?: "success" | "i
   );
 }
 
+function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate, visible }: { month: string; onChangeMonth: (month: string) => void; onClose: () => void; onSelect: (date: string) => void; selectedDate: string; visible: boolean }) {
+  const days = daysInMonth(month);
+  return (
+    <Modal animationType="fade" transparent visible={visible}>
+      <View style={styles.dateOverlay}>
+        <View style={styles.dateModal}>
+          <View style={styles.dateHeader}>
+            <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, -1))} style={styles.dateNav}><Text style={styles.dateNavText}>{"<"}</Text></TouchableOpacity>
+            <Text style={styles.dateMonth}>{formatMonth(month)}</Text>
+            <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, 1))} style={styles.dateNav}><Text style={styles.dateNavText}>{">"}</Text></TouchableOpacity>
+          </View>
+          <View style={styles.dateGrid}>
+            {days.map((date) => (
+              <TouchableOpacity key={date} onPress={() => onSelect(date)} style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}>
+                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>{Number(date.slice(-2))}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.dateClose}><Text style={styles.dateCloseText}>Close</Text></TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function formatDay(value: string) {
   const date = new Date(`${value}T00:00:00`);
   return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
@@ -346,6 +370,22 @@ function todayKey() {
   return toDateKey(new Date());
 }
 
+function daysInMonth(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const count = new Date(year, month, 0).getDate();
+  return Array.from({ length: count }, (_, index) => `${monthKey}-${String(index + 1).padStart(2, "0")}`);
+}
+
+function shiftMonth(monthKey: string, amount: number) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + amount, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonth(monthKey: string) {
+  return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
   headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
@@ -365,6 +405,19 @@ const styles = StyleSheet.create({
   permissionText: { color: colors.text, flex: 1, fontSize: 12, fontWeight: "700" },
   permissionButton: { backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 7 },
   permissionButtonText: { color: colors.primaryDark, fontSize: 12, fontWeight: "900" },
+  dateOverlay: { alignItems: "center", backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "center", padding: spacing.md },
+  dateModal: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, width: "100%" },
+  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  dateNav: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 40, justifyContent: "center", width: 40 },
+  dateNavText: { color: colors.primaryDark, fontSize: 18, fontWeight: "900" },
+  dateMonth: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  dateCell: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 38, justifyContent: "center", width: "13%" },
+  dateCellActive: { backgroundColor: colors.primary },
+  dateCellText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  dateCellTextActive: { color: "#fff" },
+  dateClose: { alignItems: "center", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginTop: spacing.md, minHeight: 42, justifyContent: "center" },
+  dateCloseText: { color: colors.text, fontWeight: "900" },
   statCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, padding: spacing.sm },
   statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
   statSuccess: { color: colors.success },

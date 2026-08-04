@@ -1,4 +1,3 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -17,6 +16,7 @@ export default function PurchasesScreen({ navigation }: any) {
   const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("week");
   const [customDate, setCustomDate] = useState(todayKey());
+  const [pickerMonth, setPickerMonth] = useState(todayKey().slice(0, 7));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
@@ -70,19 +70,18 @@ export default function PurchasesScreen({ navigation }: any) {
           <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
           <FilterChip active={datePreset === "custom"} label="Date" onPress={() => { setDatePreset("custom"); setShowDatePicker(true); }} />
         </View>
-        {showDatePicker && (
-          <DateTimePicker
-            mode="date"
-            value={new Date(`${customDate}T00:00:00`)}
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if ((event as any)?.type !== "dismissed" && date) {
-                setCustomDate(toDateKey(date));
-                setDatePreset("custom");
-              }
-            }}
-          />
-        )}
+        <DateSelectModal
+          month={pickerMonth}
+          onChangeMonth={setPickerMonth}
+          onClose={() => setShowDatePicker(false)}
+          onSelect={(date) => {
+            setCustomDate(date);
+            setDatePreset("custom");
+            setShowDatePicker(false);
+          }}
+          selectedDate={customDate}
+          visible={showDatePicker}
+        />
         <View style={styles.summaryRow}>
           <SummaryCard label="Orders" value={summary?.orderCount || 0} />
           <SummaryCard label="Spend" value={`Rs ${formatMoney(summary?.totalAmount || 0)}`} />
@@ -177,6 +176,31 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
   return <View style={styles.summaryCard}><Text style={styles.summaryValue}>{value}</Text><Text style={styles.summaryLabel}>{label}</Text></View>;
 }
 
+function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate, visible }: { month: string; onChangeMonth: (month: string) => void; onClose: () => void; onSelect: (date: string) => void; selectedDate: string; visible: boolean }) {
+  const days = daysInMonth(month);
+  return (
+    <Modal animationType="fade" transparent visible={visible}>
+      <View style={styles.dateOverlay}>
+        <View style={styles.dateModal}>
+          <View style={styles.dateHeader}>
+            <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, -1))} style={styles.dateNav}><Text style={styles.dateNavText}>{"<"}</Text></TouchableOpacity>
+            <Text style={styles.dateMonth}>{formatMonth(month)}</Text>
+            <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, 1))} style={styles.dateNav}><Text style={styles.dateNavText}>{">"}</Text></TouchableOpacity>
+          </View>
+          <View style={styles.dateGrid}>
+            {days.map((date) => (
+              <TouchableOpacity key={date} onPress={() => onSelect(date)} style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}>
+                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>{Number(date.slice(-2))}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.dateClose}><Text style={styles.dateCloseText}>Close</Text></TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function statusStyle(status: string) {
   if (status === "received") return { backgroundColor: colors.greenSoft };
   if (status === "cancelled") return { backgroundColor: colors.redSoft };
@@ -212,6 +236,22 @@ function getDateParams(preset: DatePreset, customDate: string) {
   return { from: from.toISOString(), to: now.toISOString() };
 }
 
+function daysInMonth(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const count = new Date(year, month, 0).getDate();
+  return Array.from({ length: count }, (_, index) => `${monthKey}-${String(index + 1).padStart(2, "0")}`);
+}
+
+function shiftMonth(monthKey: string, amount: number) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1 + amount, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonth(monthKey: string) {
+  return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
   headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
@@ -236,6 +276,19 @@ const styles = StyleSheet.create({
   monthRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   monthText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
   monthAmount: { color: colors.primaryDark, fontSize: 12, fontWeight: "900" },
+  dateOverlay: { alignItems: "center", backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "center", padding: spacing.md },
+  dateModal: { backgroundColor: colors.surface, borderRadius: 8, padding: spacing.md, width: "100%" },
+  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  dateNav: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 40, justifyContent: "center", width: 40 },
+  dateNavText: { color: colors.primaryDark, fontSize: 18, fontWeight: "900" },
+  dateMonth: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  dateCell: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 38, justifyContent: "center", width: "13%" },
+  dateCellActive: { backgroundColor: colors.primary },
+  dateCellText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  dateCellTextActive: { color: "#fff" },
+  dateClose: { alignItems: "center", borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginTop: spacing.md, minHeight: 42, justifyContent: "center" },
+  dateCloseText: { color: colors.text, fontWeight: "900" },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, overflow: "hidden" },
   main: { alignItems: "center", flexDirection: "row", padding: spacing.md },
   info: { flex: 1 },

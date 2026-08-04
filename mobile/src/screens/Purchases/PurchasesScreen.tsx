@@ -68,7 +68,7 @@ export default function PurchasesScreen({ navigation }: any) {
           <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
           <FilterChip active={datePreset === "week"} label="7 Days" onPress={() => setDatePreset("week")} />
           <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
-          <FilterChip active={datePreset === "custom"} label={formatDay(customDate)} onPress={() => { setDatePreset("custom"); setShowDatePicker(true); }} />
+          <FilterChip active={datePreset === "custom"} label="Date" onPress={() => { setDatePreset("custom"); setShowDatePicker(true); }} />
         </View>
         {showDatePicker && (
           <DateTimePicker

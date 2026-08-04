@@ -277,8 +277,8 @@ export default function VendorsScreen({ navigation }: any) {
                 <Text style={styles.callActionTextLight}>Call now</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => logCall.mutate({ type: "missed", note: callNote || "Missed call from vendor" })} style={styles.callAction}>
-                <Ionicons color={colors.warning} name="call-outline" size={18} />
-                <Text style={styles.callActionText}>Missed</Text>
+                <Ionicons color={colors.danger} name="call-outline" size={18} />
+                <Text style={styles.callActionTextMissed}>Missed</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => logCall.mutate({ type: "incoming", note: callNote || "Incoming call from vendor" })} style={styles.callAction}>
                 <Ionicons color={colors.success} name="arrow-down-circle-outline" size={18} />
@@ -293,9 +293,9 @@ export default function VendorsScreen({ navigation }: any) {
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={<Empty text={calls.isLoading ? "Loading call logs..." : "No call logs yet."} />}
             renderItem={({ item }) => (
-              <View style={styles.callLogCard}>
+              <View style={[styles.callLogCard, item.type === "missed" && styles.callLogCardMissed]}>
                 <View style={styles.callLogTop}>
-                  <Text style={styles.callType}>{callTypeLabel[item.type]}</Text>
+                  <Text style={[styles.callType, item.type === "missed" && styles.callTypeMissed, item.type === "incoming" && styles.callTypeIncoming]}>{callTypeLabel[item.type]}</Text>
                   <Text style={styles.callDate}>{new Date(item.occurredAt || item.createdAt).toLocaleString()}</Text>
                 </View>
                 <Text style={styles.meta}>{item.phone || selectedVendor?.phone || "No phone"}</Text>
@@ -461,9 +461,13 @@ const styles = StyleSheet.create({
   callAction: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, gap: 4, justifyContent: "center", minHeight: 58 },
   callActionDial: { backgroundColor: colors.success, borderColor: colors.success },
   callActionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  callActionTextMissed: { color: colors.danger, fontSize: 12, fontWeight: "900" },
   callActionTextLight: { color: "#fff", fontSize: 12, fontWeight: "800" },
   callLogCard: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
+  callLogCardMissed: { backgroundColor: colors.redSoft, borderColor: colors.danger, borderWidth: 1 },
   callLogTop: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   callType: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  callTypeMissed: { color: colors.danger },
+  callTypeIncoming: { color: colors.success },
   callDate: { color: colors.muted, fontSize: 11, fontWeight: "700" },
 });

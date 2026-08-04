@@ -14,10 +14,21 @@ const GOOGLE_AUDIENCE = [
 
 async function authPayload(user) {
   if (user.role && !["superadmin", "admin", "staff"].includes(user.role)) user.role = "admin";
+  if (user.isActive === false) {
+    const error = new Error("Account is blocked");
+    error.statusCode = 403;
+    error.reason = user.blockedReason || undefined;
+    throw error;
+  }
   if (user.role !== "superadmin" && user.organizationId) {
     const organization = await Organization.findById(user.organizationId);
     if (!organization?.isActive) {
       const error = new Error("Organization is inactive");
+      error.statusCode = 403;
+      throw error;
+    }
+    if (organization.subscriptionStatus === "cancelled") {
+      const error = new Error("Subscription is cancelled");
       error.statusCode = 403;
       throw error;
     }
@@ -65,9 +76,12 @@ async function login(req, res, next) {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user || !(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid credentials" });
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+    }
     res.json(await authPayload(user));
   } catch (error) {
-    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
     next(error);
   }
 }
@@ -85,6 +99,9 @@ async function googleLogin(req, res, next) {
 
     let user = await User.findOne({ email: payload.email.toLowerCase() });
     if (user) {
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+      }
       user.googleId = user.googleId || payload.sub;
       user.authProvider = "google";
       user.avatarUrl = payload.picture || user.avatarUrl;
@@ -110,7 +127,7 @@ async function googleLogin(req, res, next) {
     await organization.save();
     res.status(201).json(await authPayload(user));
   } catch (error) {
-    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
     next(error);
   }
 }

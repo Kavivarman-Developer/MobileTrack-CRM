@@ -5,6 +5,7 @@ const OrderItem = require("../models/OrderItem");
 const Organization = require("../models/Organization");
 const Product = require("../models/Product");
 const User = require("../models/User");
+const { emitOrgUpdated, emitUserUpdated } = require("../utils/emitEvent");
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -101,7 +102,9 @@ async function createShopOwner(req, res, next) {
     });
     organization.ownerUserId = owner._id;
     await organization.save();
-    res.status(201).json({ organization, owner: { _id: owner._id, name: owner.name, email: owner.email, phone: owner.phone, role: owner.role } });
+    emitOrgUpdated(req, organization);
+    emitUserUpdated(req, owner);
+    res.status(201).json({ organization, owner: { _id: owner._id, name: owner.name, email: owner.email, phone: owner.phone, role: owner.role, isActive: owner.isActive } });
   } catch (error) {
     next(error);
   }
@@ -143,10 +146,42 @@ async function updateOrganization(req, res, next) {
     }
     const organization = await Organization.findByIdAndUpdate(req.params.id, payload, { new: true });
     if (!organization) return res.status(404).json({ message: "Organization not found" });
+    emitOrgUpdated(req, organization);
     res.json(organization);
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { listOrganizations, createShopOwner, getOrganization, listOrganizationUsers, updateOrganization };
+async function blockUser(req, res, next) {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role === "superadmin") return res.status(400).json({ message: "Cannot block a superadmin" });
+    user.isActive = false;
+    user.blockedAt = new Date();
+    user.blockedReason = req.body.reason || null;
+    await user.save();
+    emitUserUpdated(req, user);
+    res.json({ message: "User blocked", user: { id: user._id, isActive: user.isActive, blockedAt: user.blockedAt, blockedReason: user.blockedReason } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function unblockUser(req, res, next) {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.isActive = true;
+    user.blockedAt = null;
+    user.blockedReason = null;
+    await user.save();
+    emitUserUpdated(req, user);
+    res.json({ message: "User unblocked", user: { id: user._id, isActive: user.isActive } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { listOrganizations, createShopOwner, getOrganization, listOrganizationUsers, updateOrganization, blockUser, unblockUser };

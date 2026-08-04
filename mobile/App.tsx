@@ -2,16 +2,77 @@ import "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import { Alert } from "react-native";
 import { Provider } from "react-redux";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { logout } from "./src/redux/authSlice";
 import { store } from "./src/redux/store";
+import { connectSocket, disconnectSocket } from "./src/services/socket";
 
 const queryClient = new QueryClient();
+
+function SocketBridge() {
+  useEffect(() => {
+    let currentToken: string | null = null;
+    const unsubscribe = store.subscribe(() => {
+      const state = store.getState();
+      const token = state.auth.accessToken;
+      const user = state.auth.user;
+      if (!token) {
+        currentToken = null;
+        disconnectSocket();
+        return;
+      }
+      if (token === currentToken) return;
+      currentToken = token;
+      const socket = connectSocket(token);
+      socket.on("product:updated", () => {
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
+      });
+      socket.on("order:created", () => {
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+      });
+      socket.on("inventory:adjusted", () => {
+        queryClient.invalidateQueries({ queryKey: ["inventory-adjustments"] });
+        queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
+      });
+      socket.on("vendorCall:created", () => {
+        queryClient.invalidateQueries({ queryKey: ["vendor-calls"] });
+        queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
+      });
+      socket.on("organization:updated", (organization) => {
+        queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-organization"] });
+        if (user?.role !== "superadmin" && organization?._id === user?.organizationId && organization?.isActive === false) {
+          Alert.alert("Account suspended", "Your account has been suspended by the administrator.");
+          store.dispatch(logout());
+        }
+      });
+      socket.on("user:updated", (updatedUser) => {
+        queryClient.invalidateQueries({ queryKey: ["admin-organization-users"] });
+        if ((updatedUser?._id === user?.id || updatedUser?.id === user?.id) && updatedUser?.isActive === false) {
+          Alert.alert("Account blocked", "Your login has been blocked by the administrator.");
+          store.dispatch(logout());
+        }
+      });
+    });
+    return () => {
+      unsubscribe();
+      disconnectSocket();
+    };
+  }, []);
+  return null;
+}
 
 export default function App() {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
+        <SocketBridge />
         <NavigationContainer>
           <StatusBar style="dark" />
           <AppNavigator />

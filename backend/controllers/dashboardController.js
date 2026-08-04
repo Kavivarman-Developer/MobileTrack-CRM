@@ -59,6 +59,13 @@ async function getDashboard(req, res, next) {
       lowStockProductCount,
       lowStockProducts,
       monthlySales: monthlySales.map((row) => ({ month: `${row._id.m}/${row._id.y}`, total: row.total })),
+      organization: req.organization ? {
+        _id: req.organization._id,
+        name: req.organization.name,
+        isActive: req.organization.isActive,
+        subscriptionStatus: req.organization.subscriptionStatus,
+        subscriptionEndDate: req.organization.subscriptionEndDate,
+      } : null,
     });
   } catch (error) {
     next(error);

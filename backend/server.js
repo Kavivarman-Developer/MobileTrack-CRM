@@ -6,6 +6,8 @@ const morgan = require("morgan");
 const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
+const jwt = require("jsonwebtoken");
+const User = require("./models/User");
 
 const app = express();
 const server = http.createServer(app);
@@ -33,7 +35,23 @@ app.use("/api/admin", require("./routes/admin"));
 app.use(notFound);
 app.use(errorHandler);
 
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error("Unauthorized"));
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user || user.isActive === false) return next(new Error("Unauthorized"));
+    socket.user = user;
+    next();
+  } catch (error) {
+    next(new Error("Unauthorized"));
+  }
+});
+
 io.on("connection", (socket) => {
+  if (socket.user.role === "superadmin") socket.join("admin");
+  else if (socket.user.organizationId) socket.join(`org:${socket.user.organizationId}`);
   socket.emit("connected", { id: socket.id });
 });
 

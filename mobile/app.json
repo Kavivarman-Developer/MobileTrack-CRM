@@ -18,7 +18,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kavivarman.mobile"
+      "package": "com.kavivarman.mobile",
+      "permissions": [
+        "READ_CALL_LOG",
+        "READ_PHONE_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

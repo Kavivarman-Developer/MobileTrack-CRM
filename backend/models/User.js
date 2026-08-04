@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema(
     avatarUrl: String,
     phone: String,
     refreshToken: String,
+    isActive: { type: Boolean, default: true },
+    blockedAt: { type: Date, default: null },
+    blockedReason: { type: String, default: null },
   },
   { timestamps: true }
 );

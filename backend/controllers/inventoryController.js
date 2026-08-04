@@ -4,6 +4,7 @@ const Category = require("../models/Category");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
 const cloudinary = require("../config/cloudinary");
+const { emitToOrg } = require("../utils/emitEvent");
 
 const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
@@ -90,8 +91,9 @@ async function listProducts(req, res, next) {
 async function createProduct(req, res, next) {
   try {
     const product = await Product.create(await productPayload(req.body, req.orgId));
-    req.app.get("io")?.emit("inventory:changed", product);
-    res.status(201).json(await product.populate("category brand preferredVendor"));
+    const saved = await product.populate("category brand preferredVendor");
+    emitToOrg(req, "product:updated", saved);
+    res.status(201).json(saved);
   } catch (error) {
     sendProductError(error, res, next);
   }
@@ -110,7 +112,7 @@ async function uploadProductImage(req, res, next) {
     const imageUrl = result.secure_url;
     product.images.push(imageUrl);
     await product.save();
-    req.app.get("io")?.emit("inventory:changed", product);
+    emitToOrg(req, "product:updated", product);
     res.status(201).json({ imageUrl, product });
   } catch (error) {
     next(error);
@@ -135,7 +137,7 @@ async function updateProduct(req, res, next) {
   try {
     const product = await Product.findOneAndUpdate(scoped(req, { _id: req.params.id }), await productPayload(req.body, req.orgId), { returnDocument: "after" }).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
-    req.app.get("io")?.emit("inventory:changed", product);
+    emitToOrg(req, "product:updated", product);
     res.json(product);
   } catch (error) {
     sendProductError(error, res, next);
@@ -195,7 +197,7 @@ async function restockProduct(req, res, next) {
     });
 
     const saved = await Product.findOne(scoped(req, { _id: product._id })).populate("category brand preferredVendor");
-    req.app.get("io")?.emit("inventory:changed", saved);
+    emitToOrg(req, "product:updated", saved);
     res.json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
@@ -264,7 +266,7 @@ async function deleteProduct(req, res, next) {
   try {
     const product = await Product.findOneAndDelete(scoped(req, { _id: req.params.id }));
     if (!product) return res.status(404).json({ message: "Product not found" });
-    req.app.get("io")?.emit("inventory:changed", { id: req.params.id });
+    emitToOrg(req, "product:updated", { id: req.params.id, deleted: true });
     res.status(204).send();
   } catch (error) {
     next(error);

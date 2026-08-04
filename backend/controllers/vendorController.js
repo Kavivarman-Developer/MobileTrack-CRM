@@ -1,8 +1,17 @@
 const Vendor = require("../models/Vendor");
 const VendorCall = require("../models/VendorCall");
+const { emitToOrg } = require("../utils/emitEvent");
 
 function scoped(req, extra = {}) {
   return req.orgId ? { ...extra, organizationId: req.orgId } : { ...extra, _id: null };
+}
+
+function localDayRange(dateKey) {
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || "")) ? dateKey : new Date().toISOString().slice(0, 10);
+  const start = new Date(`${key}T00:00:00+05:30`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { key, start, end };
 }
 
 async function listVendors(req, res, next) {
@@ -17,7 +26,9 @@ async function listVendors(req, res, next) {
 
 async function createVendor(req, res, next) {
   try {
-    res.status(201).json(await Vendor.create({ ...req.body, organizationId: req.orgId }));
+    const vendor = await Vendor.create({ ...req.body, organizationId: req.orgId });
+    emitToOrg(req, "vendor:updated", vendor);
+    res.status(201).json(vendor);
   } catch (error) {
     next(error);
   }
@@ -37,6 +48,7 @@ async function updateVendor(req, res, next) {
   try {
     const vendor = await Vendor.findOneAndUpdate(scoped(req, { _id: req.params.id }), req.body, { new: true });
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
+    emitToOrg(req, "vendor:updated", vendor);
     res.json(vendor);
   } catch (error) {
     next(error);
@@ -48,6 +60,7 @@ async function deleteVendor(req, res, next) {
     const vendor = await Vendor.findOneAndDelete(scoped(req, { _id: req.params.id }));
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
     await VendorCall.deleteMany(scoped(req, { vendor: req.params.id }));
+    emitToOrg(req, "vendor:updated", { id: req.params.id, deleted: true });
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -60,10 +73,7 @@ async function listVendorCalls(req, res, next) {
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
     const query = { vendor: req.params.id };
     if (req.query.date) {
-      const start = new Date(req.query.date);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const { start, end } = localDayRange(req.query.date);
       query.occurredAt = { $gte: start, $lt: end };
     }
     res.json(await VendorCall.find(scoped(req, query)).sort({ occurredAt: -1 }).limit(100));
@@ -75,6 +85,7 @@ async function listVendorCalls(req, res, next) {
 async function getVendorCallSummary(req, res, next) {
   try {
     const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 31);
+    const selected = localDayRange(req.query.date);
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - (days - 1));
@@ -109,7 +120,15 @@ async function getVendorCallSummary(req, res, next) {
     });
 
     const daily = Array.from(byDay.values()).sort((a, b) => b.date.localeCompare(a.date));
-    const today = daily[0] || { total: 0, outgoing: 0, incoming: 0, missed: 0 };
+    const selectedRows = await VendorCall.aggregate([
+      { $match: { organizationId: req.orgId, occurredAt: { $gte: selected.start, $lt: selected.end } } },
+      { $group: { _id: "$type", count: { $sum: 1 } } },
+    ]);
+    const today = { date: selected.key, total: 0, outgoing: 0, incoming: 0, missed: 0 };
+    selectedRows.forEach((row) => {
+      today[row._id] = row.count;
+      today.total += row.count;
+    });
     res.json({ today, daily });
   } catch (error) {
     next(error);
@@ -121,14 +140,29 @@ async function createVendorCall(req, res, next) {
     const vendor = await Vendor.findOne(scoped(req, { _id: req.params.id }));
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
     const type = ["outgoing", "incoming", "missed"].includes(req.body.type) ? req.body.type : "outgoing";
+    const occurredAt = req.body.occurredAt ? new Date(req.body.occurredAt) : new Date();
+    const phone = req.body.phone || vendor.phone || "";
+    const nativeId = typeof req.body.nativeId === "string" ? req.body.nativeId.trim() : null;
+    const toleranceStart = new Date(occurredAt.getTime() - 60000);
+    const toleranceEnd = new Date(occurredAt.getTime() + 60000);
+    const existing = await VendorCall.findOne(scoped(req, {
+      vendor: vendor._id,
+      type,
+      phone,
+      occurredAt: { $gte: toleranceStart, $lte: toleranceEnd },
+    }));
+    if (existing) return res.json(existing);
     const call = await VendorCall.create({
       organizationId: req.orgId,
       vendor: vendor._id,
       type,
-      phone: req.body.phone || vendor.phone || "",
+      phone,
       note: req.body.note || "",
-      occurredAt: req.body.occurredAt || new Date(),
+      occurredAt,
+      source: req.body.source === "auto" ? "auto" : "manual",
+      nativeId,
     });
+    emitToOrg(req, "vendorCall:created", call);
     res.status(201).json(call);
   } catch (error) {
     next(error);

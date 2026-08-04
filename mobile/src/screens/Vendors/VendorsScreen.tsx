@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Alert, FlatList, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, AppState, FlatList, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { hasCallLogPermissionWarning, openCallLogSettings, syncVendorCallLogs } from "../../services/callLogSync";
 import { createVendor, createVendorCall, deleteVendor, getVendorCalls, getVendorCallSummary, getVendors, updateVendor, Vendor } from "../../services/api";
 
 const blank = { name: "", email: "", phone: "", address: "", gstNumber: "", notes: "" };
@@ -22,10 +24,13 @@ export default function VendorsScreen({ navigation }: any) {
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [callDate, setCallDate] = useState(todayKey());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [syncingCalls, setSyncingCalls] = useState(false);
+  const [permissionWarning, setPermissionWarning] = useState(false);
   const [callNote, setCallNote] = useState("");
   const [form, setForm] = useState(blank);
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
-  const callSummary = useQuery({ queryKey: ["vendor-call-summary"], queryFn: () => getVendorCallSummary(7) });
+  const callSummary = useQuery({ queryKey: ["vendor-call-summary", callDate], queryFn: () => getVendorCallSummary(7, callDate) });
   const calls = useQuery({ queryKey: ["vendor-calls", selectedVendor?._id, callDate], queryFn: () => getVendorCalls(selectedVendor!._id, callDate), enabled: !!selectedVendor?._id && callsOpen });
   const queryClient = useQueryClient();
   const save = useMutation({
@@ -52,6 +57,33 @@ export default function VendorsScreen({ navigation }: any) {
     },
     onError: (error: Error) => Alert.alert("Call log failed", error.message),
   });
+
+  useEffect(() => {
+    let mounted = true;
+    async function runSync() {
+      setSyncingCalls(true);
+      try {
+        const result = await syncVendorCallLogs();
+        if (result.synced > 0) {
+          queryClient.invalidateQueries({ queryKey: ["vendor-calls"] });
+          queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
+        }
+        if (mounted) setPermissionWarning(result.permissionDenied || await hasCallLogPermissionWarning());
+      } catch {
+        if (mounted) setPermissionWarning(await hasCallLogPermissionWarning());
+      } finally {
+        if (mounted) setSyncingCalls(false);
+      }
+    }
+    runSync();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") runSync();
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [queryClient]);
 
   function openForm(vendor?: Vendor) {
     setEditing(vendor || null);
@@ -85,7 +117,12 @@ export default function VendorsScreen({ navigation }: any) {
   function shiftCallDate(days: number) {
     const date = new Date(`${callDate}T00:00:00`);
     date.setDate(date.getDate() + days);
-    setCallDate(date.toISOString().slice(0, 10));
+    setCallDate(toDateKey(date));
+  }
+
+  function changeCallDate(date?: Date) {
+    setShowDatePicker(false);
+    if (date) setCallDate(toDateKey(date));
   }
 
   return (
@@ -108,7 +145,7 @@ export default function VendorsScreen({ navigation }: any) {
       <View style={styles.summaryPanel}>
         <View style={styles.summaryHeader}>
           <View>
-            <Text style={styles.sectionLabel}>Today calls</Text>
+            <Text style={styles.sectionLabel}>Call summary</Text>
             <Text style={styles.summaryHint}>Vendor call activity</Text>
           </View>
           <Ionicons color={colors.primaryDark} name="analytics-outline" size={20} />
@@ -119,6 +156,26 @@ export default function VendorsScreen({ navigation }: any) {
           <CallStat label="Received" tone="info" value={callSummary.data?.today.incoming || 0} />
           <CallStat label="Missed" tone="warning" value={callSummary.data?.today.missed || 0} />
         </View>
+        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePill}>
+          <Ionicons color={colors.primaryDark} name="calendar-outline" size={16} />
+          <Text style={styles.datePillText}>{formatDayLong(callDate)}</Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            mode="date"
+            value={new Date(`${callDate}T00:00:00`)}
+            onChange={(_, date) => changeCallDate(date)}
+          />
+        )}
+        {syncingCalls && <Text style={styles.syncText}>Syncing call logs...</Text>}
+        {permissionWarning && Platform.OS === "android" && (
+          <View style={styles.permissionBanner}>
+            <Text style={styles.permissionText}>Enable call log access in Settings to auto-track missed calls</Text>
+            <TouchableOpacity onPress={openCallLogSettings} style={styles.permissionButton}>
+              <Text style={styles.permissionButtonText}>Settings</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.dayList}>
           {(callSummary.data?.daily || []).slice(0, 4).map((day) => (
             <View key={day.date} style={styles.dayRow}>
@@ -210,7 +267,7 @@ export default function VendorsScreen({ navigation }: any) {
             <View style={styles.dateSwitcher}>
               <TouchableOpacity onPress={() => shiftCallDate(-1)} style={styles.dateButton}><Ionicons color={colors.primaryDark} name="chevron-back" size={18} /></TouchableOpacity>
               <TouchableOpacity onPress={() => setCallDate(todayKey())} style={styles.dateCenter}>
-                <Text style={styles.dateTitle}>{formatDay(callDate)}</Text>
+                <Text style={styles.dateTitle}>{formatDayLong(callDate)}</Text>
                 <Text style={styles.dateHint}>{callDate === todayKey() ? "Today selected" : callDate}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => shiftCallDate(1)} style={styles.dateButton}><Ionicons color={colors.primaryDark} name="chevron-forward" size={18} /></TouchableOpacity>
@@ -273,8 +330,20 @@ function formatDay(value: string) {
   return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
+function formatDayLong(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return toDateKey(new Date());
 }
 
 const styles = StyleSheet.create({
@@ -289,6 +358,13 @@ const styles = StyleSheet.create({
   sectionLabel: { color: colors.text, fontSize: 16, fontWeight: "900" },
   summaryHint: { color: colors.muted, fontSize: 12, fontWeight: "600", marginTop: 2 },
   summaryGrid: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
+  datePill: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.blueSoft, borderColor: colors.secondary, borderRadius: radius.pill, borderWidth: 1, flexDirection: "row", gap: 6, marginBottom: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 9 },
+  datePillText: { color: colors.primaryDark, fontSize: 12, fontWeight: "900" },
+  syncText: { color: colors.muted, fontSize: 12, fontWeight: "700", marginBottom: spacing.sm },
+  permissionBanner: { alignItems: "center", backgroundColor: colors.orangeSoft, borderRadius: radius.sm, flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm, padding: spacing.sm },
+  permissionText: { color: colors.text, flex: 1, fontSize: 12, fontWeight: "700" },
+  permissionButton: { backgroundColor: colors.surface, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 7 },
+  permissionButtonText: { color: colors.primaryDark, fontSize: 12, fontWeight: "900" },
   statCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, padding: spacing.sm },
   statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
   statSuccess: { color: colors.success },

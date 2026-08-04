@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing } from "../../constants/theme";
-import { getAdminOrganization, getAdminOrganizationUsers, updateAdminOrganization } from "../../services/api";
+import { blockAdminUser, getAdminOrganization, getAdminOrganizationUsers, unblockAdminUser, updateAdminOrganization } from "../../services/api";
 
 export default function OrganizationDetailScreen({ navigation, route }: any) {
   const organizationId = route.params?.organizationId;
@@ -21,6 +21,20 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
     mutationFn: (payload: any) => updateAdminOrganization(organizationId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-organization", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
+    },
+  });
+  const blockUser = useMutation({
+    mutationFn: (userId: string) => blockAdminUser(userId, "Blocked by super admin"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-organization-users", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
+    },
+  });
+  const unblockUser = useMutation({
+    mutationFn: unblockAdminUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-organization-users", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
     },
   });
@@ -63,8 +77,26 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
               <Text style={styles.section}>Users</Text>
               {(users.data || []).map((user) => (
                 <View key={user._id} style={styles.userRow}>
-                  <View><Text style={styles.userName}>{user.name}</Text><Text style={styles.meta}>{user.email}</Text></View>
-                  <Text style={styles.role}>{user.role}</Text>
+                  <View style={styles.userInfo}>
+                    <View style={styles.userNameLine}>
+                      <Text style={styles.userName}>{user.name}</Text>
+                      <View style={[styles.statusPill, user.isActive === false && styles.statusBlocked]}>
+                        <Text style={[styles.statusText, user.isActive === false && styles.statusBlockedText]}>{user.isActive === false ? "Blocked" : "Active"}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.meta}>{user.email}</Text>
+                    {!!user.blockedReason && <Text style={styles.meta}>{user.blockedReason}</Text>}
+                  </View>
+                  <View style={styles.userActions}>
+                    <Text style={styles.role}>{user.role}</Text>
+                    <TouchableOpacity
+                      disabled={blockUser.isPending || unblockUser.isPending}
+                      onPress={() => user.isActive === false ? unblockUser.mutate(user._id) : blockUser.mutate(user._id)}
+                      style={[styles.userActionButton, user.isActive === false ? styles.unblockButton : styles.blockButton]}
+                    >
+                      <Text style={[styles.userActionText, user.isActive !== false && styles.blockText]}>{user.isActive === false ? "Unblock" : "Block"}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>
@@ -108,8 +140,20 @@ const styles = StyleSheet.create({
   choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   choiceActive: { backgroundColor: colors.orangeSoft, borderColor: colors.primary },
   choiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  userRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
+  userRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingVertical: spacing.sm },
+  userInfo: { flex: 1 },
+  userNameLine: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   userName: { color: colors.text, fontWeight: "900" },
   meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   role: { color: colors.primaryDark, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  userActions: { alignItems: "flex-end", gap: spacing.xs },
+  userActionButton: { borderRadius: radius.sm, minWidth: 74, paddingHorizontal: spacing.sm, paddingVertical: 7 },
+  blockButton: { backgroundColor: colors.redSoft },
+  unblockButton: { backgroundColor: colors.greenSoft },
+  userActionText: { color: colors.success, fontSize: 12, fontWeight: "900", textAlign: "center" },
+  blockText: { color: colors.danger },
+  statusPill: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: spacing.xs, paddingVertical: 3 },
+  statusBlocked: { backgroundColor: colors.redSoft },
+  statusText: { color: colors.success, fontSize: 10, fontWeight: "900" },
+  statusBlockedText: { color: colors.danger },
 });

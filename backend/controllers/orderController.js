@@ -3,6 +3,7 @@ const Order = require("../models/Order");
 const OrderItem = require("../models/OrderItem");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
+const { emitToOrg } = require("../utils/emitEvent");
 
 function scoped(orgId, extra = {}) {
   return orgId ? { ...extra, organizationId: orgId } : { ...extra, _id: null };
@@ -103,7 +104,7 @@ async function createOrder(req, res, next) {
       order = await createSaleOrder({ ...req.body, createdBy: req.user?._id, organizationId: req.orgId }, session);
     });
     const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
-    req.app.get("io")?.emit("sales:created", saved);
+    emitToOrg(req, "order:created", saved);
     res.status(201).json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
@@ -129,7 +130,7 @@ async function quickSale(req, res, next) {
       }, session);
     });
     const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
-    req.app.get("io")?.emit("sales:created", saved);
+    emitToOrg(req, "order:created", saved);
     res.status(201).json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });

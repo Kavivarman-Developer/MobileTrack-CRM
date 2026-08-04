@@ -30,11 +30,13 @@ let sessionAlertShown = false;
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401 && !String(error.config?.url || "").includes("/auth/login")) {
+    const message = error.response?.data?.message;
+    const shouldLogout = (error.response?.status === 401 || (error.response?.status === 403 && ["Account is blocked", "Organization is inactive", "Subscription is cancelled"].includes(message))) && !String(error.config?.url || "").includes("/auth/login");
+    if (shouldLogout) {
       store.dispatch(logout());
       if (!sessionAlertShown) {
         sessionAlertShown = true;
-        Alert.alert("Session expired", "Please log in again.", [
+        Alert.alert("Access stopped", message || "Please log in again.", [
           { text: "OK", onPress: () => { sessionAlertShown = false; } },
         ]);
       }
@@ -147,6 +149,8 @@ export type VendorCall = {
   note?: string;
   occurredAt: string;
   createdAt: string;
+  source?: "manual" | "auto";
+  nativeId?: string;
 };
 
 export type VendorCallSummary = {
@@ -382,8 +386,8 @@ export async function createVendorCall(id: string, payload: Partial<VendorCall>)
   return data;
 }
 
-export async function getVendorCallSummary(days = 7) {
-  const { data } = await api.get<VendorCallSummary>("/vendors/calls/summary", { params: { days } });
+export async function getVendorCallSummary(days = 7, date?: string) {
+  const { data } = await api.get<VendorCallSummary>("/vendors/calls/summary", { params: { days, date } });
   return data;
 }
 
@@ -432,7 +436,7 @@ export async function getAdminOrganization(id: string) {
 }
 
 export async function getAdminOrganizationUsers(id: string) {
-  const { data } = await api.get<{ _id: string; name: string; email: string; role: string; authProvider?: string }[]>(`/admin/organizations/${id}/users`);
+  const { data } = await api.get<{ _id: string; name: string; email: string; role: string; authProvider?: string; isActive?: boolean; blockedAt?: string | null; blockedReason?: string | null }[]>(`/admin/organizations/${id}/users`);
   return data;
 }
 
@@ -443,5 +447,15 @@ export async function createShopOwner(payload: { name: string; email: string; pa
 
 export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string; billingCycle?: "monthly" | "yearly"; subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled"; renewSubscription?: boolean }) {
   const { data } = await api.patch(`/admin/organizations/${id}`, payload);
+  return data;
+}
+
+export async function blockAdminUser(id: string, reason?: string) {
+  const { data } = await api.patch(`/admin/users/${id}/block`, { reason });
+  return data;
+}
+
+export async function unblockAdminUser(id: string) {
+  const { data } = await api.patch(`/admin/users/${id}/unblock`);
   return data;
 }

@@ -1,6 +1,7 @@
 const InventoryAdjustment = require("../models/InventoryAdjustment");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
+const { emitToOrg } = require("../utils/emitEvent");
 
 function scoped(req, extra = {}) {
   return req.orgId ? { ...extra, organizationId: req.orgId } : { ...extra, _id: null };
@@ -64,7 +65,8 @@ async function createInventoryAdjustment(req, res, next) {
     });
 
     const saved = await InventoryAdjustment.findOne(scoped(req, { _id: adjustment._id })).populate("product", "name sku stockQty");
-    req.app.get("io")?.emit("inventory:changed", saved);
+    emitToOrg(req, "inventory:adjusted", saved);
+    emitToOrg(req, "product:updated", saved.product);
     res.status(201).json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });

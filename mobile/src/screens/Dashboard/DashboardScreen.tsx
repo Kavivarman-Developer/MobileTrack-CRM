@@ -45,6 +45,18 @@ export default function DashboardScreen() {
 
         {data && (
           <>
+            {data.organization?.subscriptionStatus === "past_due" && (
+              <View style={[styles.alertBanner, styles.alertDue]}>
+                <View style={styles.alertIconWrap}>
+                  <Ionicons color={colors.warning} name="card-outline" size={22} />
+                </View>
+                <View style={styles.alertCopy}>
+                  <Text style={styles.alertTitle}>Your subscription is past due</Text>
+                  <Text style={styles.alertText}>Service is active, but billing needs attention.</Text>
+                </View>
+              </View>
+            )}
+
             {/* Date filter */}
             <View style={styles.filterRow}>
               <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
@@ -218,6 +230,7 @@ const styles = StyleSheet.create({
   alertBanner: { alignItems: "center", borderRadius: radius.md, flexDirection: "row", marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
   alertHot: { backgroundColor: colors.orangeSoft },
   alertCalm: { backgroundColor: colors.greenSoft },
+  alertDue: { backgroundColor: colors.orangeSoft },
   alertIconWrap: { marginRight: spacing.sm },
   alertCopy: { flex: 1 },
   alertTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },

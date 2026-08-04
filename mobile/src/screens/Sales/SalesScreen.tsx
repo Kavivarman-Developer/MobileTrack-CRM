@@ -12,6 +12,7 @@ type DatePreset = "today" | "week" | "month";
 
 export default function SalesScreen() {
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const [discount, setDiscount] = useState("0");
   const [gst, setGst] = useState("0");
   const [customer, setCustomer] = useState("");
@@ -34,6 +35,7 @@ export default function SalesScreen() {
     mutationFn: () => createOrder({ customer: customer || undefined, discount: Number(discount || 0), gst: Number(gst || 0), paymentStatus: "paid", items: cart.map((line) => ({ product: line.product._id, qty: line.qty })) }),
     onSuccess: () => {
       setCart([]);
+      setCartOpen(false);
       setTotalsOpen(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -53,6 +55,7 @@ export default function SalesScreen() {
   });
 
   function add(product: Product) {
+    setCartOpen(true);
     setCart((current) => {
       const existing = current.find((line) => line.product._id === product._id);
       if (existing) return current.map((line) => line.product._id === product._id ? { ...line, qty: line.qty + 1 } : line);
@@ -118,28 +121,35 @@ export default function SalesScreen() {
             )}
           />
         </View>
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <View>
-              <Text style={styles.section}>Cart</Text>
-              <Text style={styles.sectionHint}>Adjust quantity before billing</Text>
+        {cart.length > 0 && cartOpen && (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader}>
+              <View>
+                <Text style={styles.section}>Cart</Text>
+                <Text style={styles.sectionHint}>Adjust quantity before billing</Text>
+              </View>
+              <View style={styles.cartHeaderActions}>
+                <Text style={styles.panelPill}>{cart.length}</Text>
+                <TouchableOpacity onPress={() => setCartOpen(false)} style={styles.cartCloseButton}>
+                  <Text style={styles.cartCloseText}>x</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.panelPill}>{cart.length}</Text>
+            {cart.map((line) => (
+              <View key={line.product._id} style={styles.cartLine}>
+                <View style={styles.cartInfo}>
+                  <Text numberOfLines={1} style={styles.cartText}>{line.product.name}</Text>
+                  <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} x {line.qty}</Text>
+                </View>
+                <View style={styles.qty}>
+                  <TouchableOpacity onPress={() => setCart((items) => items.map((x) => x.product._id === line.product._id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={styles.qtyButton}><Text style={styles.qtyButtonText}>-</Text></TouchableOpacity>
+                  <Text style={styles.qtyValue}>{line.qty}</Text>
+                  <TouchableOpacity onPress={() => add(line.product)} style={styles.qtyButton}><Text style={styles.qtyButtonText}>+</Text></TouchableOpacity>
+                </View>
+              </View>
+            ))}
           </View>
-          {cart.length ? cart.map((line) => (
-            <View key={line.product._id} style={styles.cartLine}>
-              <View style={styles.cartInfo}>
-                <Text numberOfLines={1} style={styles.cartText}>{line.product.name}</Text>
-                <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} x {line.qty}</Text>
-              </View>
-              <View style={styles.qty}>
-                <TouchableOpacity onPress={() => setCart((items) => items.map((x) => x.product._id === line.product._id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={styles.qtyButton}><Text style={styles.qtyButtonText}>-</Text></TouchableOpacity>
-                <Text style={styles.qtyValue}>{line.qty}</Text>
-                <TouchableOpacity onPress={() => add(line.product)} style={styles.qtyButton}><Text style={styles.qtyButtonText}>+</Text></TouchableOpacity>
-              </View>
-            </View>
-          )) : <Empty text="Tap products to build an invoice." />}
-        </View>
+        )}
         <View style={styles.panel}>
           <TouchableOpacity onPress={() => setTotalsOpen((value) => !value)} style={styles.panelHeader}>
             <View>
@@ -262,6 +272,9 @@ const styles = StyleSheet.create({
   totalHint: { color: colors.blueSoft, fontSize: 12, marginTop: spacing.xs },
   panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  cartHeaderActions: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
+  cartCloseButton: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 34, justifyContent: "center", width: 34 },
+  cartCloseText: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: -2 },
   expandIcon: { color: colors.primaryDark, fontSize: 24, fontWeight: "900", minWidth: 34, textAlign: "center" },
   section: { color: colors.text, fontSize: 18, fontWeight: "900" },
   sectionHint: { color: colors.muted, fontSize: 12, marginTop: 3 },

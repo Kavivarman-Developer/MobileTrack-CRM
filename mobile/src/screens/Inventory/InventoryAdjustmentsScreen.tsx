@@ -12,6 +12,7 @@ export default function InventoryAdjustmentsScreen({ navigation }: any) {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
   const adjustments = useQuery({ queryKey: ["inventory-adjustments"], queryFn: getInventoryAdjustments });
   const queryClient = useQueryClient();
@@ -30,6 +31,7 @@ export default function InventoryAdjustmentsScreen({ navigation }: any) {
       setReason("");
       setNotes("");
       setProductSearch("");
+      setFormOpen(false);
       queryClient.invalidateQueries({ queryKey: ["inventory-adjustments"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
@@ -52,25 +54,36 @@ export default function InventoryAdjustmentsScreen({ navigation }: any) {
               </View>
             </View>
             <View style={styles.formCard}>
-              <Text style={styles.label}>Product</Text>
-              <Field onChangeText={setProductSearch} placeholder="Search product or SKU" value={productSearch} />
-              {productOptions.map((item) => (
-                <Pressable key={item._id} onPress={() => setProductId(item._id)} style={({ pressed }) => [styles.option, productId === item._id && styles.optionActive, pressed && styles.pressed]}>
-                  <Text numberOfLines={1} style={styles.optionText}>{item.name} | {item.stockQty} left</Text>
-                </Pressable>
-              ))}
-              <Text style={styles.label}>Adjustment type</Text>
-              <View style={styles.segment}>
-                <Pressable onPress={() => setAdjustmentType("increase")} style={({ pressed }) => [styles.segmentButton, adjustmentType === "increase" && styles.segmentActive, pressed && styles.pressed]}><Text style={styles.segmentText}>Increase</Text></Pressable>
-                <Pressable onPress={() => setAdjustmentType("decrease")} style={({ pressed }) => [styles.segmentButton, adjustmentType === "decrease" && styles.segmentActive, pressed && styles.pressed]}><Text style={styles.segmentText}>Decrease</Text></Pressable>
-              </View>
-              <Text style={styles.label}>Quantity</Text>
-              <Field keyboardType="numeric" onChangeText={setQuantity} value={quantity} />
-              <Text style={styles.label}>Reason</Text>
-              <Field onChangeText={setReason} placeholder="Cycle count, damaged item..." value={reason} />
-              <Text style={styles.label}>Notes</Text>
-              <Field multiline onChangeText={setNotes} value={notes} />
-              <Button loading={save.isPending} onPress={() => save.mutate()} title="Save adjustment" />
+              <Pressable onPress={() => setFormOpen((value) => !value)} style={({ pressed }) => [styles.formHeader, pressed && styles.pressed]}>
+                <View>
+                  <Text style={styles.section}>New adjustment</Text>
+                  <Text style={styles.formHint}>{formOpen ? "Update stock count" : "Tap to open stock adjustment form"}</Text>
+                </View>
+                <Text style={styles.expandIcon}>{formOpen ? "x" : "+"}</Text>
+              </Pressable>
+              {formOpen && (
+                <>
+                  <Text style={styles.label}>Product</Text>
+                  <Field onChangeText={setProductSearch} placeholder="Search product or SKU" value={productSearch} />
+                  {productOptions.map((item) => (
+                    <Pressable key={item._id} onPress={() => setProductId(item._id)} style={({ pressed }) => [styles.option, productId === item._id && styles.optionActive, pressed && styles.pressed]}>
+                      <Text numberOfLines={1} style={styles.optionText}>{item.name} | {item.stockQty} left</Text>
+                    </Pressable>
+                  ))}
+                  <Text style={styles.label}>Adjustment type</Text>
+                  <View style={styles.segment}>
+                    <Pressable onPress={() => setAdjustmentType("increase")} style={({ pressed }) => [styles.segmentButton, adjustmentType === "increase" && styles.segmentActive, pressed && styles.pressed]}><Text style={styles.segmentText}>Increase</Text></Pressable>
+                    <Pressable onPress={() => setAdjustmentType("decrease")} style={({ pressed }) => [styles.segmentButton, adjustmentType === "decrease" && styles.segmentActive, pressed && styles.pressed]}><Text style={styles.segmentText}>Decrease</Text></Pressable>
+                  </View>
+                  <Text style={styles.label}>Quantity</Text>
+                  <Field keyboardType="numeric" onChangeText={setQuantity} value={quantity} />
+                  <Text style={styles.label}>Reason</Text>
+                  <Field onChangeText={setReason} placeholder="Cycle count, damaged item..." value={reason} />
+                  <Text style={styles.label}>Notes</Text>
+                  <Field multiline onChangeText={setNotes} value={notes} />
+                  <Button loading={save.isPending} onPress={() => save.mutate()} title="Save adjustment" />
+                </>
+              )}
             </View>
             <Text style={styles.section}>History</Text>
           </>
@@ -110,6 +123,9 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
   title: { color: colors.text, fontSize: 26, fontWeight: "900" },
   formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  formHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  formHint: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  expandIcon: { color: colors.primaryDark, fontSize: 24, fontWeight: "900", minWidth: 34, textAlign: "center" },
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.xs },
   option: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
   optionActive: { backgroundColor: colors.greenSoft, borderColor: colors.success },

@@ -17,6 +17,7 @@ export default function SalesScreen() {
   const [customer, setCustomer] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [scanOpen, setScanOpen] = useState(false);
+  const [totalsOpen, setTotalsOpen] = useState(false);
   const [lastScan, setLastScan] = useState("");
   const [permission, requestPermission] = useCameraPermissions();
   const dateRange = useMemo(() => getDateRange(datePreset), [datePreset]);
@@ -33,6 +34,7 @@ export default function SalesScreen() {
     mutationFn: () => createOrder({ customer: customer || undefined, discount: Number(discount || 0), gst: Number(gst || 0), paymentStatus: "paid", items: cart.map((line) => ({ product: line.product._id, qty: line.qty })) }),
     onSuccess: () => {
       setCart([]);
+      setTotalsOpen(false);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -139,26 +141,31 @@ export default function SalesScreen() {
           )) : <Empty text="Tap products to build an invoice." />}
         </View>
         <View style={styles.panel}>
-          <View style={styles.panelHeader}>
+          <TouchableOpacity onPress={() => setTotalsOpen((value) => !value)} style={styles.panelHeader}>
             <View>
               <Text style={styles.section}>Customer & totals</Text>
-              <Text style={styles.sectionHint}>Optional customer selection</Text>
+              <Text style={styles.sectionHint}>{totalsOpen ? "Optional customer selection" : "Tap to add discount, GST, customer"}</Text>
             </View>
-          </View>
-        <FlatList
-          data={customers.data || []}
-          horizontal
-          keyExtractor={(item) => item._id}
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => <TouchableOpacity onPress={() => setCustomer(item._id)} style={[styles.chip, customer === item._id && styles.chipActive]}><Text style={[styles.chipText, customer === item._id && styles.chipTextActive]}>{item.name}</Text></TouchableOpacity>}
-        />
-          <View style={styles.inputRow}>
-            <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount" value={discount} /></View>
-            <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST" value={gst} /></View>
-          </View>
-          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>Rs {formatMoney(subtotal)}</Text></View>
-          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Total</Text><Text style={styles.summaryStrong}>Rs {formatMoney(total)}</Text></View>
-          <Button loading={save.isPending} onPress={() => cart.length ? save.mutate() : Alert.alert("Cart is empty")} title="Save invoice" />
+            <Text style={styles.expandIcon}>{totalsOpen ? "x" : "+"}</Text>
+          </TouchableOpacity>
+          {totalsOpen && (
+            <>
+              <FlatList
+                data={customers.data || []}
+                horizontal
+                keyExtractor={(item) => item._id}
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }) => <TouchableOpacity onPress={() => setCustomer(item._id)} style={[styles.chip, customer === item._id && styles.chipActive]}><Text style={[styles.chipText, customer === item._id && styles.chipTextActive]}>{item.name}</Text></TouchableOpacity>}
+              />
+              <View style={styles.inputRow}>
+                <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount" value={discount} /></View>
+                <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST" value={gst} /></View>
+              </View>
+              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>Rs {formatMoney(subtotal)}</Text></View>
+              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Total</Text><Text style={styles.summaryStrong}>Rs {formatMoney(total)}</Text></View>
+              <Button loading={save.isPending} onPress={() => cart.length ? save.mutate() : Alert.alert("Cart is empty")} title="Save invoice" />
+            </>
+          )}
         </View>
         <View style={styles.panel}>
           <View style={styles.panelHeader}>
@@ -255,6 +262,7 @@ const styles = StyleSheet.create({
   totalHint: { color: colors.blueSoft, fontSize: 12, marginTop: spacing.xs },
   panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  expandIcon: { color: colors.primaryDark, fontSize: 24, fontWeight: "900", minWidth: 34, textAlign: "center" },
   section: { color: colors.text, fontSize: 18, fontWeight: "900" },
   sectionHint: { color: colors.muted, fontSize: 12, marginTop: 3 },
   panelPill: { backgroundColor: colors.background, borderRadius: 999, color: colors.primaryDark, fontWeight: "900", minWidth: 34, overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: "center" },

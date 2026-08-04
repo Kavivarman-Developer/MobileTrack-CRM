@@ -96,15 +96,19 @@ export default function VendorsScreen({ navigation }: any) {
   }
 
   async function callVendor(vendor: Vendor) {
-    if (!vendor.phone) {
+    const phone = String(vendor.phone || "").trim();
+    const dialNumber = phone.replace(/[^\d+]/g, "");
+    if (!dialNumber) {
       Alert.alert("No phone number", "Add a phone number for this vendor first.");
       return;
     }
     setSelectedVendor(vendor);
-    await createVendorCall(vendor._id, { type: "outgoing", phone: vendor.phone, note: "Call started from app" }).catch(() => {});
+    Linking.openURL(`tel:${dialNumber}`).catch(() => {
+      Alert.alert("Call not supported", "This device or browser cannot open the phone dialer.");
+    });
+    createVendorCall(vendor._id, { type: "outgoing", phone, note: "Call started from app" }).catch(() => {});
     queryClient.invalidateQueries({ queryKey: ["vendor-calls", vendor._id] });
     queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
-    Linking.openURL(`tel:${vendor.phone}`);
   }
 
   function openCalls(vendor: Vendor) {

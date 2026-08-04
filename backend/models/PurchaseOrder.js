@@ -18,9 +18,8 @@ const purchaseOrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-purchaseOrderSchema.pre("validate", function calculateTotal(next) {
+purchaseOrderSchema.pre("validate", function calculateTotal() {
   this.totalAmount = (this.items || []).reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.costPrice || 0), 0);
-  next();
 });
 
 module.exports = mongoose.model("PurchaseOrder", purchaseOrderSchema);

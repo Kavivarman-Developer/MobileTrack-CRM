@@ -19,21 +19,27 @@ export default function PurchasesScreen({ navigation }: any) {
   const total = useMemo(() => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0), [lines]);
   const save = useMutation({
     mutationFn: () => createPurchaseOrder({ vendor, notes, status: "ordered", items: lines.map((line) => ({ product: line.product, quantity: Number(line.quantity), costPrice: Number(line.costPrice) })) as any }),
-    onSuccess: () => {
+    onSuccess: (purchaseOrder) => {
       setOpen(false);
       setVendor("");
       setNotes("");
       setLines([blankLine]);
+      queryClient.setQueryData<PurchaseOrder[]>(["purchase-orders"], (current = []) => [purchaseOrder, ...current.filter((item) => item._id !== purchaseOrder._id)]);
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      Alert.alert("Purchase order saved", "Use Receive stock when the vendor delivers the items.");
     },
     onError: (error: Error) => Alert.alert("Purchase order failed", error.message),
   });
   const receive = useMutation({
     mutationFn: receivePurchaseOrder,
-    onSuccess: () => {
+    onSuccess: (purchaseOrder) => {
+      queryClient.setQueryData<PurchaseOrder[]>(["purchase-orders"], (current = []) => current.map((item) => item._id === purchaseOrder._id ? purchaseOrder : item));
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
+      Alert.alert("Stock received", "Inventory stock has been updated.");
     },
+    onError: (error: Error) => Alert.alert("Receive failed", error.message),
   });
 
   function vendorName(po: PurchaseOrder) {
@@ -60,11 +66,17 @@ export default function PurchasesScreen({ navigation }: any) {
                 <Text style={styles.name}>{vendorName(item)}</Text>
                 <Text style={styles.meta}>{item.items.length} items | Rs {formatMoney(item.totalAmount)}</Text>
                 <Text style={styles.meta}>{item.orderDate.slice(0, 10)}</Text>
+                <View style={styles.lines}>
+                  {item.items.slice(0, 3).map((line, index) => {
+                    const product = typeof line.product === "string" ? null : line.product as Product;
+                    return <Text key={`${item._id}-${index}`} numberOfLines={1} style={styles.lineText}>{product?.name || "Product"} x {line.quantity}</Text>;
+                  })}
+                </View>
               </View>
               <View style={[styles.badge, statusStyle(item.status)]}><Text style={styles.badgeText}>{item.status}</Text></View>
             </View>
             {item.status !== "received" && (
-              <TouchableOpacity onPress={() => receive.mutate(item._id)} style={styles.receiveButton}><Text style={styles.receiveText}>Mark Received</Text></TouchableOpacity>
+              <TouchableOpacity disabled={receive.isPending} onPress={() => receive.mutate(item._id)} style={styles.receiveButton}><Text style={styles.receiveText}>Receive stock</Text></TouchableOpacity>
             )}
           </View>
         )}
@@ -137,10 +149,12 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   name: { color: colors.text, fontSize: 16, fontWeight: "900" },
   meta: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  lines: { marginTop: spacing.xs },
+  lineText: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: 2 },
   badge: { borderRadius: 999, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   badgeText: { color: colors.text, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  receiveButton: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, minHeight: 44, justifyContent: "center" },
-  receiveText: { color: colors.primaryDark, fontWeight: "900" },
+  receiveButton: { alignItems: "center", backgroundColor: colors.greenSoft, borderTopColor: colors.border, borderTopWidth: 1, minHeight: 48, justifyContent: "center" },
+  receiveText: { color: colors.success, fontWeight: "900" },
   closeButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 42, justifyContent: "center", width: 42 },
   closeText: { color: colors.text, fontSize: 18, fontWeight: "900" },
   formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1 },

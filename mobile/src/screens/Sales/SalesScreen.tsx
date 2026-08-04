@@ -18,6 +18,8 @@ export default function SalesScreen() {
   const [customer, setCustomer] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [scanOpen, setScanOpen] = useState(false);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
   const [totalsOpen, setTotalsOpen] = useState(false);
   const [lastScan, setLastScan] = useState("");
   const [permission, requestPermission] = useCameraPermissions();
@@ -30,6 +32,13 @@ export default function SalesScreen() {
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.product.price * line.qty, 0), [cart]);
   const itemCount = useMemo(() => cart.reduce((sum, line) => sum + line.qty, 0), [cart]);
+  const filteredProducts = useMemo(() => {
+    const keyword = productSearch.trim().toLowerCase();
+    return (products.data || []).filter((item) => {
+      const searchable = `${item.name} ${item.sku || ""} ${typeof item.category === "object" ? item.category?.name || "" : ""}`.toLowerCase();
+      return !keyword || searchable.includes(keyword);
+    });
+  }, [productSearch, products.data]);
   const total = Math.max(subtotal - Number(discount || 0) + Number(gst || 0), 0);
   const save = useMutation({
     mutationFn: () => createOrder({ customer: customer || undefined, discount: Number(discount || 0), gst: Number(gst || 0), paymentStatus: "paid", items: cart.map((line) => ({ product: line.product._id, qty: line.qty })) }),
@@ -99,7 +108,12 @@ export default function SalesScreen() {
               <Text style={styles.section}>Product picker</Text>
               <Text style={styles.sectionHint}>Tap an item to add it to cart</Text>
             </View>
-            <Text style={styles.panelPill}>{products.data?.length || 0}</Text>
+            <View style={styles.productHeaderActions}>
+              <TouchableOpacity onPress={() => setProductPickerOpen(true)} style={styles.viewButton}>
+                <Text style={styles.viewButtonText}>View</Text>
+              </TouchableOpacity>
+              <Text style={styles.panelPill}>{products.data?.length || 0}</Text>
+            </View>
           </View>
           <TouchableOpacity onPress={() => setScanOpen(true)} style={styles.scanButton}>
             <Text style={styles.scanButtonText}>Scan to Add</Text>
@@ -239,6 +253,55 @@ export default function SalesScreen() {
           )}
         </Screen>
       </Modal>
+      <Modal animationType="slide" visible={productPickerOpen}>
+        <Screen>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>Product browser</Text>
+              <Text style={styles.title}>Add Items</Text>
+            </View>
+            <TouchableOpacity onPress={() => setProductPickerOpen(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>x</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.searchPanel}>
+            <Field onChangeText={setProductSearch} placeholder="Search product, SKU, category" value={productSearch} />
+            <View style={styles.searchMetaRow}>
+              <Text style={styles.searchMeta}>{filteredProducts.length} items</Text>
+              <Text style={styles.searchMeta}>{itemCount} in cart</Text>
+            </View>
+          </View>
+          <FlatList
+            data={filteredProducts}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.productListContent}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Empty text={products.isLoading ? "Loading products..." : "No matching products."} />}
+            renderItem={({ item }) => {
+              const line = cart.find((row) => row.product._id === item._id);
+              return (
+                <View style={styles.productRow}>
+                  {item.images?.[0] ? (
+                    <Image source={{ uri: item.images[0] }} style={styles.productRowImage} />
+                  ) : (
+                    <View style={styles.productRowInitial}>
+                      <Text style={styles.productInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View style={styles.productRowInfo}>
+                    <Text numberOfLines={1} style={styles.productRowName}>{item.name}</Text>
+                    <Text numberOfLines={1} style={styles.productRowMeta}>{item.sku || "No SKU"} | Rs {formatMoney(item.price)}</Text>
+                    <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>{item.stockQty} in stock{line ? ` | Cart ${line.qty}` : ""}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => add(item)} style={styles.addItemButton}>
+                    <Text style={styles.addItemButtonText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
+          />
+        </Screen>
+      </Modal>
     </Screen>
   );
 }
@@ -277,6 +340,9 @@ const styles = StyleSheet.create({
   totalHint: { color: colors.blueSoft, fontSize: 12, marginTop: spacing.xs },
   panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  productHeaderActions: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
+  viewButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, minHeight: 34, justifyContent: "center", paddingHorizontal: spacing.md },
+  viewButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   cartHeaderActions: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   cartCloseButton: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 34, justifyContent: "center", width: 34 },
   cartCloseText: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: -2 },
@@ -329,4 +395,16 @@ const styles = StyleSheet.create({
   scanOverlay: { alignItems: "center", flex: 1, justifyContent: "center" },
   scanFrame: { borderColor: "#fff", borderRadius: 8, borderWidth: 3, height: 220, width: 220 },
   scanHint: { backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 8, color: "#fff", fontWeight: "900", marginTop: spacing.md, padding: spacing.sm },
+  searchPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  searchMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.xs },
+  searchMeta: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  productListContent: { paddingBottom: spacing.xl },
+  productRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm, padding: spacing.sm },
+  productRowImage: { borderRadius: 8, height: 58, width: 58 },
+  productRowInitial: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: 8, height: 58, justifyContent: "center", width: 58 },
+  productRowInfo: { flex: 1 },
+  productRowName: { color: colors.text, fontSize: 15, fontWeight: "900" },
+  productRowMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 3 },
+  addItemButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, minHeight: 42, justifyContent: "center", minWidth: 62 },
+  addItemButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
 });

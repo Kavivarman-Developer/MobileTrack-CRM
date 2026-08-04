@@ -152,8 +152,8 @@ export type VendorCall = {
 };
 
 export type VendorCallSummary = {
-  today: { date?: string; total: number; outgoing: number; incoming: number; missed: number };
-  daily: { date: string; total: number; outgoing: number; incoming: number; missed: number }[];
+  today: { date?: string; total: number; outgoing: number; appOutgoing?: number; incoming: number; missed: number };
+  daily: { date: string; total: number; outgoing: number; appOutgoing?: number; incoming: number; missed: number }[];
 };
 
 export type PurchaseOrder = {

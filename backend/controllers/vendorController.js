@@ -97,6 +97,7 @@ async function getVendorCallSummary(req, res, next) {
           _id: {
             day: { $dateToString: { format: "%Y-%m-%d", date: "$occurredAt", timezone: "Asia/Kolkata" } },
             type: "$type",
+            source: "$source",
           },
           count: { $sum: 1 },
         },
@@ -109,12 +110,13 @@ async function getVendorCallSummary(req, res, next) {
       const date = new Date();
       date.setDate(date.getDate() - index);
       const day = date.toISOString().slice(0, 10);
-      byDay.set(day, { date: day, total: 0, outgoing: 0, incoming: 0, missed: 0 });
+      byDay.set(day, { date: day, total: 0, outgoing: 0, appOutgoing: 0, incoming: 0, missed: 0 });
     }
 
     rows.forEach((row) => {
-      const day = byDay.get(row._id.day) || { date: row._id.day, total: 0, outgoing: 0, incoming: 0, missed: 0 };
-      day[row._id.type] = row.count;
+      const day = byDay.get(row._id.day) || { date: row._id.day, total: 0, outgoing: 0, appOutgoing: 0, incoming: 0, missed: 0 };
+      day[row._id.type] += row.count;
+      if (row._id.type === "outgoing" && row._id.source !== "auto") day.appOutgoing += row.count;
       day.total += row.count;
       byDay.set(row._id.day, day);
     });
@@ -124,11 +126,16 @@ async function getVendorCallSummary(req, res, next) {
       { $match: { organizationId: req.orgId, occurredAt: { $gte: selected.start, $lt: selected.end } } },
       { $group: { _id: "$type", count: { $sum: 1 } } },
     ]);
-    const today = { date: selected.key, total: 0, outgoing: 0, incoming: 0, missed: 0 };
+    const today = { date: selected.key, total: 0, outgoing: 0, appOutgoing: 0, incoming: 0, missed: 0 };
     selectedRows.forEach((row) => {
       today[row._id] = row.count;
       today.total += row.count;
     });
+    today.appOutgoing = await VendorCall.countDocuments(scoped(req, {
+      type: "outgoing",
+      source: { $ne: "auto" },
+      occurredAt: { $gte: selected.start, $lt: selected.end },
+    }));
     res.json({ today, daily });
   } catch (error) {
     next(error);

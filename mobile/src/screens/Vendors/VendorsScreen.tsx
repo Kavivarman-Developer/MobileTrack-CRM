@@ -276,7 +276,7 @@ export default function VendorsScreen({ navigation }: any) {
                 <Ionicons color="#fff" name="call" size={18} />
                 <Text style={styles.callActionTextLight}>Call now</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => logCall.mutate({ type: "missed", note: callNote || "Missed call from vendor" })} style={styles.callAction}>
+              <TouchableOpacity onPress={() => logCall.mutate({ type: "missed", note: callNote || "Missed call from vendor" })} style={[styles.callAction, styles.callActionMissed]}>
                 <Ionicons color={colors.danger} name="call-outline" size={18} />
                 <Text style={styles.callActionTextMissed}>Missed</Text>
               </TouchableOpacity>
@@ -294,8 +294,17 @@ export default function VendorsScreen({ navigation }: any) {
             ListEmptyComponent={<Empty text={calls.isLoading ? "Loading call logs..." : "No call logs yet."} />}
             renderItem={({ item }) => (
               <View style={[styles.callLogCard, item.type === "missed" && styles.callLogCardMissed]}>
+                {item.type === "missed" && <View style={styles.missedStripe} />}
                 <View style={styles.callLogTop}>
-                  <Text style={[styles.callType, item.type === "missed" && styles.callTypeMissed, item.type === "incoming" && styles.callTypeIncoming]}>{callTypeLabel[item.type]}</Text>
+                  <View style={styles.callTypeRow}>
+                    <Ionicons
+                      color={item.type === "missed" ? colors.danger : item.type === "incoming" ? colors.success : colors.primaryDark}
+                      name={item.type === "missed" ? "alert-circle" : item.type === "incoming" ? "arrow-down-circle-outline" : "call-outline"}
+                      size={16}
+                    />
+                    <Text style={[styles.callType, item.type === "missed" && styles.callTypeMissed, item.type === "incoming" && styles.callTypeIncoming]}>{callTypeLabel[item.type]}</Text>
+                    {item.type === "missed" && <View style={styles.missedBadge}><Text style={styles.missedBadgeText}>MISSED</Text></View>}
+                  </View>
                   <Text style={styles.callDate}>{new Date(item.occurredAt || item.createdAt).toLocaleString()}</Text>
                 </View>
                 <Text style={styles.meta}>{item.phone || selectedVendor?.phone || "No phone"}</Text>
@@ -460,14 +469,19 @@ const styles = StyleSheet.create({
   dateHint: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   callAction: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, gap: 4, justifyContent: "center", minHeight: 58 },
   callActionDial: { backgroundColor: colors.success, borderColor: colors.success },
+  callActionMissed: { backgroundColor: colors.redSoft, borderColor: colors.danger },
   callActionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   callActionTextMissed: { color: colors.danger, fontSize: 12, fontWeight: "900" },
   callActionTextLight: { color: "#fff", fontSize: 12, fontWeight: "800" },
-  callLogCard: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
+  callLogCard: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, overflow: "hidden", padding: spacing.md, ...shadows.card },
   callLogCardMissed: { backgroundColor: colors.redSoft, borderColor: colors.danger, borderWidth: 1 },
+  missedStripe: { backgroundColor: colors.danger, bottom: 0, left: 0, position: "absolute", top: 0, width: 5 },
   callLogTop: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  callTypeRow: { alignItems: "center", flexDirection: "row", flex: 1, gap: 6, paddingLeft: 2 },
   callType: { color: colors.text, fontSize: 14, fontWeight: "900" },
   callTypeMissed: { color: colors.danger },
   callTypeIncoming: { color: colors.success },
+  missedBadge: { backgroundColor: colors.danger, borderRadius: radius.pill, paddingHorizontal: spacing.xs, paddingVertical: 2 },
+  missedBadgeText: { color: "#fff", fontSize: 9, fontWeight: "900" },
   callDate: { color: colors.muted, fontSize: 11, fontWeight: "700" },
 });

@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { createVendor, deleteVendor, getVendors, updateVendor, Vendor } from "../../services/api";
+import { createVendor, createVendorCall, deleteVendor, getVendorCalls, getVendorCallSummary, getVendors, updateVendor, Vendor } from "../../services/api";
 
 const blank = { name: "", email: "", phone: "", address: "", gstNumber: "", notes: "" };
 const fieldMeta: { key: keyof typeof blank; label: string; icon: any; multiline?: boolean }[] = [
@@ -18,9 +18,14 @@ const fieldMeta: { key: keyof typeof blank; label: string; icon: any; multiline?
 
 export default function VendorsScreen({ navigation }: any) {
   const [open, setOpen] = useState(false);
+  const [callsOpen, setCallsOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [callNote, setCallNote] = useState("");
   const [form, setForm] = useState(blank);
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
+  const callSummary = useQuery({ queryKey: ["vendor-call-summary"], queryFn: () => getVendorCallSummary(7) });
+  const calls = useQuery({ queryKey: ["vendor-calls", selectedVendor?._id], queryFn: () => getVendorCalls(selectedVendor!._id), enabled: !!selectedVendor?._id && callsOpen });
   const queryClient = useQueryClient();
   const save = useMutation({
     mutationFn: () => (editing ? updateVendor(editing._id, form) : createVendor(form)),
@@ -36,6 +41,16 @@ export default function VendorsScreen({ navigation }: any) {
     mutationFn: deleteVendor,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["vendors"] }),
   });
+  const logCall = useMutation({
+    mutationFn: ({ type, note }: { type: "outgoing" | "incoming" | "missed"; note?: string }) =>
+      createVendorCall(selectedVendor!._id, { type, note, phone: selectedVendor?.phone }),
+    onSuccess: () => {
+      setCallNote("");
+      queryClient.invalidateQueries({ queryKey: ["vendor-calls", selectedVendor?._id] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
+    },
+    onError: (error: Error) => Alert.alert("Call log failed", error.message),
+  });
 
   function openForm(vendor?: Vendor) {
     setEditing(vendor || null);
@@ -45,6 +60,24 @@ export default function VendorsScreen({ navigation }: any) {
         : blank
     );
     setOpen(true);
+  }
+
+  async function callVendor(vendor: Vendor) {
+    if (!vendor.phone) {
+      Alert.alert("No phone number", "Add a phone number for this vendor first.");
+      return;
+    }
+    setSelectedVendor(vendor);
+    await createVendorCall(vendor._id, { type: "outgoing", phone: vendor.phone, note: "Call started from app" }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["vendor-calls", vendor._id] });
+    queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
+    Linking.openURL(`tel:${vendor.phone}`);
+  }
+
+  function openCalls(vendor: Vendor) {
+    setSelectedVendor(vendor);
+    setCallNote("");
+    setCallsOpen(true);
   }
 
   return (
@@ -62,6 +95,30 @@ export default function VendorsScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
           <Ionicons color="#fff" name="add" size={22} />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.summaryPanel}>
+        <View style={styles.summaryHeader}>
+          <View>
+            <Text style={styles.sectionLabel}>Today calls</Text>
+            <Text style={styles.summaryHint}>Vendor call activity</Text>
+          </View>
+          <Ionicons color={colors.primaryDark} name="analytics-outline" size={20} />
+        </View>
+        <View style={styles.summaryGrid}>
+          <CallStat label="Total" value={callSummary.data?.today.total || 0} />
+          <CallStat label="Outgoing" tone="success" value={callSummary.data?.today.outgoing || 0} />
+          <CallStat label="Received" tone="info" value={callSummary.data?.today.incoming || 0} />
+          <CallStat label="Missed" tone="warning" value={callSummary.data?.today.missed || 0} />
+        </View>
+        <View style={styles.dayList}>
+          {(callSummary.data?.daily || []).slice(0, 4).map((day) => (
+            <View key={day.date} style={styles.dayRow}>
+              <Text style={styles.dayDate}>{formatDay(day.date)}</Text>
+              <Text style={styles.dayMeta}>Total {day.total} | Out {day.outgoing} | In {day.incoming} | Missed {day.missed}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <FlatList
@@ -86,6 +143,14 @@ export default function VendorsScreen({ navigation }: any) {
               <Ionicons color={colors.muted} name="chevron-forward" size={18} />
             </TouchableOpacity>
             <View style={styles.actions}>
+              <TouchableOpacity onPress={() => callVendor(item)} style={styles.actionButton}>
+                <Ionicons color={colors.success} name="call-outline" size={15} />
+                <Text style={styles.callText}>Call</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openCalls(item)} style={[styles.actionButton, styles.borderLeft]}>
+                <Ionicons color={colors.primaryDark} name="time-outline" size={15} />
+                <Text style={styles.actionText}>Logs</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => openForm(item)} style={styles.actionButton}>
                 <Ionicons color={colors.primaryDark} name="create-outline" size={15} />
                 <Text style={styles.actionText}>Edit</Text>
@@ -121,8 +186,75 @@ export default function VendorsScreen({ navigation }: any) {
           </ScrollView>
         </Screen>
       </Modal>
+
+      <Modal animationType="slide" visible={callsOpen}>
+        <Screen>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>Call follow-up</Text>
+              <Text style={styles.title}>{selectedVendor?.name || "Vendor calls"}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setCallsOpen(false)} style={styles.closeButton}>
+              <Ionicons color={colors.text} name="close" size={20} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.formCard}>
+            <View style={styles.callActions}>
+              <TouchableOpacity onPress={() => selectedVendor && callVendor(selectedVendor)} style={[styles.callAction, styles.callActionDial]}>
+                <Ionicons color="#fff" name="call" size={18} />
+                <Text style={styles.callActionTextLight}>Call now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => logCall.mutate({ type: "missed", note: callNote || "Missed call from vendor" })} style={styles.callAction}>
+                <Ionicons color={colors.warning} name="call-outline" size={18} />
+                <Text style={styles.callActionText}>Missed</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => logCall.mutate({ type: "incoming", note: callNote || "Incoming call from vendor" })} style={styles.callAction}>
+                <Ionicons color={colors.success} name="arrow-down-circle-outline" size={18} />
+                <Text style={styles.callActionText}>Received</Text>
+              </TouchableOpacity>
+            </View>
+            <Field multiline onChangeText={setCallNote} placeholder="Call note" value={callNote} />
+          </View>
+          <FlatList
+            data={calls.data || []}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<Empty text={calls.isLoading ? "Loading call logs..." : "No call logs yet."} />}
+            renderItem={({ item }) => (
+              <View style={styles.callLogCard}>
+                <View style={styles.callLogTop}>
+                  <Text style={styles.callType}>{callTypeLabel[item.type]}</Text>
+                  <Text style={styles.callDate}>{new Date(item.occurredAt || item.createdAt).toLocaleString()}</Text>
+                </View>
+                <Text style={styles.meta}>{item.phone || selectedVendor?.phone || "No phone"}</Text>
+                {!!item.note && <Text style={styles.metaSub}>{item.note}</Text>}
+              </View>
+            )}
+          />
+        </Screen>
+      </Modal>
     </Screen>
   );
+}
+
+const callTypeLabel = {
+  outgoing: "Outgoing call",
+  incoming: "Received call",
+  missed: "Missed call",
+} as const;
+
+function CallStat({ label, tone, value }: { label: string; tone?: "success" | "info" | "warning"; value: number }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={[styles.statValue, tone === "success" && styles.statSuccess, tone === "info" && styles.statInfo, tone === "warning" && styles.statWarning]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function formatDay(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 }
 
 const styles = StyleSheet.create({
@@ -132,6 +264,21 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.primary, ...typography.eyebrow },
   title: { color: colors.text, ...typography.h1, fontSize: 24, marginTop: 2 },
   addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card, shadowOpacity: 0.18 },
+  summaryPanel: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  summaryHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  sectionLabel: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  summaryHint: { color: colors.muted, fontSize: 12, fontWeight: "600", marginTop: 2 },
+  summaryGrid: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
+  statCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, padding: spacing.sm },
+  statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  statSuccess: { color: colors.success },
+  statInfo: { color: colors.info },
+  statWarning: { color: colors.warning },
+  statLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", marginTop: 2 },
+  dayList: { gap: spacing.xs },
+  dayRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingTop: spacing.xs },
+  dayDate: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  dayMeta: { color: colors.muted, flex: 1, fontSize: 11, fontWeight: "700", textAlign: "right" },
 
   listContent: { paddingBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
@@ -145,6 +292,8 @@ const styles = StyleSheet.create({
   actions: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row" },
   actionButton: { alignItems: "center", flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", paddingVertical: spacing.sm },
   actionText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800" },
+  callText: { color: colors.success, fontSize: 12, fontWeight: "800" },
+  borderLeft: { borderLeftColor: colors.border, borderLeftWidth: 1 },
   deleteButton: { borderLeftColor: colors.border, borderLeftWidth: 1 },
   deleteText: { color: colors.danger, fontSize: 12, fontWeight: "800" },
 
@@ -154,4 +303,13 @@ const styles = StyleSheet.create({
   fieldBlock: { marginBottom: spacing.sm },
   fieldLabelRow: { alignItems: "center", flexDirection: "row", gap: 5, marginBottom: spacing.xs },
   label: { color: colors.text, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
+  callActions: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  callAction: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, gap: 4, justifyContent: "center", minHeight: 58 },
+  callActionDial: { backgroundColor: colors.success, borderColor: colors.success },
+  callActionText: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  callActionTextLight: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  callLogCard: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
+  callLogTop: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  callType: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  callDate: { color: colors.muted, fontSize: 11, fontWeight: "700" },
 });

@@ -5,8 +5,11 @@ const { signAccessToken, signRefreshToken } = require("../utils/tokens");
 
 const GOOGLE_AUDIENCE = [
   process.env.GOOGLE_CLIENT_ID,
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_ID_ANDROID,
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID,
   process.env.GOOGLE_CLIENT_ID_IOS,
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
 ].filter(Boolean);
 
 async function authPayload(user) {

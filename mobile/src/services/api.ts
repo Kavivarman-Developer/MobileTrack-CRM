@@ -139,6 +139,21 @@ export type Vendor = {
   notes?: string;
 };
 
+export type VendorCall = {
+  _id: string;
+  vendor: string;
+  type: "outgoing" | "incoming" | "missed";
+  phone?: string;
+  note?: string;
+  occurredAt: string;
+  createdAt: string;
+};
+
+export type VendorCallSummary = {
+  today: { date?: string; total: number; outgoing: number; incoming: number; missed: number };
+  daily: { date: string; total: number; outgoing: number; incoming: number; missed: number }[];
+};
+
 export type PurchaseOrder = {
   _id: string;
   vendor: string | Vendor;
@@ -351,6 +366,21 @@ export async function updateVendor(id: string, payload: Partial<Vendor>) {
 
 export async function deleteVendor(id: string) {
   await api.delete(`/vendors/${id}`);
+}
+
+export async function getVendorCalls(id: string) {
+  const { data } = await api.get<VendorCall[]>(`/vendors/${id}/calls`);
+  return data;
+}
+
+export async function createVendorCall(id: string, payload: Partial<VendorCall>) {
+  const { data } = await api.post<VendorCall>(`/vendors/${id}/calls`, payload);
+  return data;
+}
+
+export async function getVendorCallSummary(days = 7) {
+  const { data } = await api.get<VendorCallSummary>("/vendors/calls/summary", { params: { days } });
+  return data;
 }
 
 export async function getPurchaseOrders() {

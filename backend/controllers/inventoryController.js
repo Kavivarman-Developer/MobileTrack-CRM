@@ -11,6 +11,12 @@ function isObjectId(value) {
   return typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 }
 
+function normalizeOptionalObjectId(value) {
+  if (!value) return undefined;
+  if (typeof value === "object" && value._id) return value._id;
+  return isObjectId(value) ? value : undefined;
+}
+
 async function findOrCreateNamedModel(Model, value) {
   if (!value) return undefined;
   if (isObjectId(value)) return value;
@@ -36,10 +42,13 @@ async function productPayload(body, orgId) {
     payload.compatibleWith = [payload.compatibleWith];
   }
   if (Array.isArray(payload.compatibleWith)) {
-    payload.compatibleWith = payload.compatibleWith.filter(Boolean);
+    payload.compatibleWith = payload.compatibleWith.map(normalizeOptionalObjectId).filter(Boolean);
   }
   if (payload.type && payload.type !== "accessory") payload.compatibleWith = [];
   if (!payload.barcode) delete payload.barcode;
+  const preferredVendor = normalizeOptionalObjectId(payload.preferredVendor);
+  if (preferredVendor) payload.preferredVendor = preferredVendor;
+  else delete payload.preferredVendor;
   payload.category = await findOrCreateNamedModel(Category, payload.category);
   payload.brand = await findOrCreateNamedModel(Brand, payload.brand);
   if (!payload.category) delete payload.category;

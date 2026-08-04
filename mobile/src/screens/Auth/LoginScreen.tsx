@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { z } from "zod";
@@ -18,13 +19,18 @@ WebBrowser.maybeCompleteAuthSession();
 const schema = z.object({ email: z.string().email(), password: z.string().min(6) });
 type FormValues = z.infer<typeof schema>;
 
+const nativeRedirectUri = AuthSession.makeRedirectUri({ scheme: "mobiletrackcrm" });
+
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const [showPassword, setShowPassword] = useState(false);
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+  const handledWebRedirect = useRef(false);
+  const redirectUri = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : nativeRedirectUri;
+  console.log("Google redirect URI", redirectUri);
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    redirectUri,
     scopes: ["openid", "profile", "email"],
   });
   const { control, handleSubmit } = useForm<FormValues>({
@@ -43,6 +49,24 @@ export default function LoginScreen() {
   });
 
   useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || handledWebRedirect.current) return;
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const idToken = query.get("id_token") || hash.get("id_token");
+    const authError = query.get("error") || hash.get("error");
+    if (authError) {
+      handledWebRedirect.current = true;
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+      Alert.alert("Google login failed", authError);
+      return;
+    }
+    if (!idToken) return;
+    handledWebRedirect.current = true;
+    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+    googleMutation.mutate(idToken);
+  }, []);
+
+  useEffect(() => {
     if (response?.type !== "success") return;
     const idToken = response.authentication?.idToken || response.params?.id_token;
     if (!idToken) {
@@ -55,6 +79,11 @@ export default function LoginScreen() {
   function continueWithGoogle() {
     if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID) {
       Alert.alert("Google login not configured", "Set EXPO_PUBLIC_GOOGLE_CLIENT_ID in mobile/.env first.");
+      return;
+    }
+    if (Platform.OS === "web") {
+      if (!request?.url || typeof window === "undefined") return;
+      window.location.assign(request.url);
       return;
     }
     promptAsync();

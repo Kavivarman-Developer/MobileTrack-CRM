@@ -57,12 +57,11 @@ productSchema.index(
   { unique: true, partialFilterExpression: { barcode: { $type: "string", $gt: "" } } }
 );
 
-productSchema.pre("validate", function syncZohoInventoryFields(next) {
+productSchema.pre("validate", function syncZohoInventoryFields() {
   if (this.sellingPrice === undefined || this.sellingPrice === null) this.sellingPrice = this.price;
   if (this.price === undefined || this.price === null) this.price = this.sellingPrice;
   if (!this.reorderPoint && this.reorderPoint !== 0) this.reorderPoint = this.lowStockThreshold;
   if (this.lowStockThreshold === undefined || this.lowStockThreshold === null) this.lowStockThreshold = this.reorderPoint;
-  next();
 });
 
 module.exports = mongoose.model("Product", productSchema);

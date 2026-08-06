@@ -36,6 +36,11 @@ function SocketBridge() {
         queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         queryClient.invalidateQueries({ queryKey: ["orders"] });
       });
+      socket.on("order:updated", () => {
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+      });
       socket.on("inventory:adjusted", () => {
         queryClient.invalidateQueries({ queryKey: ["inventory-adjustments"] });
         queryClient.invalidateQueries({ queryKey: ["stock-summary"] });

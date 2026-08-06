@@ -7,12 +7,14 @@ import { useAppSelector } from "../hooks/redux";
 import OrganizationDetailScreen from "../screens/Admin/OrganizationDetailScreen";
 import OrganizationsScreen from "../screens/Admin/OrganizationsScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
+import BillingScreen from "../screens/Billing/BillingScreen";
 import CustomersScreen from "../screens/Customers/CustomersScreen";
 import DashboardScreen from "../screens/Dashboard/DashboardScreen";
 import InventoryScreen from "../screens/Inventory/InventoryScreen";
 import InventoryAdjustmentsScreen from "../screens/Inventory/InventoryAdjustmentsScreen";
 import ProductDetailScreen from "../screens/Inventory/ProductDetailScreen";
 import ExpensesScreen from "../screens/Expenses/ExpensesScreen";
+import OrdersScreen from "../screens/Orders/OrdersScreen";
 import PurchasesScreen from "../screens/Purchases/PurchasesScreen";
 import ReportsScreen from "../screens/Reports/ReportsScreen";
 import QuickSaleScreen from "../screens/Sales/QuickSaleScreen";
@@ -24,21 +26,24 @@ const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
-function Tabs() {
+function Tabs({ route }: any) {
+  const initialRouteName = route?.params?.initialTab || "Dashboard";
   return (
     <Tab.Navigator
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
-        tabBarStyle: { minHeight: 62, paddingBottom: 7, paddingTop: 6 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 2 },
+        tabBarStyle: { height: 74, minHeight: 74, paddingBottom: 12, paddingTop: 7 },
       }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: "Home", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="home-outline" size={size} /> }} />
-      <Tab.Screen name="Inventory" component={InventoryScreen} options={{ tabBarLabel: "Items", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="cube-outline" size={size} /> }} />
+      <Tab.Screen name="Orders" component={OrdersScreen} options={{ tabBarLabel: "Orders", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="receipt-outline" size={size} /> }} />
       <Tab.Screen name="Sales" component={SalesScreen} options={{ tabBarLabel: "Sales", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="bag-outline" size={size} /> }} />
-      <Tab.Screen name="Customers" component={CustomersScreen} options={{ tabBarLabel: "Customers", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="people-outline" size={size} /> }} />
+      <Tab.Screen name="Vendors" component={VendorsScreen} options={{ tabBarLabel: "Vendors", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="hand-left-outline" size={size} /> }} />
+      <Tab.Screen name="Purchases" component={PurchasesScreen} options={{ tabBarLabel: "Purchases", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="cart-outline" size={size} /> }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: "Settings", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="settings-outline" size={size} /> }} />
     </Tab.Navigator>
   );
@@ -48,14 +53,16 @@ function DrawerShell() {
   const user = useAppSelector((state) => state.auth.user);
   const isSuperAdmin = user?.role === "superadmin";
   return (
-    <Drawer.Navigator screenOptions={{ headerTintColor: colors.primary, drawerActiveTintColor: colors.primary }}>
+    <Drawer.Navigator initialRouteName="Home" screenOptions={{ headerTintColor: colors.primary, drawerActiveTintColor: colors.primary }}>
       {isSuperAdmin && <Drawer.Screen name="Admin" component={OrganizationsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="shield-checkmark-outline" size={size} /> }} />}
       <Drawer.Screen name="Home" component={Tabs} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="home-outline" size={size} /> }} />
       <Drawer.Screen name="Items" component={InventoryScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="cube-outline" size={size} /> }} />
       <Drawer.Screen name="Inventory Adjustments" component={InventoryAdjustmentsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="options-outline" size={size} /> }} />
       <Drawer.Screen name="Sales" component={SalesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="bag-outline" size={size} /> }} />
+      <Drawer.Screen name="Billing" component={BillingScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="receipt-outline" size={size} /> }} />
       <Drawer.Screen name="Purchases" component={PurchasesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="cart-outline" size={size} /> }} />
       <Drawer.Screen name="Vendors" component={VendorsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="hand-left-outline" size={size} /> }} />
+      <Drawer.Screen name="Orders" component={Tabs} initialParams={{ initialTab: "Orders" }} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="receipt-outline" size={size} /> }} />
       <Drawer.Screen name="Reports" component={ReportsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="bar-chart-outline" size={size} /> }} />
       <Drawer.Screen name="Settings" component={SettingsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="settings-outline" size={size} /> }} />
     </Drawer.Navigator>
@@ -71,9 +78,11 @@ export default function AppNavigator() {
           <Stack.Screen name="App" component={DrawerShell} />
           <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
           <Stack.Screen name="QuickSale" component={QuickSaleScreen} />
+          <Stack.Screen name="Billing" component={BillingScreen} />
           <Stack.Screen name="Reports" component={ReportsScreen} />
           <Stack.Screen name="Expenses" component={ExpensesScreen} />
           <Stack.Screen name="Vendors" component={VendorsScreen} />
+          <Stack.Screen name="Orders" component={OrdersScreen} />
           <Stack.Screen name="Purchases" component={PurchasesScreen} />
           <Stack.Screen name="InventoryAdjustments" component={InventoryAdjustmentsScreen} />
           <Stack.Screen name="AdminOrganizations" component={OrganizationsScreen} />

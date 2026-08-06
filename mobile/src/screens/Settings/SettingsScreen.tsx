@@ -53,6 +53,10 @@ export default function SettingsScreen() {
             <Text style={styles.moduleLabel}>Vendors</Text>
             <Text style={styles.moduleStatus}>Open</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Orders")} style={styles.moduleLink}>
+            <Text style={styles.moduleLabel}>Orders</Text>
+            <Text style={styles.moduleStatus}>Open</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate("Purchases")} style={styles.moduleLink}>
             <Text style={styles.moduleLabel}>Purchases</Text>
             <Text style={styles.moduleStatus}>Open</Text>

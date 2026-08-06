@@ -84,16 +84,22 @@ export type Product = {
 
 export type Order = {
   _id: string;
+  invoiceNumber?: string;
   customer?: Customer;
   items: { _id: string; product: Product; qty: number; price: number }[];
   subtotal: number;
   discount: number;
   gst: number;
   total: number;
-  paymentStatus: string;
+  amountPaid?: number;
+  balanceDue?: number;
+  dueDate?: string;
+  notes?: string;
+  paymentStatus: "paid" | "partial" | "pending";
   paymentMethod?: string;
   paymentRef?: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type StockMovement = {
@@ -192,6 +198,7 @@ export type Customer = {
   phone: string;
   address?: string;
   pendingBalance: number;
+  createdAt?: string;
 };
 
 export type AdminOrganizationRow = {
@@ -320,7 +327,20 @@ export async function deleteCustomer(id: string) {
   await api.delete(`/customers/${id}`);
 }
 
-export async function createOrder(payload: unknown) {
+export type BillingInvoicePayload = {
+  customer?: string;
+  items: { product: string; qty: number }[];
+  discount?: number;
+  gst?: number;
+  paymentStatus?: "paid" | "partial" | "pending";
+  paymentMethod?: string;
+  paymentRef?: string;
+  amountPaid?: number;
+  dueDate?: string;
+  notes?: string;
+};
+
+export async function createOrder(payload: BillingInvoicePayload | unknown) {
   const { data } = await api.post("/orders", payload);
   return data;
 }
@@ -330,8 +350,18 @@ export async function quickSale(payload: { items: { productId: string; qty: numb
   return data;
 }
 
-export async function getOrders(params?: { dateFrom?: string; dateTo?: string; customer?: string }) {
+export async function getOrders(params?: { dateFrom?: string; dateTo?: string; customer?: string; paymentStatus?: "all" | "paid" | "partial" | "pending" }) {
   const { data } = await api.get<Order[]>("/orders", { params });
+  return data;
+}
+
+export async function createBillingInvoice(payload: BillingInvoicePayload) {
+  const { data } = await api.post<Order>("/orders", payload);
+  return data;
+}
+
+export async function recordOrderPayment(id: string, payload: { amount: number; method?: string; paymentRef?: string }) {
+  const { data } = await api.post<Order>(`/orders/${id}/payments`, payload);
   return data;
 }
 

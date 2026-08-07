@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing } from "../../constants/theme";
 import { blockAdminUser, getAdminOrganization, getAdminOrganizationUsers, unblockAdminUser, updateAdminOrganization } from "../../services/api";
@@ -16,6 +16,7 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ["admin-organization", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
     },
+    onError: (error: Error) => Alert.alert("Update failed", error.message),
   });
   const updateSub = useMutation({
     mutationFn: (payload: any) => updateAdminOrganization(organizationId, payload),
@@ -23,6 +24,7 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
       queryClient.invalidateQueries({ queryKey: ["admin-organization", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["admin-organizations"] });
     },
+    onError: (error: Error) => Alert.alert("Update failed", error.message),
   });
   const blockUser = useMutation({
     mutationFn: (userId: string) => blockAdminUser(userId, "Blocked by super admin"),
@@ -72,6 +74,21 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
                   <Choice active={organization?.subscriptionStatus === "active"} label="Active" onPress={() => updateSub.mutate({ subscriptionStatus: "active", isActive: true })} />
                   <Choice active={organization?.subscriptionStatus === "past_due"} label="Past due" onPress={() => updateSub.mutate({ subscriptionStatus: "past_due" })} />
                   <Choice active={organization?.subscriptionStatus === "cancelled"} label="Cancel" onPress={() => updateSub.mutate({ subscriptionStatus: "cancelled", isActive: false })} />
+                </View>
+              </View>
+              <View style={styles.subscriptionCard}>
+                <View style={styles.settingRow}>
+                  <View style={styles.settingCopy}>
+                    <Text style={styles.subscriptionTitle}>Forgot password</Text>
+                    <Text style={styles.meta}>{organization?.forgotPasswordEnabled ? "Shop owner can reset password from login" : "Hidden from shop owner login"}</Text>
+                  </View>
+                  <TouchableOpacity
+                    disabled={updateSub.isPending}
+                    onPress={() => updateSub.mutate({ forgotPasswordEnabled: !organization?.forgotPasswordEnabled })}
+                    style={[styles.togglePill, organization?.forgotPasswordEnabled && styles.togglePillOn]}
+                  >
+                    <View style={[styles.toggleKnob, organization?.forgotPasswordEnabled && styles.toggleKnobOn]} />
+                  </TouchableOpacity>
                 </View>
               </View>
               <Text style={styles.section}>Users</Text>
@@ -136,6 +153,12 @@ const styles = StyleSheet.create({
   section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
   subscriptionCard: { backgroundColor: colors.background, borderRadius: radius.sm, marginBottom: spacing.md, padding: spacing.md },
   subscriptionTitle: { color: colors.text, fontSize: 16, fontWeight: "900", marginBottom: 2, textTransform: "capitalize" },
+  settingRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
+  settingCopy: { flex: 1 },
+  togglePill: { backgroundColor: colors.border, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 54 },
+  togglePillOn: { backgroundColor: colors.greenSoft },
+  toggleKnob: { backgroundColor: colors.surface, borderRadius: radius.pill, height: 24, width: 24, ...shadows.card },
+  toggleKnobOn: { alignSelf: "flex-end", backgroundColor: colors.success },
   segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
   choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   choiceActive: { backgroundColor: colors.orangeSoft, borderColor: colors.primary },

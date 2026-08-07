@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../constants/theme";
 import { useAppSelector } from "../hooks/redux";
 import OrganizationDetailScreen from "../screens/Admin/OrganizationDetailScreen";
@@ -28,6 +29,8 @@ const Stack = createNativeStackNavigator();
 
 function Tabs({ route }: any) {
   const initialRouteName = route?.params?.initialTab || "Dashboard";
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 62 + Math.max(insets.bottom, 12);
   return (
     <Tab.Navigator
       initialRouteName={initialRouteName}
@@ -36,7 +39,14 @@ function Tabs({ route }: any) {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 2 },
-        tabBarStyle: { height: 74, minHeight: 74, paddingBottom: 12, paddingTop: 7 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: tabBarHeight,
+          minHeight: tabBarHeight,
+          paddingBottom: Math.max(insets.bottom, 12),
+          paddingTop: 7,
+        },
       }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: "Home", tabBarIcon: ({ color, size }) => <Ionicons color={color} name="home-outline" size={size} /> }} />

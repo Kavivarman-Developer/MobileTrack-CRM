@@ -1,9 +1,10 @@
 import { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, shadows, spacing, typography } from "../constants/theme";
 
 export function Screen({ children }: { children: ReactNode }) {
-  return <View style={styles.screen}>{children}</View>;
+  return <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>{children}</SafeAreaView>;
 }
 
 export function Card({ children }: { children: ReactNode }) {
@@ -93,11 +94,13 @@ const badgeTone = {
 } as const;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
+  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   card: {
     ...shadows.card,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
+    borderColor: colors.border,
+    borderWidth: 1,
     marginBottom: spacing.md,
     padding: spacing.md,
   },
@@ -134,7 +137,7 @@ const styles = StyleSheet.create({
   buttonDanger: { backgroundColor: colors.danger },
   buttonPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  buttonText: { color: "#fff", fontSize: 15, fontWeight: "800", textAlign: "center" },
   buttonTextSecondary: { color: colors.text },
   buttonTextGhost: { color: colors.primary },
 

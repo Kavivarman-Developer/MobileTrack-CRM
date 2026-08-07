@@ -56,6 +56,7 @@ async function listOrganizations(req, res, next) {
       subscriptionStatus: org.subscriptionStatus,
       subscriptionStartDate: org.subscriptionStartDate,
       subscriptionEndDate: org.subscriptionEndDate,
+      forgotPasswordEnabled: org.forgotPasswordEnabled,
       stats: await orgStats(org._id),
     })));
     res.json(rows);
@@ -132,6 +133,7 @@ async function updateOrganization(req, res, next) {
   try {
     const payload = {};
     if (typeof req.body.isActive === "boolean") payload.isActive = req.body.isActive;
+    if (typeof req.body.forgotPasswordEnabled === "boolean") payload.forgotPasswordEnabled = req.body.forgotPasswordEnabled;
     if (typeof req.body.plan === "string") payload.plan = req.body.plan;
     if (["monthly", "yearly"].includes(req.body.billingCycle)) payload.billingCycle = req.body.billingCycle;
     if (["trial", "active", "past_due", "cancelled"].includes(req.body.subscriptionStatus)) payload.subscriptionStatus = req.body.subscriptionStatus;

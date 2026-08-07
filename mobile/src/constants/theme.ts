@@ -1,29 +1,28 @@
 // Design system for the Retail Inventory & Billing app.
-// Keeps the SAME export names/keys your screens already import (colors, spacing, radius, shadows)
-// so nothing else in the codebase needs to change — only the values got a real design pass.
+// Keep export names stable so existing screen behavior does not change.
 
 export const colors = {
   // Base surfaces
-  background: "#F4F6FB",      // app background — soft cool grey, not pure white/grey
-  surface: "#FFFFFF",         // cards
-  surfaceTint: "#F0F3FF",     // subtle tinted panels (empty states etc.)
-  border: "#E7EAF3",          // hairline borders — soft, not harsh grey
+  background: "#F5F7FA",
+  surface: "#FFFFFF",
+  surfaceTint: "#EFF4FF",
+  border: "#E3E7EF",
 
   // Text
-  text: "#12172B",            // near-black navy for headings/body — softer than pure black
-  muted: "#6B7280",           // secondary text
+  text: "#111827",
+  muted: "#6B7280",
 
   // Brand
-  primary: "#4F46E5",         // indigo — main brand/action color
-  primaryDark: "#3730A3",     // pressed/active state, link text
-  secondary: "#0F172A",       // deep navy for hero panels/headers
+  primary: "#2563EB",
+  primaryDark: "#1D4ED8",
+  secondary: "#172033",
 
   // Status
   success: "#16A34A",
   danger: "#DC2626",
   warning: "#D97706",
   info: "#2563EB",
-  accent: "#EA580C",          // used for money/highlight numbers
+  accent: "#EA580C",
   purple: "#7C3AED",
 
   // Soft tint backgrounds (badges/pills)
@@ -43,34 +42,34 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 10,
-  md: 16,   // was likely 8 before — bumped up for a softer, more modern card feel
-  lg: 22,
+  sm: 8,
+  md: 8,
+  lg: 12,
   pill: 999,
 };
 
 export const shadows = {
   card: {
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   floating: {
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 7,
   },
 };
 
 export const typography = {
-  h1: { fontSize: 28, fontWeight: "900" as const, letterSpacing: -0.3 },
-  h2: { fontSize: 20, fontWeight: "800" as const, letterSpacing: -0.2 },
-  h3: { fontSize: 16, fontWeight: "800" as const },
+  h1: { fontSize: 26, fontWeight: "900" as const, letterSpacing: 0 },
+  h2: { fontSize: 20, fontWeight: "800" as const, letterSpacing: 0 },
+  h3: { fontSize: 16, fontWeight: "800" as const, letterSpacing: 0 },
   body: { fontSize: 14, fontWeight: "500" as const },
   caption: { fontSize: 12, fontWeight: "600" as const },
-  eyebrow: { fontSize: 11, fontWeight: "800" as const, letterSpacing: 0.6, textTransform: "uppercase" as const },
+  eyebrow: { fontSize: 11, fontWeight: "800" as const, letterSpacing: 0.5, textTransform: "uppercase" as const },
 };

@@ -86,6 +86,48 @@ async function login(req, res, next) {
   }
 }
 
+async function forgotPasswordStatus(req, res, next) {
+  try {
+    const email = String(req.query.email || "").trim().toLowerCase();
+    if (!email) return res.json({ enabled: false });
+
+    const user = await User.findOne({ email }).select("role organizationId authProvider");
+    if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") {
+      return res.json({ enabled: false });
+    }
+
+    const organization = await Organization.findById(user.organizationId).select("forgotPasswordEnabled isActive subscriptionStatus");
+    const enabled = !!organization?.forgotPasswordEnabled && organization.isActive !== false && organization.subscriptionStatus !== "cancelled";
+    res.json({ enabled });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function resetPassword(req, res, next) {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    if (!email || password.length < 6) return res.status(400).json({ message: "Email and a 6 character password are required" });
+
+    const user = await User.findOne({ email });
+    if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") {
+      return res.status(403).json({ message: "Password reset is not enabled for this account" });
+    }
+
+    const organization = await Organization.findById(user.organizationId).select("forgotPasswordEnabled isActive subscriptionStatus");
+    const enabled = !!organization?.forgotPasswordEnabled && organization.isActive !== false && organization.subscriptionStatus !== "cancelled";
+    if (!enabled) return res.status(403).json({ message: "Password reset is not enabled for this account" });
+
+    user.password = password;
+    user.refreshToken = null;
+    await user.save();
+    res.json({ message: "Password updated. Please sign in with your new password." });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function googleLogin(req, res, next) {
   try {
     const { idToken, businessName } = req.body;
@@ -132,4 +174,4 @@ async function googleLogin(req, res, next) {
   }
 }
 
-module.exports = { register, login, googleLogin };
+module.exports = { register, login, googleLogin, forgotPasswordStatus, resetPassword };

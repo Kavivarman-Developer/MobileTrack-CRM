@@ -8,6 +8,7 @@ const organizationSchema = new mongoose.Schema({
   subscriptionStatus: { type: String, enum: ["trial", "active", "past_due", "cancelled"], default: "trial" },
   subscriptionStartDate: { type: Date, default: Date.now },
   subscriptionEndDate: { type: Date, default: null },
+  forgotPasswordEnabled: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
 });

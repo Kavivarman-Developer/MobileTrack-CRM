@@ -213,6 +213,7 @@ export type AdminOrganizationRow = {
   subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled";
   subscriptionStartDate?: string;
   subscriptionEndDate?: string;
+  forgotPasswordEnabled?: boolean;
   stats: {
     productCount: number;
     customerCount: number;
@@ -228,6 +229,16 @@ export type AdminOrganizationRow = {
 
 export async function login(email: string, password: string) {
   const { data } = await api.post("/auth/login", { email, password });
+  return data;
+}
+
+export async function getForgotPasswordStatus(email: string) {
+  const { data } = await api.get<{ enabled: boolean }>("/auth/forgot-password/status", { params: { email } });
+  return data;
+}
+
+export async function resetForgotPassword(email: string, password: string) {
+  const { data } = await api.post<{ message: string }>("/auth/forgot-password/reset", { email, password });
   return data;
 }
 
@@ -483,7 +494,7 @@ export async function createShopOwner(payload: { name: string; email: string; pa
   return data;
 }
 
-export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string; billingCycle?: "monthly" | "yearly"; subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled"; renewSubscription?: boolean }) {
+export async function updateAdminOrganization(id: string, payload: { isActive?: boolean; plan?: string; billingCycle?: "monthly" | "yearly"; subscriptionStatus?: "trial" | "active" | "past_due" | "cancelled"; renewSubscription?: boolean; forgotPasswordEnabled?: boolean }) {
   const { data } = await api.patch(`/admin/organizations/${id}`, payload);
   return data;
 }

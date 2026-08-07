@@ -1,9 +1,9 @@
 import "react-native-gesture-handler";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Alert } from "react-native";
+import { Alert, BackHandler, Platform } from "react-native";
 import { Provider } from "react-redux";
 import AppNavigator from "./src/navigation/AppNavigator";
 import { logout } from "./src/redux/authSlice";
@@ -11,6 +11,7 @@ import { store } from "./src/redux/store";
 import { connectSocket, disconnectSocket } from "./src/services/socket";
 
 const queryClient = new QueryClient();
+const navigationRef = createNavigationContainerRef();
 
 function SocketBridge() {
   useEffect(() => {
@@ -74,11 +75,23 @@ function SocketBridge() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (navigationRef.isReady() && navigationRef.canGoBack()) {
+        navigationRef.goBack();
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, []);
+
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <SocketBridge />
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <StatusBar style="dark" />
           <AppNavigator />
         </NavigationContainer>

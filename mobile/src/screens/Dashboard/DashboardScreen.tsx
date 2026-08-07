@@ -22,7 +22,11 @@ export default function DashboardScreen() {
       totalOut: rows.reduce((sum, row) => sum + row.totalOut, 0),
     };
   }, [stockSummary.data]);
-  const chartData = data?.monthlySales?.length ? data.monthlySales : [{ month: "Now", total: 0 }];
+  const chartData = (data?.monthlySales?.length ? data.monthlySales : [{ month: "Now", total: 0 }]).map((item: any) => ({
+    month: String(item.month || "Now"),
+    total: Number.isFinite(Number(item.total)) ? Number(item.total) : 0,
+  }));
+  const chartValues = chartData.map((item: any) => item.total);
   const chartWidth = Dimensions.get("window").width - spacing.md * 2 - spacing.md * 2;
 
   return (
@@ -126,7 +130,7 @@ export default function DashboardScreen() {
                 <View style={styles.panelPill}><Text style={styles.panelPillText}>₹</Text></View>
               </View>
               <LineChart
-                data={{ labels: chartData.map((item: any) => item.month), datasets: [{ data: chartData.map((item: any) => item.total) }] }}
+                data={{ labels: chartData.map((item: any) => item.month), datasets: [{ data: chartValues.length ? chartValues : [0] }] }}
                 width={chartWidth}
                 height={200}
                 chartConfig={{

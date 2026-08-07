@@ -58,9 +58,26 @@ io.on("connection", (socket) => {
 const port = process.env.PORT || 5000;
 const host = process.env.HOST || "0.0.0.0";
 
-connectDB()
-  .then(() => server.listen(port, host, () => console.log(`API running on http://${host}:${port}`)))
-  .catch((error) => {
+function startServer() {
+  server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use. Stop the existing API process or set a different PORT.`);
+      process.exit(1);
+    }
     console.error(error);
     process.exit(1);
   });
+
+  return connectDB()
+    .then(() => server.listen(port, host, () => console.log(`API running on http://${host}:${port}`)))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, server, startServer };

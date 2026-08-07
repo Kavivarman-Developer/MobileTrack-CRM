@@ -89,7 +89,14 @@ async function login(req, res, next) {
 async function forgotPasswordStatus(req, res, next) {
   try {
     const email = String(req.query.email || "").trim().toLowerCase();
-    if (!email) return res.json({ enabled: false });
+    if (!email) {
+      const enabledOrganization = await Organization.exists({
+        forgotPasswordEnabled: true,
+        isActive: { $ne: false },
+        subscriptionStatus: { $ne: "cancelled" },
+      });
+      return res.json({ enabled: !!enabledOrganization });
+    }
 
     const user = await User.findOne({ email }).select("role organizationId authProvider");
     if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") {

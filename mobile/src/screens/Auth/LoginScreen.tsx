@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const [showPassword, setShowPassword] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const { control, handleSubmit, watch } = useForm<FormValues>({
@@ -26,11 +27,10 @@ export default function LoginScreen() {
     resolver: zodResolver(schema),
   });
   const email = watch("email").trim().toLowerCase();
-  const canCheckForgotPassword = z.string().email().safeParse(email).success;
+  const canResetPassword = z.string().email().safeParse(resetEmail.trim().toLowerCase()).success;
   const forgotStatus = useQuery({
-    enabled: canCheckForgotPassword,
-    queryFn: () => getForgotPasswordStatus(email),
-    queryKey: ["forgot-password-status", email],
+    queryFn: () => getForgotPasswordStatus(""),
+    queryKey: ["forgot-password-status-global"],
     staleTime: 30_000,
   });
   const mutation = useMutation({
@@ -39,7 +39,7 @@ export default function LoginScreen() {
     onError: (error: Error) => Alert.alert("Login failed", error.message),
   });
   const resetPassword = useMutation({
-    mutationFn: () => resetForgotPassword(email, newPassword),
+    mutationFn: () => resetForgotPassword(resetEmail.trim().toLowerCase(), newPassword),
     onSuccess: (data) => {
       setResetOpen(false);
       setNewPassword("");
@@ -50,7 +50,7 @@ export default function LoginScreen() {
   });
 
   function submitReset() {
-    if (!canCheckForgotPassword) {
+    if (!canResetPassword) {
       Alert.alert("Enter email", "Enter your shop owner email first.");
       return;
     }
@@ -123,7 +123,7 @@ export default function LoginScreen() {
 
             <Button loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
             {forgotStatus.data?.enabled && (
-              <Pressable onPress={() => setResetOpen(true)} style={styles.forgotButton}>
+              <Pressable onPress={() => { setResetEmail(email); setResetOpen(true); }} style={styles.forgotButton}>
                 <Text style={styles.forgotText}>Forgot password?</Text>
               </Pressable>
             )}
@@ -138,12 +138,14 @@ export default function LoginScreen() {
             <View style={styles.resetHeader}>
               <View>
                 <Text style={styles.cardTitle}>Reset password</Text>
-                <Text style={styles.cardHint}>{email}</Text>
+                <Text style={styles.cardHint}>Use your shop owner email</Text>
               </View>
               <Pressable onPress={() => setResetOpen(false)} style={styles.closeButton}>
                 <Ionicons color={colors.text} name="close" size={20} />
               </Pressable>
             </View>
+            <Text style={styles.label}>Email address</Text>
+            <Field autoCapitalize="none" keyboardType="email-address" onChangeText={setResetEmail} placeholder="you@shop.com" value={resetEmail} />
             <Text style={styles.label}>New password</Text>
             <Field onChangeText={setNewPassword} placeholder="New password" secureTextEntry value={newPassword} />
             <Text style={styles.label}>Confirm password</Text>

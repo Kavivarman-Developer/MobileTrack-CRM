@@ -6,7 +6,7 @@ const organizationSchema = new mongoose.Schema({
   plan: { type: String, default: "free" },
   billingCycle: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
   subscriptionStatus: { type: String, enum: ["trial", "active", "past_due", "cancelled"], default: "trial" },
-  subscriptionStartDate: { type: Date, default: Date.now },
+  subscriptionStartDate: { type: Date, default: null },
   subscriptionEndDate: { type: Date, default: null },
   forgotPasswordEnabled: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },

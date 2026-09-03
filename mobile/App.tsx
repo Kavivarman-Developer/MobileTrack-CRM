@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import { Alert, BackHandler, Platform } from "react-native";
 import { Provider } from "react-redux";
 import AppNavigator from "./src/navigation/AppNavigator";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "./src/utils/toast";
 import { logout } from "./src/redux/authSlice";
 import { store } from "./src/redux/store";
 import { connectSocket, disconnectSocket } from "./src/services/socket";
@@ -94,6 +96,7 @@ export default function App() {
         <NavigationContainer ref={navigationRef}>
           <StatusBar style="dark" />
           <AppNavigator />
+          <Toast config={toastConfig} />
         </NavigationContainer>
       </QueryClientProvider>
     </Provider>

@@ -16,6 +16,8 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     blockedAt: { type: Date, default: null },
     blockedReason: { type: String, default: null },
+    resetTokenHash: { type: String, default: null, select: false },
+    resetTokenExpiry: { type: Date, default: null },
   },
   { timestamps: true }
 );

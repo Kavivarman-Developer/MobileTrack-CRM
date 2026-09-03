@@ -65,11 +65,18 @@ async function listOrganizations(req, res, next) {
   }
 }
 
+function lastDayOfMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
 function subscriptionDates(cycle, startDate = new Date()) {
   const start = new Date(startDate);
+  const day = start.getDate();
   const end = new Date(start);
+  end.setDate(1); // pin to day 1 first so setMonth/setFullYear can't overflow into the wrong month
   if (cycle === "yearly") end.setFullYear(end.getFullYear() + 1);
   else end.setMonth(end.getMonth() + 1);
+  end.setDate(Math.min(day, lastDayOfMonth(end.getFullYear(), end.getMonth())));
   return { start, end };
 }
 

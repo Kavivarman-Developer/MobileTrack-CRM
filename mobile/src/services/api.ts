@@ -4,13 +4,14 @@ import { Alert, Platform } from "react-native";
 import { logout } from "../redux/authSlice";
 import { store } from "../redux/store";
 
-const LOCAL_WEB_API_URL = "http://localhost:8000/api";
-const DEFAULT_API_URL = Platform.OS === "web" ? LOCAL_WEB_API_URL : "http://192.168.7.4:8000/api";
-
 function resolveApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl) return envUrl;
-  return envUrl || DEFAULT_API_URL;
+  if (!envUrl) {
+    throw new Error(
+      "EXPO_PUBLIC_API_URL is not set. Set it before starting or building the app, e.g. EXPO_PUBLIC_API_URL=https://your-api.example.com/api"
+    );
+  }
+  return envUrl;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -237,8 +238,13 @@ export async function getForgotPasswordStatus(email: string) {
   return data;
 }
 
-export async function resetForgotPassword(email: string, password: string) {
-  const { data } = await api.post<{ message: string }>("/auth/forgot-password/reset", { email, password });
+export async function requestPasswordReset(email: string) {
+  const { data } = await api.post<{ message: string }>("/auth/forgot-password/request", { email });
+  return data;
+}
+
+export async function confirmPasswordReset(email: string, token: string, password: string) {
+  const { data } = await api.post<{ message: string }>("/auth/forgot-password/reset", { email, token, password });
   return data;
 }
 
@@ -384,6 +390,27 @@ export async function getUpiConfig() {
 export async function getSalesReport(params?: { from?: string; to?: string }) {
   const { data } = await api.get<SalesReportRow[]>("/reports/sales", { params });
   return data;
+}
+
+export type FullReport = {
+  range: { from: string | null; to: string | null };
+  sales: { daily: SalesReportRow[]; totals: { sales: number; profit: number; invoices: number } };
+  expenses: { items: Expense[]; total: number; byCategory: { category: string; total: number }[] };
+  purchases: { total: number; orderCount: number; byVendor: { vendorId: string | null; vendorName: string; totalAmount: number; orderCount: number }[] };
+  inventory: { totalProducts: number; totalStockValue: number; lowStockCount: number; lowStockItems: { name: string; sku: string; stockQty: number; lowStockThreshold: number }[] };
+  vendors: { count: number; byVendor: { vendorId: string | null; vendorName: string; totalAmount: number; orderCount: number }[] };
+  customers: { count: number; byCustomer: { customerId: string | null; customerName: string; totalSales: number; invoiceCount: number; pendingBalance: number }[]; pendingBalanceTotal: number };
+  summary: { totalSales: number; grossProfit: number; totalExpenses: number; totalPurchases: number; netProfit: number };
+};
+
+export async function getFullReport(params?: { from?: string; to?: string }) {
+  const { data } = await api.get<FullReport>("/reports/full", { params });
+  return data;
+}
+
+export function getFullReportExportUrl(format: "pdf" | "excel", params?: { from?: string; to?: string }) {
+  const query = new URLSearchParams({ format, ...(params?.from ? { from: params.from } : {}), ...(params?.to ? { to: params.to } : {}) });
+  return `${API_BASE_URL}/reports/full/export?${query.toString()}`;
 }
 
 export async function getExpenses(params?: { from?: string; to?: string }) {

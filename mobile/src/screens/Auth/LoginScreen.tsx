@@ -5,21 +5,27 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { z } from "zod";
 import { Button, Field } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
-import { getForgotPasswordStatus, login, resetForgotPassword } from "../../services/api";
+import { confirmPasswordReset, getForgotPasswordStatus, login, requestPasswordReset } from "../../services/api";
+import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(6) });
 type FormValues = z.infer<typeof schema>;
+
+type ResetStep = "request" | "confirm";
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const [showPassword, setShowPassword] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetStep, setResetStep] = useState<ResetStep>("request");
   const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const { control, handleSubmit, watch } = useForm<FormValues>({
@@ -36,22 +42,46 @@ export default function LoginScreen() {
   const mutation = useMutation({
     mutationFn: (values: FormValues) => login(values.email, values.password),
     onSuccess: (data) => dispatch(setCredentials(data)),
-    onError: (error: Error) => Alert.alert("Login failed", error.message),
-  });
-  const resetPassword = useMutation({
-    mutationFn: () => resetForgotPassword(resetEmail.trim().toLowerCase(), newPassword),
-    onSuccess: (data) => {
-      setResetOpen(false);
-      setNewPassword("");
-      setConfirmPassword("");
-      Alert.alert("Password updated", data.message);
-    },
-    onError: (error: Error) => Alert.alert("Reset failed", error.message),
+    onError: (error: Error) => showErrorToast(error.message, "Login failed"),
   });
 
-  function submitReset() {
+  function closeReset() {
+    setResetOpen(false);
+    setResetStep("request");
+    setResetCode("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }
+
+  const requestReset = useMutation({
+    mutationFn: () => requestPasswordReset(resetEmail.trim().toLowerCase()),
+    onSuccess: (data) => {
+      setResetStep("confirm");
+      showSuccessToast(data.message, "Check your email");
+    },
+    onError: (error: Error) => showErrorToast(error.message, "Request failed"),
+  });
+
+  const confirmReset = useMutation({
+    mutationFn: () => confirmPasswordReset(resetEmail.trim().toLowerCase(), resetCode.trim(), newPassword),
+    onSuccess: (data) => {
+      closeReset();
+      showSuccessToast(data.message, "Password updated");
+    },
+    onError: (error: Error) => showErrorToast(error.message, "Reset failed"),
+  });
+
+  function submitRequest() {
     if (!canResetPassword) {
       Alert.alert("Enter email", "Enter your shop owner email first.");
+      return;
+    }
+    requestReset.mutate();
+  }
+
+  function submitConfirm() {
+    if (!resetCode.trim()) {
+      Alert.alert("Enter code", "Enter the reset code from your email.");
       return;
     }
     if (newPassword.length < 6) {
@@ -62,7 +92,7 @@ export default function LoginScreen() {
       Alert.alert("Password mismatch", "New password and confirmation must match.");
       return;
     }
-    resetPassword.mutate();
+    confirmReset.mutate();
   }
 
   return (
@@ -123,7 +153,7 @@ export default function LoginScreen() {
 
             <Button loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
             {forgotStatus.data?.enabled && (
-              <Pressable onPress={() => { setResetEmail(email); setResetOpen(true); }} style={styles.forgotButton}>
+              <Pressable onPress={() => { setResetEmail(email); setResetStep("request"); setResetOpen(true); }} style={styles.forgotButton}>
                 <Text style={styles.forgotText}>Forgot password?</Text>
               </Pressable>
             )}
@@ -138,21 +168,38 @@ export default function LoginScreen() {
             <View style={styles.resetHeader}>
               <View>
                 <Text style={styles.cardTitle}>Reset password</Text>
-                <Text style={styles.cardHint}>Use your shop owner email</Text>
+                <Text style={styles.cardHint}>
+                  {resetStep === "request" ? "Use your shop owner email" : "Enter the code we emailed you"}
+                </Text>
               </View>
-              <Pressable onPress={() => setResetOpen(false)} style={styles.closeButton}>
+              <Pressable onPress={closeReset} style={styles.closeButton}>
                 <Ionicons color={colors.text} name="close" size={20} />
               </Pressable>
             </View>
-            <Text style={styles.label}>Email address</Text>
-            <Field autoCapitalize="none" keyboardType="email-address" onChangeText={setResetEmail} placeholder="you@shop.com" value={resetEmail} />
-            <Text style={styles.label}>New password</Text>
-            <Field onChangeText={setNewPassword} placeholder="New password" secureTextEntry value={newPassword} />
-            <Text style={styles.label}>Confirm password</Text>
-            <Field onChangeText={setConfirmPassword} placeholder="Confirm password" secureTextEntry value={confirmPassword} />
-            <Button loading={resetPassword.isPending} onPress={submitReset} title="Update password" />
+            {resetStep === "request" ? (
+              <>
+                <Text style={styles.label}>Email address</Text>
+                <Field autoCapitalize="none" keyboardType="email-address" onChangeText={setResetEmail} placeholder="you@shop.com" value={resetEmail} />
+                <Button loading={requestReset.isPending} onPress={submitRequest} title="Send reset code" />
+              </>
+            ) : (
+              <>
+                <Text style={styles.cardHint}>Code sent to {resetEmail}</Text>
+                <Text style={styles.label}>Reset code</Text>
+                <Field autoCapitalize="none" onChangeText={setResetCode} placeholder="Paste the code from your email" value={resetCode} />
+                <Text style={styles.label}>New password</Text>
+                <Field onChangeText={setNewPassword} placeholder="New password" secureTextEntry value={newPassword} />
+                <Text style={styles.label}>Confirm password</Text>
+                <Field onChangeText={setConfirmPassword} placeholder="Confirm password" secureTextEntry value={confirmPassword} />
+                <Button loading={confirmReset.isPending} onPress={submitConfirm} title="Update password" />
+                <Pressable onPress={() => setResetStep("request")} style={styles.forgotButton}>
+                  <Text style={styles.forgotText}>Use a different email</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
+        <Toast config={toastConfig} />
       </Modal>
     </SafeAreaView>
   );

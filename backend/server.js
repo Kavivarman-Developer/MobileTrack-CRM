@@ -2,6 +2,7 @@ require("dotenv").config();
 const http = require("http");
 const cors = require("cors");
 const express = require("express");
+const helmet = require("helmet");
 const morgan = require("morgan");
 const { Server } = require("socket.io");
 const connectDB = require("./config/db");
@@ -9,12 +10,24 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 const jwt = require("jsonwebtoken");
 const User = require("./models/User");
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+function corsOrigin(origin, callback) {
+  if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+  callback(new Error("Not allowed by CORS"));
+}
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { cors: { origin: corsOrigin } });
 
 app.set("io", io);
-app.use(cors());
+app.set("trust proxy", 1);
+app.use(helmet());
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use(morgan("dev"));
 app.use("/uploads", express.static("uploads"));

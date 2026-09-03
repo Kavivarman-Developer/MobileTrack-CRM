@@ -1,7 +1,8 @@
 const { OAuth2Client } = require("google-auth-library");
 const Organization = require("../models/Organization");
 const User = require("../models/User");
-const { signAccessToken, signRefreshToken } = require("../utils/tokens");
+const { signAccessToken, signRefreshToken, hashResetToken, createPasswordResetToken } = require("../utils/tokens");
+const { sendPasswordResetEmail } = require("../services/emailService");
 
 const GOOGLE_AUDIENCE = [
   process.env.GOOGLE_CLIENT_ID,
@@ -86,6 +87,12 @@ async function login(req, res, next) {
   }
 }
 
+async function isPasswordResetEnabledForUser(user) {
+  if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") return false;
+  const organization = await Organization.findById(user.organizationId).select("forgotPasswordEnabled isActive subscriptionStatus");
+  return !!organization?.forgotPasswordEnabled && organization.isActive !== false && organization.subscriptionStatus !== "cancelled";
+}
+
 async function forgotPasswordStatus(req, res, next) {
   try {
     const email = String(req.query.email || "").trim().toLowerCase();
@@ -99,13 +106,32 @@ async function forgotPasswordStatus(req, res, next) {
     }
 
     const user = await User.findOne({ email }).select("role organizationId authProvider");
-    if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") {
-      return res.json({ enabled: false });
-    }
-
-    const organization = await Organization.findById(user.organizationId).select("forgotPasswordEnabled isActive subscriptionStatus");
-    const enabled = !!organization?.forgotPasswordEnabled && organization.isActive !== false && organization.subscriptionStatus !== "cancelled";
+    const enabled = await isPasswordResetEnabledForUser(user);
     res.json({ enabled });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function requestPasswordReset(req, res, next) {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const acceptedResponse = { message: "If that account can reset its password, an email with instructions has been sent." };
+
+    const user = await User.findOne({ email });
+    if (!(await isPasswordResetEnabledForUser(user))) return res.json(acceptedResponse);
+
+    const { token, tokenHash, expiresAt } = createPasswordResetToken();
+    user.resetTokenHash = tokenHash;
+    user.resetTokenExpiry = expiresAt;
+    await user.save();
+
+    const resetUrl = `${process.env.PASSWORD_RESET_URL_BASE}?token=${token}&email=${encodeURIComponent(email)}`;
+    await sendPasswordResetEmail(email, token, resetUrl);
+
+    res.json(acceptedResponse);
   } catch (error) {
     next(error);
   }
@@ -114,20 +140,23 @@ async function forgotPasswordStatus(req, res, next) {
 async function resetPassword(req, res, next) {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
+    const token = String(req.body.token || "").trim();
     const password = String(req.body.password || "");
-    if (!email || password.length < 6) return res.status(400).json({ message: "Email and a 6 character password are required" });
-
-    const user = await User.findOne({ email });
-    if (!user || user.role !== "admin" || !user.organizationId || user.authProvider !== "local") {
-      return res.status(403).json({ message: "Password reset is not enabled for this account" });
+    if (!email || !token || password.length < 6) {
+      return res.status(400).json({ message: "Email, reset token and a 6 character password are required" });
     }
 
-    const organization = await Organization.findById(user.organizationId).select("forgotPasswordEnabled isActive subscriptionStatus");
-    const enabled = !!organization?.forgotPasswordEnabled && organization.isActive !== false && organization.subscriptionStatus !== "cancelled";
-    if (!enabled) return res.status(403).json({ message: "Password reset is not enabled for this account" });
+    const tokenHash = hashResetToken(token);
+    const user = await User.findOne({ email }).select("+resetTokenHash");
+    const tokenValid = user?.resetTokenHash === tokenHash && user?.resetTokenExpiry && user.resetTokenExpiry.getTime() > Date.now();
+    if (!tokenValid || !(await isPasswordResetEnabledForUser(user))) {
+      return res.status(400).json({ message: "Reset link is invalid or has expired" });
+    }
 
     user.password = password;
     user.refreshToken = null;
+    user.resetTokenHash = null;
+    user.resetTokenExpiry = null;
     await user.save();
     res.json({ message: "Password updated. Please sign in with your new password." });
   } catch (error) {
@@ -181,4 +210,4 @@ async function googleLogin(req, res, next) {
   }
 }
 
-module.exports = { register, login, googleLogin, forgotPasswordStatus, resetPassword };
+module.exports = { register, login, googleLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { Alert, FlatList, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { getUpiConfig, Order, Product, quickSale, scanProduct } from "../../services/api";
+import { apiErrorMessage, getUpiConfig, Order, Product, quickSale, scanProduct } from "../../services/api";
 
 type Step = "scan" | "cart" | "payment" | "invoice";
 type PaymentMethod = "upi" | "cash" | "card";
@@ -36,7 +36,7 @@ export default function QuickSaleScreen({ navigation }: any) {
       addToCart(product);
       setStep("cart");
     },
-    onError: (error: Error) => Alert.alert("Scan failed", error.message),
+    onError: (error: Error) => Alert.alert("Scan failed", apiErrorMessage(error)),
   });
   const checkout = useMutation({
     mutationFn: () => quickSale({
@@ -48,7 +48,7 @@ export default function QuickSaleScreen({ navigation }: any) {
       setInvoice(order);
       setStep("invoice");
     },
-    onError: (error: Error) => Alert.alert("Checkout failed", error.message),
+    onError: (error: Error) => Alert.alert("Checkout failed", apiErrorMessage(error)),
   });
 
   function handleCode(code: string) {

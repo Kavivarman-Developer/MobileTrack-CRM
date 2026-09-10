@@ -249,9 +249,14 @@ export default function InventoryScreen() {
           <Text style={styles.eyebrow}>STOCK CONTROL</Text>
           <Text style={styles.title}>Items</Text>
         </View>
-        <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
-          <Ionicons color="#ffffff" name="add" size={24} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => navigation.navigate("BarcodeGenerator")} style={styles.barcodeButton}>
+            <Ionicons color={colors.primary} name="barcode-outline" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
+            <Ionicons color="#ffffff" name="add" size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.statsGrid}>
@@ -510,6 +515,8 @@ const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
   eyebrow: { color: colors.primary, ...typography.eyebrow },
   title: { color: colors.text, ...typography.h1, marginTop: 2 },
+  headerActions: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
+  barcodeButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 44, justifyContent: "center", width: 44, ...shadows.card },
   addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card },
 
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },

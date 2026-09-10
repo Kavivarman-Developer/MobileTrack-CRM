@@ -1,7 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { Directory, File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { getCompatibleAccessories, getProduct, getStockMovements, Product, restockProduct } from "../../services/api";
@@ -23,6 +26,8 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   const [restockOpen, setRestockOpen] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
+  const [downloadingBarcode, setDownloadingBarcode] = useState(false);
+  const qrRef = useRef<any>(null);
   const queryClient = useQueryClient();
   const product = useQuery({ queryKey: ["product", productId], queryFn: () => getProduct(productId) });
   const accessories = useQuery({
@@ -45,10 +50,40 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     onError: (error: Error) => Alert.alert("Restock failed", error.message),
   });
 
+  function getBarcodeDataUrl(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!qrRef.current) return reject(new Error("Barcode is not ready yet"));
+      qrRef.current.toDataURL((data: string) => resolve(data));
+    });
+  }
+
+  async function handleDownloadBarcode(value: string) {
+    setDownloadingBarcode(true);
+    try {
+      const base64 = await getBarcodeDataUrl();
+      const dir = new Directory(Paths.cache, "barcodes");
+      if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+      const filename = `${value.replace(/[^a-zA-Z0-9-_]/g, "_")}.png`;
+      const file = new File(dir, filename);
+      file.create({ overwrite: true });
+      file.write(base64, { encoding: "base64" });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: "image/png", dialogTitle: "Share barcode" });
+      } else {
+        Alert.alert("Barcode saved", file.uri);
+      }
+    } catch (error: any) {
+      Alert.alert("Download failed", error?.message || "Could not download the barcode.");
+    } finally {
+      setDownloadingBarcode(false);
+    }
+  }
+
   if (product.isLoading) return <Screen><Empty icon="cube-outline" text="Loading product..." /></Screen>;
   if (!product.data) return <Screen><Empty icon="alert-circle-outline" text="Product not found." /></Screen>;
 
   const tone = stockTone(product.data);
+  const barcodeValue = product.data.barcode || product.data.sku;
 
   return (
     <Screen>
@@ -81,6 +116,26 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             </View>
             <Text style={styles.price}>Rs {formatMoney(product.data.price)}</Text>
           </View>
+        </View>
+
+        {/* Product Barcode */}
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Product Barcode</Text>
+          {barcodeValue ? (
+            <View style={styles.barcodeWrap}>
+              <View style={styles.barcodeBox}>
+                <QRCode getRef={(c) => { qrRef.current = c; }} size={160} value={barcodeValue} />
+              </View>
+              <Text style={styles.barcodeValue}>{barcodeValue}</Text>
+              <Text style={styles.barcodeHint}>Scan this with the Sales / Quick Sale scanner to add this product instantly.</Text>
+              <Button
+                icon="download-outline"
+                loading={downloadingBarcode}
+                onPress={() => handleDownloadBarcode(barcodeValue)}
+                title="Download Barcode"
+              />
+            </View>
+          ) : <Empty icon="barcode-outline" text="Add a SKU or barcode to this product to generate one." />}
         </View>
 
         {/* Compatible Accessories */}
@@ -172,6 +227,11 @@ const styles = StyleSheet.create({
 
   panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
   sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.sm },
+
+  barcodeWrap: { alignItems: "center" },
+  barcodeBox: { backgroundColor: "#ffffff", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md },
+  barcodeValue: { color: colors.text, fontSize: 14, fontWeight: "700", letterSpacing: 1 },
+  barcodeHint: { color: colors.muted, fontSize: 12, marginTop: 4, marginBottom: spacing.sm, textAlign: "center" },
 
   accessoryCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, padding: spacing.sm, width: 130 },
   accessoryImage: { borderRadius: radius.sm, height: 60, marginBottom: spacing.xs, width: "100%" },

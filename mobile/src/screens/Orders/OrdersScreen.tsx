@@ -4,7 +4,7 @@ import { ReactNode, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { createManualOrder, getManualOrders, ManualOrder, ManualOrderStatus, updateManualOrderPaymentStatus, updateManualOrderStatus } from "../../services/api";
+import { apiErrorMessage, createManualOrder, getManualOrders, ManualOrder, ManualOrderStatus, updateManualOrderPaymentStatus, updateManualOrderStatus } from "../../services/api";
 
 type OrderStatus = ManualOrderStatus;
 type StatusFilter = "all" | OrderStatus;
@@ -12,10 +12,6 @@ type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
 const blank = { customerName: "", phone: "", shippingAddress: "", itemName: "", quantity: "1" };
 const statuses: OrderStatus[] = ["new", "process", "pending", "shipped", "delivered"];
-
-function errorMessage(error: unknown) {
-  return (error as any)?.response?.data?.message || (error as Error)?.message || "Something went wrong";
-}
 
 export default function OrdersScreen() {
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -48,7 +44,7 @@ export default function OrdersScreen() {
       setFormOpen(false);
       setPastWeekOpen(true);
     },
-    onError: (error) => Alert.alert("Failed to save order", errorMessage(error)),
+    onError: (error) => Alert.alert("Failed to save order", apiErrorMessage(error)),
   });
 
   const statusMutation = useMutation({
@@ -57,7 +53,7 @@ export default function OrdersScreen() {
       queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
       setSelected((current) => current?._id === updated._id ? updated : current);
     },
-    onError: (error) => Alert.alert("Failed to update status", errorMessage(error)),
+    onError: (error) => Alert.alert("Failed to update status", apiErrorMessage(error)),
   });
 
   const paymentStatusMutation = useMutation({
@@ -66,7 +62,7 @@ export default function OrdersScreen() {
       queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
       setSelected((current) => current?._id === updated._id ? updated : current);
     },
-    onError: (error) => Alert.alert("Failed to update payment status", errorMessage(error)),
+    onError: (error) => Alert.alert("Failed to update payment status", apiErrorMessage(error)),
   });
 
   function createOrder() {

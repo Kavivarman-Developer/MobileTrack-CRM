@@ -18,6 +18,10 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 export const api = axios.create({ baseURL: API_BASE_URL });
 
+export function apiErrorMessage(error: unknown) {
+  return (error as any)?.response?.data?.message || (error as Error)?.message || "Something went wrong";
+}
+
 api.interceptors.request.use(async (config) => {
   const token = store.getState().auth.accessToken || await AsyncStorage.getItem("accessToken");
   if (token) config.headers.Authorization = `Bearer ${token}`;

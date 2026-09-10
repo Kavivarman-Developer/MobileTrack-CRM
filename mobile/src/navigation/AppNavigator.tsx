@@ -11,6 +11,7 @@ import LoginScreen from "../screens/Auth/LoginScreen";
 import BillingScreen from "../screens/Billing/BillingScreen";
 import CustomersScreen from "../screens/Customers/CustomersScreen";
 import DashboardScreen from "../screens/Dashboard/DashboardScreen";
+import BarcodeGeneratorScreen from "../screens/Inventory/BarcodeGeneratorScreen";
 import InventoryScreen from "../screens/Inventory/InventoryScreen";
 import InventoryAdjustmentsScreen from "../screens/Inventory/InventoryAdjustmentsScreen";
 import ProductDetailScreen from "../screens/Inventory/ProductDetailScreen";
@@ -85,6 +86,7 @@ function DrawerShell() {
       <Drawer.Screen name="Home" component={Tabs} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="home-outline" size={size} /> }} />
       <Drawer.Screen name="Items" component={InventoryScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="cube-outline" size={size} /> }} />
       <Drawer.Screen name="Inventory Adjustments" component={InventoryAdjustmentsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="options-outline" size={size} /> }} />
+      <Drawer.Screen name="Barcode Generator" component={BarcodeGeneratorScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="barcode-outline" size={size} /> }} />
       <Drawer.Screen name="Sales" component={SalesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="bag-outline" size={size} /> }} />
       <Drawer.Screen name="Billing" component={BillingScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="card-outline" size={size} /> }} />
       <Drawer.Screen name="Purchases" component={PurchasesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="cart-outline" size={size} /> }} />
@@ -104,6 +106,7 @@ export default function AppNavigator() {
         <>
           <Stack.Screen name="App" component={DrawerShell} />
           <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+          <Stack.Screen name="BarcodeGenerator" component={BarcodeGeneratorScreen} />
           <Stack.Screen name="QuickSale" component={QuickSaleScreen} />
           <Stack.Screen name="Billing" component={BillingScreen} />
           <Stack.Screen name="Reports" component={ReportsScreen} />

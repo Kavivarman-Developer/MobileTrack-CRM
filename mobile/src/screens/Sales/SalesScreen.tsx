@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { createOrder, getCustomers, getOrders, getProducts, Product, scanProduct } from "../../services/api";
+import { apiErrorMessage, createOrder, getCustomers, getOrders, getProducts, Product, scanProduct } from "../../services/api";
 
 type CartLine = { product: Product; qty: number };
 type DatePreset = "today" | "week" | "month";
@@ -52,7 +52,7 @@ export default function SalesScreen() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       Alert.alert("Invoice saved", `Total: Rs ${total}`);
     },
-    onError: (error: Error) => Alert.alert("Invoice failed", error.message),
+    onError: (error: Error) => Alert.alert("Invoice failed", apiErrorMessage(error)),
   });
   const scanner = useMutation({
     mutationFn: scanProduct,
@@ -61,7 +61,7 @@ export default function SalesScreen() {
       setScanOpen(false);
       Alert.alert("Added to cart", product.name);
     },
-    onError: (error: Error) => Alert.alert("Scan failed", error.message),
+    onError: (error: Error) => Alert.alert("Scan failed", apiErrorMessage(error)),
   });
 
   function add(product: Product) {

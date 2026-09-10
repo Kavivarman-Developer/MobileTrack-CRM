@@ -1,10 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import QRCode from "react-native-qrcode-svg";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { getUpiConfig, Order, Product, quickSale, scanProduct } from "../../services/api";
 
 type Step = "scan" | "cart" | "payment" | "invoice";
@@ -84,9 +85,23 @@ export default function QuickSaleScreen({ navigation }: any) {
   return (
     <Screen>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}><Text style={styles.backText}>Back</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons color={colors.text} name="chevron-back" size={20} />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Quick Sale</Text>
-        <TouchableOpacity onPress={() => setStep("cart")} style={styles.cartButton}><Text style={styles.cartText}>{cart.length}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setStep("cart")} style={styles.cartButton}>
+          <Ionicons color="#ffffff" name="cart-outline" size={18} />
+          <Text style={styles.cartText}>{cart.length}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress Step Indicator */}
+      <View style={styles.stepBar}>
+        <StepPill active={step === "scan"} done={step !== "scan"} label="1. Scan" />
+        <StepPill active={step === "cart"} done={step === "payment" || step === "invoice"} label="2. Cart" />
+        <StepPill active={step === "payment"} done={step === "invoice"} label="3. Pay" />
+        <StepPill active={step === "invoice"} done={false} label="4. Receipt" />
       </View>
 
       {step === "scan" && (
@@ -100,18 +115,24 @@ export default function QuickSaleScreen({ navigation }: any) {
             >
               <View style={styles.scanOverlay}>
                 <View style={styles.scanFrame} />
-                <Text style={styles.scanHint}>{scanner.isPending ? "Adding product..." : "Scan barcode or QR"}</Text>
+                <Text style={styles.scanHint}>{scanner.isPending ? "Adding product to cart..." : "Scan barcode or QR code"}</Text>
               </View>
             </CameraView>
           ) : (
             <View style={styles.permissionBox}>
-              <Text style={styles.section}>Camera access needed</Text>
-              <Button onPress={() => requestPermission()} title="Allow camera" />
+              <Text style={styles.sectionTitle}>Camera Access Needed</Text>
+              <Button onPress={() => requestPermission()} title="Allow Camera Access" />
             </View>
           )}
           <View style={styles.scanActions}>
-            <TouchableOpacity onPress={() => setTorch((value) => !value)} style={styles.secondaryButton}><Text style={styles.secondaryText}>{torch ? "Torch off" : "Torch on"}</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setManualOpen(true)} style={styles.secondaryButton}><Text style={styles.secondaryText}>Enter SKU manually</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setTorch((value) => !value)} style={styles.secondaryButton}>
+              <Ionicons color={colors.text} name={torch ? "flash-off-outline" : "flash-outline"} size={18} style={{ marginRight: 6 }} />
+              <Text style={styles.secondaryText}>{torch ? "Flash Off" : "Flash On"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setManualOpen(true)} style={styles.secondaryButton}>
+              <Ionicons color={colors.text} name="keypad-outline" size={18} style={{ marginRight: 6 }} />
+              <Text style={styles.secondaryText}>Manual SKU</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -129,64 +150,99 @@ export default function QuickSaleScreen({ navigation }: any) {
       )}
 
       {step === "payment" && (
-        <ScrollView>
+        <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.totalPanel}>
-            <Text style={styles.totalLabel}>Amount payable</Text>
+            <Text style={styles.totalLabel}>Amount Payable</Text>
             <Text style={styles.totalValue}>Rs {formatMoney(totals.total)}</Text>
           </View>
+          <Text style={styles.sectionLabel}>Select Payment Method</Text>
           <View style={styles.chips}>
             {(["upi", "cash", "card"] as PaymentMethod[]).map((method) => (
               <TouchableOpacity key={method} onPress={() => setPaymentMethod(method)} style={[styles.chip, paymentMethod === method && styles.chipActive]}>
+                <Ionicons
+                  color={paymentMethod === method ? colors.primary : colors.muted}
+                  name={method === "upi" ? "qr-code-outline" : method === "cash" ? "cash-outline" : "card-outline"}
+                  size={18}
+                  style={{ marginRight: 6 }}
+                />
                 <Text style={[styles.chipText, paymentMethod === method && styles.chipTextActive]}>{method.toUpperCase()}</Text>
               </TouchableOpacity>
             ))}
           </View>
           {paymentMethod === "upi" && (
             <View style={styles.qrPanel}>
-              {upi.data?.upiId ? <QRCode value={upiLink} size={220} /> : <Empty text="UPI ID is not configured on the backend." />}
+              {upi.data?.upiId ? (
+                <>
+                  <QRCode value={upiLink} size={200} />
+                  <Text style={styles.qrHint}>Scan with GPay, PhonePe, Paytm, or UPI App</Text>
+                </>
+              ) : (
+                <Empty icon="qr-code-outline" text="UPI ID is not configured on the backend." />
+              )}
             </View>
           )}
-          <Button loading={checkout.isPending} onPress={() => checkout.mutate()} title="Payment Received" />
-          <TouchableOpacity onPress={() => setStep("cart")} style={styles.cancelButton}><Text style={styles.cancelText}>Back to cart</Text></TouchableOpacity>
+          <Button icon="checkmark-circle-outline" loading={checkout.isPending} onPress={() => checkout.mutate()} title="Confirm Payment Received" />
+          <TouchableOpacity onPress={() => setStep("cart")} style={styles.cancelButton}>
+            <Text style={styles.cancelText}>Back to Cart</Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
 
       {step === "invoice" && invoice && (
-        <ScrollView>
+        <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.invoice}>
             <Text style={styles.invoiceShop}>MobileTrack CRM</Text>
             <Text style={styles.invoiceMeta}>{new Date(invoice.createdAt).toLocaleString()}</Text>
-            {invoice.items.map((item) => (
-              <View key={item._id} style={styles.invoiceRow}>
-                <View style={styles.invoiceInfo}>
-                  <Text style={styles.invoiceName}>{item.product.name}</Text>
-                  <Text style={styles.invoiceMeta}>Qty {item.qty} | Rs {formatMoney(item.price)}</Text>
+            <View style={{ marginVertical: spacing.sm }}>
+              {invoice.items.map((item) => (
+                <View key={item._id} style={styles.invoiceRow}>
+                  <View style={styles.invoiceInfo}>
+                    <Text style={styles.invoiceName}>{item.product.name}</Text>
+                    <Text style={styles.invoiceMeta}>Qty {item.qty} × Rs {formatMoney(item.price)}</Text>
+                  </View>
+                  <Text style={styles.invoiceAmount}>Rs {formatMoney(item.price * item.qty)}</Text>
                 </View>
-                <Text style={styles.invoiceAmount}>Rs {formatMoney(item.price * item.qty)}</Text>
-              </View>
-            ))}
-            <View style={styles.invoiceTotal}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>Rs {formatMoney(invoice.total)}</Text>
+              ))}
             </View>
-            <Text style={styles.invoiceMeta}>Payment: {(invoice.paymentMethod || paymentMethod).toUpperCase()}</Text>
+            <View style={styles.invoiceTotal}>
+              <Text style={styles.totalLabel}>Total Paid</Text>
+              <Text style={styles.totalValueDark}>Rs {formatMoney(invoice.total)}</Text>
+            </View>
+            <View style={{ marginTop: spacing.xs }}>
+              <Badge label={`Paid via ${(invoice.paymentMethod || paymentMethod).toUpperCase()}`} tone="success" />
+            </View>
           </View>
-          <Button onPress={shareInvoice} title="Share Invoice" />
-          <TouchableOpacity onPress={restart} style={styles.newSaleButton}><Text style={styles.newSaleText}>New Sale</Text></TouchableOpacity>
+          <Button icon="share-outline" onPress={shareInvoice} title="Share Receipt / Invoice" />
+          <TouchableOpacity onPress={restart} style={styles.newSaleButton}>
+            <Text style={styles.newSaleText}>+ Start New Quick Sale</Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
 
+      {/* Manual SKU Modal */}
       <Modal transparent animationType="slide" visible={manualOpen}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.section}>Enter SKU manually</Text>
-            <Field autoCapitalize="characters" onChangeText={setManualCode} placeholder="SKU or barcode" value={manualCode} />
-            <Button loading={scanner.isPending} onPress={() => { setManualOpen(false); handleCode(manualCode.trim()); setManualCode(""); }} title="Add to cart" />
-            <TouchableOpacity onPress={() => setManualOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sectionTitle}>Enter Product SKU / Barcode</Text>
+              <TouchableOpacity onPress={() => setManualOpen(false)}>
+                <Ionicons color={colors.text} name="close" size={20} />
+              </TouchableOpacity>
+            </View>
+            <Field autoCapitalize="characters" onChangeText={setManualCode} placeholder="Enter SKU or scan number" value={manualCode} />
+            <Button loading={scanner.isPending} onPress={() => { setManualOpen(false); handleCode(manualCode.trim()); setManualCode(""); }} title="Add Item to Cart" />
           </View>
         </View>
       </Modal>
     </Screen>
+  );
+}
+
+function StepPill({ active, done, label }: { active: boolean; done: boolean; label: string }) {
+  return (
+    <View style={[styles.stepPill, active && styles.stepPillActive, done && styles.stepPillDone]}>
+      <Text style={[styles.stepPillText, (active || done) && styles.stepPillTextActive]}>{label}</Text>
+    </View>
   );
 }
 
@@ -196,33 +252,48 @@ function CartStep({ cart, hasInvalidStock, onPay, onRemove, onScan, setQty, tota
       <FlatList
         data={cart}
         keyExtractor={(item) => item.product._id}
-        ListEmptyComponent={<Empty text="Scan products to build a cart." />}
+        ListEmptyComponent={<Empty icon="scan-outline" text="Scan products to build a quick sale cart." />}
         renderItem={({ item }) => {
           const invalid = item.qty > item.product.stockQty || item.product.stockQty <= 0;
           return (
             <View style={[styles.cartLine, invalid && styles.cartInvalid]}>
               <View style={styles.cartInfo}>
                 <Text style={styles.cartName}>{item.product.name}</Text>
-                <Text style={styles.cartMeta}>Rs {formatMoney(item.product.price)} | Stock {item.product.stockQty}</Text>
-                {invalid && <Text style={styles.outText}>Out of stock</Text>}
+                <Text style={styles.cartMeta}>Rs {formatMoney(item.product.price)} | Stock available: {item.product.stockQty}</Text>
+                {invalid && <Text style={styles.outText}>Exceeds available stock!</Text>}
               </View>
-              <View style={styles.qty}>
-                <TouchableOpacity onPress={() => setQty(item.product._id, item.qty - 1)} style={styles.qtyButton}><Text style={styles.qtyText}>-</Text></TouchableOpacity>
-                <Text style={styles.qtyValue}>{item.qty}</Text>
-                <TouchableOpacity onPress={() => setQty(item.product._id, item.qty + 1)} style={styles.qtyButton}><Text style={styles.qtyText}>+</Text></TouchableOpacity>
+              <View style={styles.cartActionRow}>
+                <View style={styles.qty}>
+                  <TouchableOpacity onPress={() => setQty(item.product._id, item.qty - 1)} style={styles.qtyButton}>
+                    <Ionicons color={colors.primary} name="remove" size={16} />
+                  </TouchableOpacity>
+                  <Text style={styles.qtyValue}>{item.qty}</Text>
+                  <TouchableOpacity onPress={() => setQty(item.product._id, item.qty + 1)} style={styles.qtyButton}>
+                    <Ionicons color={colors.primary} name="add" size={16} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={() => onRemove(item.product._id)} style={styles.removeButton}>
+                  <Ionicons color={colors.danger} name="trash-outline" size={18} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => onRemove(item.product._id)} style={styles.removeButton}><Text style={styles.removeText}>Remove</Text></TouchableOpacity>
             </View>
           );
         }}
       />
       <View style={styles.checkoutBar}>
         <View>
-          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalLabelSmall}>Total Amount</Text>
           <Text style={styles.checkoutTotal}>Rs {formatMoney(totals.total)}</Text>
         </View>
-        <TouchableOpacity onPress={onScan} style={styles.secondaryButton}><Text style={styles.secondaryText}>Scan more</Text></TouchableOpacity>
-        <TouchableOpacity disabled={!cart.length || hasInvalidStock} onPress={onPay} style={[styles.payButton, (!cart.length || hasInvalidStock) && styles.payDisabled]}><Text style={styles.payText}>Pay</Text></TouchableOpacity>
+        <View style={styles.checkoutBarButtons}>
+          <TouchableOpacity onPress={onScan} style={styles.scanMoreButton}>
+            <Ionicons color={colors.primary} name="scan-outline" size={16} style={{ marginRight: 4 }} />
+            <Text style={styles.scanMoreText}>Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity disabled={!cart.length || hasInvalidStock} onPress={onPay} style={[styles.payButton, (!cart.length || hasInvalidStock) && styles.payDisabled]}>
+            <Text style={styles.payText}>Pay Rs {formatMoney(totals.total)}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -234,60 +305,82 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  backButton: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.md },
-  backText: { color: colors.primaryDark, fontWeight: "900" },
-  title: { color: colors.text, fontSize: 24, fontWeight: "900" },
-  cartButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 48, justifyContent: "center", width: 48 },
-  cartText: { color: "#fff", fontWeight: "900" },
+  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
+  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
+  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  title: { color: colors.text, ...typography.h2 },
+  cartButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, flexDirection: "row", gap: 4, height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
+  cartText: { color: "#ffffff", fontWeight: "700" },
+
+  stepBar: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.md },
+  stepPill: { flex: 1, backgroundColor: colors.surfaceTint, borderRadius: radius.pill, paddingVertical: 6, alignItems: "center" },
+  stepPillActive: { backgroundColor: colors.primary },
+  stepPillDone: { backgroundColor: colors.greenSoft },
+  stepPillText: { color: colors.muted, fontSize: 11, fontWeight: "600" },
+  stepPillTextActive: { color: "#ffffff", fontWeight: "700" },
+
   scanWrap: { flex: 1 },
-  camera: { borderRadius: 8, flex: 1, overflow: "hidden" },
+  camera: { borderRadius: radius.md, flex: 1, overflow: "hidden" },
   scanOverlay: { alignItems: "center", flex: 1, justifyContent: "center" },
-  scanFrame: { borderColor: "#fff", borderRadius: 8, borderWidth: 3, height: 220, width: 220 },
-  scanHint: { backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 8, color: "#fff", fontWeight: "900", marginTop: spacing.md, padding: spacing.sm },
+  scanFrame: { borderColor: "#ffffff", borderRadius: radius.md, borderWidth: 3, height: 220, width: 220 },
+  scanHint: { backgroundColor: "rgba(15, 23, 42, 0.65)", borderRadius: radius.sm, color: "#ffffff", fontWeight: "600", marginTop: spacing.md, padding: spacing.sm },
   scanActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-  permissionBox: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.md },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
-  secondaryButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flex: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.sm },
-  secondaryText: { color: colors.primaryDark, fontWeight: "900" },
-  cartLine: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md },
+  permissionBox: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, padding: spacing.md },
+  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.xs },
+  sectionLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
+
+  secondaryButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, flexDirection: "row", height: 44, justifyContent: "center" },
+  secondaryText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+
+  cartLine: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
   cartInvalid: { borderColor: colors.danger },
-  cartInfo: { marginBottom: spacing.sm },
-  cartName: { color: colors.text, fontSize: 16, fontWeight: "900" },
-  cartMeta: { color: colors.muted, marginTop: 4 },
-  qty: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  qtyButton: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 42, justifyContent: "center", width: 42 },
-  qtyText: { color: colors.primary, fontSize: 22, fontWeight: "900" },
-  qtyValue: { color: colors.text, fontWeight: "900", minWidth: 28, textAlign: "center" },
-  removeButton: { alignItems: "center", minHeight: 42, justifyContent: "center", position: "absolute", right: spacing.md, top: spacing.md },
-  removeText: { color: colors.danger, fontWeight: "900" },
-  checkoutBar: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flexDirection: "row", gap: spacing.sm, padding: spacing.sm },
-  checkoutTotal: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  payButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.lg },
-  payDisabled: { backgroundColor: colors.muted },
-  payText: { color: "#fff", fontWeight: "900" },
-  totalPanel: { backgroundColor: colors.secondary, borderRadius: 8, marginBottom: spacing.md, padding: spacing.md },
-  totalLabel: { color: colors.muted, fontWeight: "800" },
-  totalValue: { color: "#fff", fontSize: 32, fontWeight: "900" },
+  cartInfo: { marginBottom: spacing.xs },
+  cartName: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  cartMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  cartActionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.xs },
+  qty: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
+  qtyButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36 },
+  qtyValue: { color: colors.text, fontWeight: "700", minWidth: 24, textAlign: "center" },
+  removeButton: { padding: spacing.xs },
+
+  checkoutBar: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", padding: spacing.md, ...shadows.floating },
+  totalLabelSmall: { color: colors.muted, fontSize: 11, fontWeight: "600" },
+  checkoutTotal: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  checkoutBarButtons: { flexDirection: "row", gap: spacing.xs },
+  scanMoreButton: { alignItems: "center", backgroundColor: colors.primaryLight, borderColor: colors.primary, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 44, justifyContent: "center", paddingHorizontal: spacing.sm },
+  scanMoreText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  payButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", paddingHorizontal: spacing.md },
+  payDisabled: { opacity: 0.5 },
+  payText: { color: "#ffffff", fontWeight: "700" },
+
+  totalPanel: { backgroundColor: colors.secondary, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  totalLabel: { color: colors.blueSoft, fontWeight: "600", fontSize: 13 },
+  totalValue: { color: "#ffffff", fontSize: 32, fontWeight: "700", marginTop: 2 },
+  totalValueDark: { color: colors.text, fontSize: 24, fontWeight: "700" },
   chips: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  chip: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flex: 1, minHeight: 48, justifyContent: "center" },
-  chipActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
-  chipText: { color: colors.text, fontWeight: "900" },
-  chipTextActive: { color: colors.primaryDark },
-  qrPanel: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.lg },
-  invoice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
-  invoiceShop: { color: colors.text, fontSize: 24, fontWeight: "900" },
-  invoiceMeta: { color: colors.muted, marginTop: 4 },
-  invoiceRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
+  chip: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, flexDirection: "row", height: 44, justifyContent: "center" },
+  chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  chipText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  chipTextActive: { color: colors.primary, fontWeight: "700" },
+
+  qrPanel: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.lg, ...shadows.card },
+  qrHint: { color: colors.muted, fontSize: 12, fontWeight: "500", marginTop: spacing.md },
+
+  invoice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  invoiceShop: { color: colors.text, fontSize: 22, fontWeight: "700" },
+  invoiceMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  invoiceRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.xs },
   invoiceInfo: { flex: 1, paddingRight: spacing.sm },
-  invoiceName: { color: colors.text, fontWeight: "900" },
-  invoiceAmount: { color: colors.text, fontWeight: "900" },
-  invoiceTotal: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: spacing.sm, paddingTop: spacing.sm },
-  newSaleButton: { alignItems: "center", minHeight: 48, justifyContent: "center", marginTop: spacing.sm },
-  newSaleText: { color: colors.primaryDark, fontWeight: "900" },
-  sheetBackdrop: { backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "flex-end" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 8, borderTopRightRadius: 8, padding: spacing.md },
-  cancelButton: { alignItems: "center", minHeight: 48, justifyContent: "center", marginTop: spacing.sm },
-  cancelText: { color: colors.muted, fontWeight: "900" },
-  outText: { color: colors.danger, fontWeight: "900", marginTop: 4 },
+  invoiceName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  invoiceAmount: { color: colors.text, fontWeight: "700" },
+  invoiceTotal: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: spacing.xs, paddingTop: spacing.xs },
+  newSaleButton: { alignItems: "center", height: 48, justifyContent: "center", marginTop: spacing.sm },
+  newSaleText: { color: colors.primary, fontWeight: "700" },
+
+  sheetBackdrop: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  cancelButton: { alignItems: "center", height: 44, justifyContent: "center", marginTop: spacing.xs },
+  cancelText: { color: colors.muted, fontWeight: "600" },
+  outText: { color: colors.danger, fontSize: 12, fontWeight: "600", marginTop: 2 },
 });

@@ -1,34 +1,23 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ReactNode, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Button, Empty, Field, Screen } from "../../components/Layout";
+import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { createManualOrder, getManualOrders, ManualOrder, ManualOrderStatus, updateManualOrderPaymentStatus, updateManualOrderStatus } from "../../services/api";
 
-type OrderStatus = "new" | "process" | "pending" | "shipped" | "delivered";
+type OrderStatus = ManualOrderStatus;
 type StatusFilter = "all" | OrderStatus;
 type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
-type ManualOrder = {
-  id: string;
-  customerName: string;
-  phone: string;
-  shippingAddress: string;
-  itemName: string;
-  quantity: number;
-  status: OrderStatus;
-  paymentStatus: "unpaid" | "paid";
-  source: "Manual";
-  createdAt: string;
-  timeline: { status: OrderStatus; timestamp: string }[];
-};
-
-const STORAGE_KEY = "manual-orders-v1";
 const blank = { customerName: "", phone: "", shippingAddress: "", itemName: "", quantity: "1" };
 const statuses: OrderStatus[] = ["new", "process", "pending", "shipped", "delivered"];
 
+function errorMessage(error: unknown) {
+  return (error as any)?.response?.data?.message || (error as Error)?.message || "Something went wrong";
+}
+
 export default function OrdersScreen() {
-  const [orders, setOrders] = useState<ManualOrder[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [selectedDate, setSelectedDate] = useState(todayKey());
@@ -40,65 +29,67 @@ export default function OrdersScreen() {
   const [pastWeekOpen, setPastWeekOpen] = useState(false);
   const [selected, setSelected] = useState<ManualOrder | null>(null);
   const [form, setForm] = useState(blank);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((value) => {
-      if (value) setOrders(JSON.parse(value));
-    }).catch(() => {});
-  }, []);
+  const ordersQuery = useQuery({ queryKey: ["manual-orders"], queryFn: getManualOrders });
+  const orders = ordersQuery.data || [];
 
-  async function saveOrders(next: ManualOrder[]) {
-    setOrders(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }
+  const createMutation = useMutation({
+    mutationFn: () => createManualOrder({
+      customerName: form.customerName.trim(),
+      phone: form.phone.trim(),
+      shippingAddress: form.shippingAddress.trim(),
+      itemName: form.itemName.trim(),
+      quantity: Math.max(Number(form.quantity || 1), 1),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
+      setForm(blank);
+      setFormOpen(false);
+      setPastWeekOpen(true);
+    },
+    onError: (error) => Alert.alert("Failed to save order", errorMessage(error)),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ order, status }: { order: ManualOrder; status: OrderStatus }) => updateManualOrderStatus(order._id, status),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
+      setSelected((current) => current?._id === updated._id ? updated : current);
+    },
+    onError: (error) => Alert.alert("Failed to update status", errorMessage(error)),
+  });
+
+  const paymentStatusMutation = useMutation({
+    mutationFn: ({ order, paymentStatus }: { order: ManualOrder; paymentStatus: ManualOrder["paymentStatus"] }) => updateManualOrderPaymentStatus(order._id, paymentStatus),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
+      setSelected((current) => current?._id === updated._id ? updated : current);
+    },
+    onError: (error) => Alert.alert("Failed to update payment status", errorMessage(error)),
+  });
 
   function createOrder() {
     if (!form.customerName.trim() || !form.itemName.trim()) {
       Alert.alert("Missing details", "Customer name and item name are required.");
       return;
     }
-    const now = new Date().toISOString();
-    const order: ManualOrder = {
-      id: nextOrderId(orders.length + 1),
-      customerName: form.customerName.trim(),
-      phone: form.phone.trim(),
-      shippingAddress: form.shippingAddress.trim(),
-      itemName: form.itemName.trim(),
-      quantity: Math.max(Number(form.quantity || 1), 1),
-      status: "new",
-      paymentStatus: "unpaid",
-      source: "Manual",
-      createdAt: now,
-      timeline: [{ status: "new", timestamp: now }],
-    };
-    saveOrders([order, ...orders]);
-    setForm(blank);
-    setFormOpen(false);
-    setPastWeekOpen(true);
+    createMutation.mutate();
   }
 
   function updateStatus(order: ManualOrder, status: OrderStatus) {
-    const now = new Date().toISOString();
-    const next = orders.map((item) => item.id === order.id ? {
-      ...item,
-      status,
-      timeline: item.status === status ? item.timeline : [{ status, timestamp: now }, ...item.timeline],
-    } : item);
-    saveOrders(next);
-    setSelected((current) => current?.id === order.id ? next.find((item) => item.id === order.id) || current : current);
+    statusMutation.mutate({ order, status });
   }
 
   function updatePaymentStatus(order: ManualOrder, paymentStatus: ManualOrder["paymentStatus"]) {
-    const next = orders.map((item) => item.id === order.id ? { ...item, paymentStatus } : item);
-    saveOrders(next);
-    setSelected((current) => current?.id === order.id ? next.find((item) => item.id === order.id) || current : current);
+    paymentStatusMutation.mutate({ order, paymentStatus });
   }
 
   const filtered = useMemo(() => orders.filter((order) => {
     const statusMatch = filter === "all" || order.status === filter;
     const dateMatch = matchesDateFilter(order.createdAt, dateFilter, selectedDate);
     const keyword = search.trim().toLowerCase();
-    const searchMatch = !keyword || `${order.id} ${order.customerName} ${order.phone} ${order.itemName} ${order.shippingAddress}`.toLowerCase().includes(keyword);
+    const searchMatch = !keyword || `${order.orderNo} ${order.customerName} ${order.phone || ""} ${order.itemName} ${order.shippingAddress || ""}`.toLowerCase().includes(keyword);
     return statusMatch && dateMatch && searchMatch;
   }), [dateFilter, filter, orders, search, selectedDate]);
   const monthStats = useMemo(() => {
@@ -112,22 +103,25 @@ export default function OrdersScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Orders</Text>
+        <View>
+          <Text style={styles.eyebrow}>ORDER MANAGEMENT</Text>
+          <Text style={styles.title}>Orders</Text>
+        </View>
         <View style={styles.headerActions}>
-          <Ionicons color={colors.text} name="checkbox-outline" size={24} />
-          <Ionicons color={colors.text} name="filter-outline" size={25} />
           <TouchableOpacity onPress={() => setSearchOpen((open) => !open)} style={styles.searchIconButton}>
-            <Ionicons color={colors.text} name={searchOpen ? "close" : "search-outline"} size={25} />
+            <Ionicons color={colors.text} name={searchOpen ? "close" : "search-outline"} size={22} />
           </TouchableOpacity>
         </View>
       </View>
+
       {searchOpen && (
         <View style={styles.searchBox}>
-          <Ionicons color={colors.muted} name="search-outline" size={17} />
-          <Field onChangeText={setSearch} placeholder="Search order, customer, item" style={styles.searchInput} value={search} />
+          <Ionicons color={colors.muted} name="search-outline" size={18} />
+          <Field onChangeText={setSearch} placeholder="Search order ID, customer, item..." style={styles.searchInput} value={search} />
         </View>
       )}
 
+      {/* Summary Banner */}
       <View style={styles.summaryPanel}>
         <View style={styles.summaryBlock}>
           <Text style={styles.summaryLabel}>THIS MONTH</Text>
@@ -140,6 +134,7 @@ export default function OrdersScreen() {
         </View>
       </View>
 
+      {/* Status Filters */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={styles.filtersContent}>
         <FilterChip active={filter === "all"} label={`All ${orders.length}`} onPress={() => setFilter("all")} />
         <FilterChip active={filter === "new"} dot={colors.info} label="New" onPress={() => setFilter("new")} />
@@ -148,6 +143,8 @@ export default function OrdersScreen() {
         <FilterChip active={filter === "shipped"} dot="#12B6CB" label="Shipped" onPress={() => setFilter("shipped")} />
         <FilterChip active={filter === "delivered"} dot={colors.success} label="Delivered" onPress={() => setFilter("delivered")} />
       </ScrollView>
+
+      {/* Date Filters */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateFilters} contentContainerStyle={styles.filtersContent}>
         <FilterChip active={dateFilter === "all"} label="All Dates" onPress={() => setDateFilter("all")} />
         <FilterChip active={dateFilter === "today"} label="Today" onPress={() => setDateFilter("today")} />
@@ -156,41 +153,41 @@ export default function OrdersScreen() {
         <FilterChip active={dateFilter === "custom"} label={dateFilter === "custom" ? formatDateShort(selectedDate) : "Select Date"} onPress={() => setDatePickerOpen(true)} />
       </ScrollView>
 
+      {/* Orders List */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => setPastWeekOpen((open) => !open)} style={styles.groupHeader}>
           <Text style={styles.groupLabel}>{dateGroupLabel(dateFilter)}</Text>
-          <Ionicons color={colors.muted} name={pastWeekOpen ? "chevron-up" : "chevron-down"} size={20} />
+          <Ionicons color={colors.muted} name={pastWeekOpen ? "chevron-up" : "chevron-down"} size={18} />
         </TouchableOpacity>
         {pastWeekOpen && (
           filtered.length ? filtered.map((order) => (
-            <TouchableOpacity key={order.id} onPress={() => setSelected(order)} style={styles.orderCard}>
+            <TouchableOpacity key={order._id} onPress={() => setSelected(order)} style={styles.orderCard}>
               <View style={styles.orderMainRow}>
                 <View style={[styles.avatar, { backgroundColor: statusSoftTone[order.status] }]}>
                   <Text style={[styles.avatarText, { color: statusTone[order.status] }]}>{order.customerName.slice(0, 1).toUpperCase()}</Text>
                 </View>
                 <View style={styles.orderInfo}>
-                  <Text style={styles.orderNo}>{order.id}</Text>
-                  <Text numberOfLines={1} style={styles.orderMeta}>{order.customerName} - {order.quantity} item - {formatDateTime(order.createdAt)}</Text>
+                  <Text style={styles.orderNo}>{order.orderNo}</Text>
+                  <Text numberOfLines={1} style={styles.orderMeta}>{order.customerName} • {order.quantity} item • {formatDateTime(order.createdAt)}</Text>
                 </View>
-                <View style={order.paymentStatus === "paid" ? styles.paidPill : styles.unpaidPill}>
-                  <Text style={order.paymentStatus === "paid" ? styles.paidText : styles.unpaidText}>{order.paymentStatus === "paid" ? "Paid" : "Unpaid"}</Text>
-                </View>
+                <Badge label={order.paymentStatus === "paid" ? "Paid" : "Unpaid"} tone={order.paymentStatus === "paid" ? "success" : "danger"} />
               </View>
               <View style={styles.sourceRow}>
-                <Ionicons color={colors.muted} name="document-text-outline" size={13} />
-                <Text style={styles.sourceText}>Manual</Text>
-                <Ionicons color={colors.muted} name="chevron-forward" size={16} style={styles.sourceArrow} />
+                <Ionicons color={colors.muted} name="document-text-outline" size={14} />
+                <Text style={styles.sourceText}>Manual Order</Text>
+                <Badge label={order.status.toUpperCase()} tone={order.status === "delivered" ? "success" : order.status === "pending" ? "warning" : "info"} />
               </View>
             </TouchableOpacity>
-          )) : <Empty text="No manual orders yet." />
+          )) : <Empty icon="receipt-outline" text={ordersQuery.isLoading ? "Loading orders..." : "No manual orders found."} />
         )}
       </ScrollView>
 
+      {/* FAB */}
       <TouchableOpacity onPress={() => setFormOpen(true)} style={styles.fab}>
-        <Ionicons color="#fff" name="add" size={34} />
+        <Ionicons color="#ffffff" name="add" size={28} />
       </TouchableOpacity>
 
-      <CreateOrderModal form={form} onChange={setForm} onClose={() => setFormOpen(false)} onSave={createOrder} visible={formOpen} />
+      <CreateOrderModal form={form} onChange={setForm} onClose={() => setFormOpen(false)} onSave={createOrder} saving={createMutation.isPending} visible={formOpen} />
       <OrderDetailSheet order={selected} onClose={() => setSelected(null)} onPaymentStatusChange={updatePaymentStatus} onStatusChange={updateStatus} />
       <DateSelectModal
         month={pickerMonth}
@@ -208,26 +205,28 @@ export default function OrdersScreen() {
   );
 }
 
-function CreateOrderModal({ form, onChange, onClose, onSave, visible }: { form: typeof blank; onChange: (form: typeof blank) => void; onClose: () => void; onSave: () => void; visible: boolean }) {
+function CreateOrderModal({ form, onChange, onClose, onSave, saving, visible }: { form: typeof blank; onChange: (form: typeof blank) => void; onClose: () => void; onSave: () => void; saving: boolean; visible: boolean }) {
   return (
     <Modal animationType="slide" visible={visible}>
       <Screen>
         <View style={styles.modalHeader}>
-          <Text style={styles.titleSmall}>Create Order</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}><Ionicons color={colors.text} name="close" size={20} /></TouchableOpacity>
+          <Text style={styles.titleSmall}>Create New Order</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons color={colors.text} name="close" size={20} />
+          </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
-          <Text style={styles.fieldLabel}>Customer name</Text>
-          <Field onChangeText={(value) => onChange({ ...form, customerName: value })} placeholder="Kevin" value={form.customerName} />
-          <Text style={styles.fieldLabel}>Phone</Text>
+          <Text style={styles.fieldLabel}>Customer Name</Text>
+          <Field onChangeText={(value) => onChange({ ...form, customerName: value })} placeholder="e.g. Rahul Sharma" value={form.customerName} />
+          <Text style={styles.fieldLabel}>Phone Number</Text>
           <Field keyboardType="phone-pad" onChangeText={(value) => onChange({ ...form, phone: value })} placeholder="+91..." value={form.phone} />
-          <Text style={styles.fieldLabel}>Shipping address</Text>
-          <Field onChangeText={(value) => onChange({ ...form, shippingAddress: value })} placeholder="Coimbatore" value={form.shippingAddress} />
-          <Text style={styles.fieldLabel}>Item name</Text>
-          <Field onChangeText={(value) => onChange({ ...form, itemName: value })} placeholder="Shopping" value={form.itemName} />
+          <Text style={styles.fieldLabel}>Shipping Address</Text>
+          <Field onChangeText={(value) => onChange({ ...form, shippingAddress: value })} placeholder="City / Address" value={form.shippingAddress} />
+          <Text style={styles.fieldLabel}>Item Name</Text>
+          <Field onChangeText={(value) => onChange({ ...form, itemName: value })} placeholder="Item title" value={form.itemName} />
           <Text style={styles.fieldLabel}>Quantity</Text>
           <Field keyboardType="numeric" onChangeText={(value) => onChange({ ...form, quantity: value })} placeholder="1" value={form.quantity} />
-          <Button onPress={onSave} title="Save order" />
+          <Button icon="checkmark-circle-outline" loading={saving} onPress={onSave} title="Save Order" />
         </ScrollView>
       </Screen>
     </Modal>
@@ -240,17 +239,15 @@ function OrderDetailSheet({ order, onClose, onPaymentStatusChange, onStatusChang
     <Modal animationType="slide" visible={!!order}>
       <Screen>
         <View style={styles.detailHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.iconButton}><Ionicons color={colors.text} name="chevron-back" size={26} /></TouchableOpacity>
-          <Text style={styles.detailNo}>{order.id}</Text>
-          <View style={[styles.statusPill, { backgroundColor: statusSoftTone[order.status] }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusTone[order.status] }]} />
-            <Text style={[styles.statusPillText, { color: statusTone[order.status] }]}>{statusLabel(order.status)}</Text>
-          </View>
-          <View style={styles.iconButton}><Ionicons color={colors.text} name="ellipsis-horizontal" size={22} /></View>
+          <TouchableOpacity onPress={onClose} style={styles.iconButton}>
+            <Ionicons color={colors.text} name="chevron-back" size={24} />
+          </TouchableOpacity>
+          <Text style={styles.detailNo}>{order.orderNo}</Text>
+          <Badge label={statusLabel(order.status)} tone={order.status === "delivered" ? "success" : "info"} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailContent}>
-          <DetailCard title="Status" icon="cube-outline">
+          <DetailCard icon="cube-outline" title="Order Status">
             <View style={styles.statusGrid}>
               {statuses.map((status) => (
                 <TouchableOpacity key={status} onPress={() => onStatusChange(order, status)} style={[styles.statusChoice, order.status === status && styles.statusChoiceActive]}>
@@ -259,48 +256,50 @@ function OrderDetailSheet({ order, onClose, onPaymentStatusChange, onStatusChang
               ))}
             </View>
           </DetailCard>
-          <DetailCard title="Labels" icon="pricetag-outline">
+
+          <DetailCard icon="pricetag-outline" title="Payment Status">
             <View style={styles.labelChoices}>
               <TouchableOpacity onPress={() => onPaymentStatusChange(order, "unpaid")} style={[styles.labelChoice, order.paymentStatus === "unpaid" && styles.unpaidChoiceActive]}>
-                <Ionicons color={colors.danger} name="pricetag" size={13} />
+                <Ionicons color={colors.danger} name="alert-circle-outline" size={14} />
                 <Text style={[styles.labelChoiceText, order.paymentStatus === "unpaid" && styles.unpaidChoiceText]}>Unpaid</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => onPaymentStatusChange(order, "paid")} style={[styles.labelChoice, order.paymentStatus === "paid" && styles.paidChoiceActive]}>
-                <Ionicons color={colors.success} name="checkmark-circle" size={13} />
+                <Ionicons color={colors.success} name="checkmark-circle-outline" size={14} />
                 <Text style={[styles.labelChoiceText, order.paymentStatus === "paid" && styles.paidChoiceText]}>Paid</Text>
               </TouchableOpacity>
             </View>
           </DetailCard>
-          <DetailCard title="Order Details" icon="document-text-outline">
-            <InfoRow label="Order Number" value={order.id} />
-            <InfoRow label="Status" value={statusLabel(order.status)} />
-            <InfoRow label="Source" value={order.source} />
+
+          <DetailCard icon="document-text-outline" title="Order Details">
+            <InfoRow label="Order ID" value={order.orderNo} />
+            <InfoRow label="Current Status" value={statusLabel(order.status)} />
+            <InfoRow label="Source" value="Manual" />
           </DetailCard>
-          <DetailCard title="Customer Information" icon="person-outline">
+
+          <DetailCard icon="person-outline" title="Customer Information">
             <InfoRow label="Name" value={order.customerName} />
             <InfoRow label="Phone" value={order.phone || "-"} />
           </DetailCard>
-          <DetailCard title="Shipping Address" icon="location-outline">
-            <Text style={styles.addressText}>{order.shippingAddress || "No address added"}</Text>
+
+          <DetailCard icon="location-outline" title="Shipping Address">
+            <Text style={styles.addressText}>{order.shippingAddress || "No shipping address added"}</Text>
           </DetailCard>
-          <DetailCard title="Items (1)" icon="cube-outline">
-            <InfoRow label="Name" value={order.itemName} />
+
+          <DetailCard icon="cube-outline" title="Items Purchased">
+            <InfoRow label="Item Name" value={order.itemName} />
             <InfoRow label="Quantity" value={String(order.quantity)} />
           </DetailCard>
-          <DetailCard title="Order Timeline" icon="time-outline">
-            {order.timeline.map((row) => <Timeline key={`${row.status}-${row.timestamp}`} label={statusLabel(row.status)} date={formatDateTime(row.timestamp)} />)}
+
+          <DetailCard icon="time-outline" title="Order Timeline">
+            {order.timeline.map((row) => <Timeline key={`${row.status}-${row.timestamp}`} date={formatDateTime(row.timestamp)} label={statusLabel(row.status)} />)}
           </DetailCard>
         </ScrollView>
 
         <View style={styles.detailActions}>
           <TouchableOpacity onPress={() => printAddress(order)} style={styles.printButton}>
-            <Ionicons color={colors.text} name="print-outline" size={20} />
-            <Text style={styles.printText}>Print Address</Text>
+            <Ionicons color={colors.text} name="print-outline" size={18} style={{ marginRight: 6 }} />
+            <Text style={styles.printText}>Print Shipping Address</Text>
           </TouchableOpacity>
-          <View style={styles.disabledButton}>
-            <Ionicons color="#fff" name="cube-outline" size={20} />
-            <Text style={styles.disabledText}>{statusLabel(order.status)}</Text>
-          </View>
         </View>
       </Screen>
     </Modal>
@@ -308,7 +307,7 @@ function OrderDetailSheet({ order, onClose, onPaymentStatusChange, onStatusChang
 }
 
 async function printAddress(order: ManualOrder) {
-  const address = order.shippingAddress.trim();
+  const address = (order.shippingAddress || "").trim();
   if (!address) {
     Alert.alert("No address", "Shipping address is empty for this order.");
     return;
@@ -321,7 +320,7 @@ async function printAddress(order: ManualOrder) {
     order.phone,
     address,
     "",
-    `Order: ${order.id}`,
+    `Order: ${order.orderNo}`,
     `Item: ${order.itemName} x ${order.quantity}`,
   ].filter(Boolean).join("\n");
 
@@ -334,7 +333,7 @@ async function printAddress(order: ManualOrder) {
     printWindow.document.write(`
       <html>
         <head>
-          <title>${order.id} Address</title>
+          <title>${order.orderNo} Address</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
             .label { border: 1px solid #d1d5db; border-radius: 12px; padding: 20px; max-width: 360px; }
@@ -349,7 +348,7 @@ async function printAddress(order: ManualOrder) {
             <p><strong>${escapeHtml(order.customerName)}</strong></p>
             ${order.phone ? `<p>${escapeHtml(order.phone)}</p>` : ""}
             <p>${escapeHtml(address).replace(/\n/g, "<br />")}</p>
-            <p class="meta">${escapeHtml(order.id)} | ${escapeHtml(order.itemName)} x ${order.quantity}</p>
+            <p class="meta">${escapeHtml(order.orderNo)} | ${escapeHtml(order.itemName)} x ${order.quantity}</p>
           </div>
         </body>
       </html>
@@ -360,7 +359,7 @@ async function printAddress(order: ManualOrder) {
     return;
   }
 
-  await Share.share({ message: text, title: `${order.id} Address` });
+  await Share.share({ message: text, title: `${order.orderNo} Address` });
 }
 
 function escapeHtml(value: string) {
@@ -372,7 +371,7 @@ function DetailCard({ children, icon, title }: { children: ReactNode; icon: keyo
     <View style={styles.detailCard}>
       <View style={styles.detailCardHeader}>
         <View style={styles.detailTitleRow}>
-          <Ionicons color={colors.text} name={icon} size={20} />
+          <Ionicons color={colors.primary} name={icon} size={18} />
           <Text style={styles.detailCardTitle}>{title}</Text>
         </View>
       </View>
@@ -404,7 +403,7 @@ function Timeline({ date, label }: { date: string; label: string }) {
     <View style={styles.timelineRow}>
       <View style={styles.timelineDot} />
       <View>
-        <Text style={styles.timelineBadge}>{label}</Text>
+        <Badge label={label} tone="success" />
         <Text style={styles.timelineDate}>{date}</Text>
       </View>
     </View>
@@ -418,11 +417,11 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
         <View style={styles.dateModal}>
           <View style={styles.dateHeader}>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, -1))} style={styles.dateNav}>
-              <Ionicons color={colors.primaryDark} name="chevron-back" size={18} />
+              <Ionicons color={colors.primary} name="chevron-back" size={18} />
             </TouchableOpacity>
             <Text style={styles.dateMonth}>{formatMonth(month)}</Text>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, 1))} style={styles.dateNav}>
-              <Ionicons color={colors.primaryDark} name="chevron-forward" size={18} />
+              <Ionicons color={colors.primary} name="chevron-forward" size={18} />
             </TouchableOpacity>
           </View>
           <View style={styles.dateGrid}>
@@ -439,10 +438,6 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
       </View>
     </Modal>
   );
-}
-
-function nextOrderId(count: number) {
-  return `#SC${String(count).padStart(4, "0")}`;
 }
 
 function statusLabel(status: OrderStatus) {
@@ -509,102 +504,99 @@ function formatMonth(monthKey: string) {
 }
 
 const statusTone = { new: colors.info, process: colors.purple, pending: colors.warning, shipped: "#12B6CB", delivered: colors.success } as const;
-const statusSoftTone = { new: colors.blueSoft, process: "#F1EAFF", pending: colors.orangeSoft, shipped: "#E5FAFC", delivered: colors.greenSoft } as const;
+const statusSoftTone = { new: colors.blueSoft, process: colors.purpleSoft, pending: colors.orangeSoft, shipped: "#E5FAFC", delivered: colors.greenSoft } as const;
 
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xs },
-  title: { color: colors.text, ...typography.h1, fontSize: 23 },
-  titleSmall: { color: colors.text, ...typography.h1, fontSize: 22 },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, fontSize: 24 },
+  titleSmall: { color: colors.text, ...typography.h2 },
   headerActions: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  searchIconButton: { alignItems: "center", height: 30, justifyContent: "center", width: 30 },
-  searchBox: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs, minHeight: 38, paddingHorizontal: spacing.sm },
-  searchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 36, paddingHorizontal: 0, paddingVertical: 0 },
-  summaryPanel: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", marginBottom: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md, ...shadows.card, shadowOpacity: 0.04 },
+  searchIconButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
+  searchBox: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs, minHeight: 44, paddingHorizontal: spacing.sm },
+  searchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 40, paddingHorizontal: 0 },
+
+  summaryPanel: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexDirection: "row", marginBottom: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md, ...shadows.card },
   summaryBlock: { flex: 1 },
   summaryBlockRight: { alignItems: "flex-end", flex: 1 },
   summaryDivider: { backgroundColor: colors.border, height: 34, marginHorizontal: spacing.md, width: 1 },
-  summaryLabel: { color: colors.muted, fontSize: 10, fontWeight: "900" },
-  summaryValue: { color: colors.text, fontSize: 17, fontWeight: "900", marginTop: 4 },
+  summaryLabel: { color: colors.muted, fontSize: 11, fontWeight: "600" },
+  summaryValue: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 2 },
   summaryUnpaid: { color: colors.danger },
+
   filters: { flexGrow: 0, height: 38, marginBottom: spacing.xs, marginHorizontal: -spacing.md },
   dateFilters: { flexGrow: 0, height: 38, marginBottom: spacing.xs, marginHorizontal: -spacing.md },
   filtersContent: { gap: spacing.xs, paddingHorizontal: spacing.md },
-  filterChip: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 30, paddingHorizontal: spacing.sm },
+  filterChip: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: spacing.sm },
   filterChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   filterDot: { borderRadius: radius.pill, height: 8, width: 8 },
-  filterText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  filterTextActive: { color: "#fff" },
-  content: { paddingBottom: 110, paddingTop: 2 },
-  groupHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4, minHeight: 24 },
-  groupLabel: { color: colors.muted, fontSize: 12, fontWeight: "900" },
-  orderCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", padding: spacing.sm, ...shadows.card, shadowOpacity: 0.035 },
+  filterText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  filterTextActive: { color: "#ffffff" },
+
+  content: { paddingBottom: 110, paddingTop: 4 },
+  groupHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 6, minHeight: 24 },
+  groupLabel: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  orderCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
   orderMainRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  avatar: { alignItems: "center", borderRadius: radius.pill, height: 34, justifyContent: "center", width: 34 },
-  avatarText: { fontSize: 13, fontWeight: "900" },
+  avatar: { alignItems: "center", borderRadius: radius.pill, height: 38, justifyContent: "center", width: 38 },
+  avatarText: { fontSize: 14, fontWeight: "700" },
   orderInfo: { flex: 1, minWidth: 0 },
-  orderTop: { alignItems: "center", flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs },
-  statusDot: { borderRadius: radius.pill, height: 8, width: 8 },
-  orderNo: { color: colors.text, fontSize: 14, fontWeight: "900" },
-  orderMeta: { color: colors.muted, fontSize: 11, fontWeight: "800", marginTop: 2 },
-  unpaidPill: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.redSoft, borderRadius: radius.pill, flexDirection: "row", gap: 5, paddingHorizontal: spacing.xs, paddingVertical: 4 },
-  unpaidText: { color: colors.danger, fontSize: 11, fontWeight: "900" },
-  paidPill: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.greenSoft, borderRadius: radius.pill, flexDirection: "row", gap: 5, paddingHorizontal: spacing.xs, paddingVertical: 4 },
-  paidText: { color: colors.success, fontSize: 11, fontWeight: "900" },
+  orderNo: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  orderMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+
   labelChoices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  labelChoice: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: 5, paddingHorizontal: spacing.xs, paddingVertical: 6 },
-  labelChoiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  labelChoice: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: 6, paddingHorizontal: spacing.sm, paddingVertical: 8 },
+  labelChoiceText: { color: colors.text, fontSize: 13, fontWeight: "600" },
   unpaidChoiceActive: { backgroundColor: colors.redSoft, borderColor: colors.danger },
   unpaidChoiceText: { color: colors.danger },
   paidChoiceActive: { backgroundColor: colors.greenSoft, borderColor: colors.success },
   paidChoiceText: { color: colors.success },
-  sourceRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", gap: spacing.xs, marginHorizontal: -spacing.sm, marginTop: spacing.sm, paddingHorizontal: spacing.sm, paddingTop: spacing.xs },
-  sourceIcon: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 28, justifyContent: "center", width: 28 },
-  sourceText: { color: colors.muted, flex: 1, fontSize: 11, fontWeight: "800" },
-  sourceArrow: { marginLeft: "auto" },
-  fab: { alignItems: "center", backgroundColor: colors.secondary, borderRadius: radius.pill, bottom: spacing.lg, height: 56, justifyContent: "center", position: "absolute", right: spacing.lg, width: 56, ...shadows.floating },
+
+  sourceRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm, paddingTop: spacing.xs },
+  sourceText: { color: colors.muted, fontSize: 12, fontWeight: "500" },
+
+  fab: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.pill, bottom: spacing.lg, height: 52, justifyContent: "center", position: "absolute", right: spacing.lg, width: 52, ...shadows.floating },
   modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  closeButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36, ...shadows.card },
+  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
   formContent: { paddingBottom: spacing.xl },
-  fieldLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginBottom: spacing.xs, textTransform: "uppercase" },
-  detailHeader: { alignItems: "center", flexDirection: "row", gap: spacing.xs, justifyContent: "space-between", marginBottom: spacing.xs },
-  iconButton: { alignItems: "center", height: 36, justifyContent: "center", width: 36 },
-  detailNo: { color: colors.text, fontSize: 16, fontWeight: "900" },
-  statusPill: { alignItems: "center", borderRadius: radius.sm, flexDirection: "row", gap: 6, paddingHorizontal: spacing.xs, paddingVertical: 6 },
-  statusPillText: { fontSize: 11, fontWeight: "900" },
-  detailContent: { paddingBottom: 92 },
-  detailCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden" },
+  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
+
+  detailHeader: { alignItems: "center", flexDirection: "row", gap: spacing.xs, justifyContent: "space-between", marginBottom: spacing.sm },
+  iconButton: { alignItems: "center", height: 40, justifyContent: "center", width: 40 },
+  detailNo: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  detailContent: { paddingBottom: 80 },
+  detailCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
   detailCardHeader: { padding: spacing.sm },
   detailTitleRow: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  detailCardTitle: { color: colors.text, fontSize: 15, fontWeight: "900" },
+  detailCardTitle: { color: colors.text, fontSize: 15, fontWeight: "700" },
   detailBody: { borderTopColor: colors.border, borderTopWidth: 1, padding: spacing.sm },
   infoRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xs },
-  infoLabel: { color: colors.muted, fontSize: 13, fontWeight: "700" },
-  infoValue: { color: colors.text, flex: 1, fontSize: 13, fontWeight: "900", textAlign: "right" },
-  addressText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  infoLabel: { color: colors.muted, fontSize: 13, fontWeight: "500" },
+  infoValue: { color: colors.text, flex: 1, fontSize: 13, fontWeight: "700", textAlign: "right" },
+  addressText: { color: colors.text, fontSize: 14, fontWeight: "500", lineHeight: 20 },
   statusGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  statusChoice: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.xs, paddingVertical: 7 },
-  statusChoiceActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
-  statusChoiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  statusChoiceTextActive: { color: "#fff" },
+  statusChoice: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: 8 },
+  statusChoiceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  statusChoiceText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  statusChoiceTextActive: { color: "#ffffff" },
+
   timelineRow: { alignItems: "flex-start", flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs },
   timelineDot: { backgroundColor: colors.success, borderRadius: radius.pill, height: 8, marginTop: 6, width: 8 },
-  timelineBadge: { alignSelf: "flex-start", backgroundColor: colors.greenSoft, borderRadius: 7, color: colors.success, fontSize: 11, fontWeight: "900", overflow: "hidden", paddingHorizontal: spacing.xs, paddingVertical: 3 },
-  timelineDate: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 4 },
-  detailActions: { backgroundColor: colors.background, borderTopColor: colors.border, borderTopWidth: 1, bottom: 0, flexDirection: "row", gap: spacing.xs, left: 0, padding: spacing.sm, position: "absolute", right: 0 },
-  printButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, flexDirection: "row", gap: spacing.xs, justifyContent: "center", minHeight: 46 },
-  printText: { color: colors.text, fontSize: 13, fontWeight: "900" },
-  disabledButton: { alignItems: "center", backgroundColor: "#D0D4DD", borderRadius: radius.sm, flex: 1, flexDirection: "row", gap: spacing.xs, justifyContent: "center", minHeight: 46 },
-  disabledText: { color: "#fff", fontSize: 13, fontWeight: "900" },
-  dateOverlay: { alignItems: "center", backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "center", padding: spacing.md },
+  timelineDate: { color: colors.muted, fontSize: 12, fontWeight: "500", marginTop: 2 },
+  detailActions: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, bottom: 0, left: 0, padding: spacing.md, position: "absolute", right: 0 },
+  printButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", minHeight: 48, justifyContent: "center" },
+  printText: { color: colors.text, fontSize: 14, fontWeight: "600" },
+
+  dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "center", padding: spacing.md },
   dateModal: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, width: "100%" },
   dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  dateNav: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36 },
-  dateMonth: { color: colors.text, fontSize: 15, fontWeight: "900" },
+  dateNav: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 36, justifyContent: "center", width: 36 },
+  dateMonth: { color: colors.text, fontSize: 15, fontWeight: "700" },
   dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   dateCell: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: "13%" },
   dateCellActive: { backgroundColor: colors.primary },
-  dateCellText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  dateCellTextActive: { color: "#fff" },
+  dateCellText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  dateCellTextActive: { color: "#ffffff" },
   dateClose: { alignItems: "center", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginTop: spacing.md, minHeight: 40, justifyContent: "center" },
-  dateCloseText: { color: colors.text, fontWeight: "900" },
+  dateCloseText: { color: colors.text, fontWeight: "600" },
 });

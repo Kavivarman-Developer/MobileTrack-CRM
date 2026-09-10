@@ -16,7 +16,6 @@ import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(6) });
 type FormValues = z.infer<typeof schema>;
-
 type ResetStep = "request" | "confirm";
 
 export default function LoginScreen() {
@@ -101,10 +100,10 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.brandBlock}>
             <View style={styles.logoBadge}>
-              <Ionicons color="#fff" name="storefront" size={28} />
+              <Ionicons color="#ffffff" name="storefront" size={32} />
             </View>
             <Text style={styles.brand}>Retail Manager</Text>
-            <Text style={styles.subtitle}>Inventory, billing, customers and daily shop totals - all in one place.</Text>
+            <Text style={styles.subtitle}>Inventory, billing, customers and daily shop totals — all in one place.</Text>
           </View>
 
           <View style={styles.card}>
@@ -117,7 +116,7 @@ export default function LoginScreen() {
               name="email"
               render={({ field: { onChange, value } }) => (
                 <View style={styles.inputWrap}>
-                  <Ionicons color={colors.muted} name="mail-outline" size={18} style={styles.inputIcon} />
+                  <Ionicons color={colors.muted} name="mail-outline" size={20} style={styles.inputIcon} />
                   <Field
                     autoCapitalize="none"
                     keyboardType="email-address"
@@ -136,22 +135,22 @@ export default function LoginScreen() {
               name="password"
               render={({ field: { onChange, value } }) => (
                 <View style={styles.inputWrap}>
-                  <Ionicons color={colors.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
+                  <Ionicons color={colors.muted} name="lock-closed-outline" size={20} style={styles.inputIcon} />
                   <Field
                     onChangeText={onChange}
-                    placeholder="Password"
+                    placeholder="Enter password"
                     secureTextEntry={!showPassword}
-                    style={styles.inputWithIcon}
+                    style={styles.inputWithIconRight}
                     value={value}
                   />
-                  <Pressable hitSlop={10} onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
-                    <Ionicons color={colors.muted} name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} />
+                  <Pressable hitSlop={12} onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
+                    <Ionicons color={colors.muted} name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} />
                   </Pressable>
                 </View>
               )}
             />
 
-            <Button loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
+            <Button icon="log-in-outline" loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
             {forgotStatus.data?.enabled && (
               <Pressable onPress={() => { setResetEmail(email); setResetStep("request"); setResetOpen(true); }} style={styles.forgotButton}>
                 <Text style={styles.forgotText}>Forgot password?</Text>
@@ -162,6 +161,7 @@ export default function LoginScreen() {
           <Text style={styles.footer}>Secured with encrypted session tokens</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
       <Modal animationType="slide" transparent visible={resetOpen}>
         <View style={styles.modalOverlay}>
           <View style={styles.resetCard}>
@@ -173,7 +173,7 @@ export default function LoginScreen() {
                 </Text>
               </View>
               <Pressable onPress={closeReset} style={styles.closeButton}>
-                <Ionicons color={colors.text} name="close" size={20} />
+                <Ionicons color={colors.text} name="close" size={22} />
               </Pressable>
             </View>
             {resetStep === "request" ? (
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.secondary },
   container: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
-  brandBlock: { alignItems: "center", marginBottom: spacing.lg },
+  brandBlock: { alignItems: "center", marginBottom: spacing.xl },
   logoBadge: {
     alignItems: "center",
     backgroundColor: colors.primary,
@@ -220,29 +220,32 @@ const styles = StyleSheet.create({
     width: 64,
     ...shadows.floating,
   },
-  brand: { color: "#fff", ...typography.h1, textAlign: "center" },
-  subtitle: { color: "#A9B1C7", fontSize: 14, fontWeight: "500", marginTop: spacing.xs, paddingHorizontal: spacing.md, textAlign: "center" },
+  brand: { color: "#ffffff", ...typography.h1, fontSize: 28, textAlign: "center" },
+  subtitle: { color: "#94A3B8", fontSize: 14, fontWeight: "500", marginTop: spacing.xs, paddingHorizontal: spacing.md, textAlign: "center", lineHeight: 20 },
 
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    borderColor: colors.border,
+    borderWidth: 1,
     ...shadows.floating,
   },
   cardTitle: { color: colors.text, ...typography.h2 },
-  cardHint: { color: colors.muted, fontSize: 13, fontWeight: "500", marginBottom: spacing.md, marginTop: 2 },
+  cardHint: { color: colors.muted, fontSize: 14, fontWeight: "500", marginBottom: spacing.md, marginTop: 2 },
 
-  label: { color: colors.text, fontSize: 12, fontWeight: "800", letterSpacing: 0.4, marginBottom: spacing.xs, textTransform: "uppercase" },
+  label: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
   inputWrap: { justifyContent: "center", marginBottom: spacing.sm, position: "relative" },
   inputIcon: { left: spacing.md, position: "absolute", zIndex: 2 },
-  inputWithIcon: { marginBottom: 0, paddingLeft: 42, paddingRight: 46 },
-  eyeButton: { alignItems: "center", height: 44, justifyContent: "center", position: "absolute", right: 6, width: 44 },
+  inputWithIcon: { paddingLeft: 46 },
+  inputWithIconRight: { paddingLeft: 46, paddingRight: 48 },
+  eyeButton: { alignItems: "center", height: 48, justifyContent: "center", position: "absolute", right: 4, width: 44, zIndex: 2 },
   forgotButton: { alignItems: "center", minHeight: 44, justifyContent: "center", marginTop: spacing.sm },
-  forgotText: { color: colors.primaryDark, fontSize: 14, fontWeight: "900" },
-  modalOverlay: { backgroundColor: "rgba(15,23,42,0.38)", flex: 1, justifyContent: "flex-end" },
-  resetCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg },
+  forgotText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  modalOverlay: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
+  resetCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg },
   resetHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 40, justifyContent: "center", width: 40 },
+  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
 
-  footer: { color: "#7C86A3", fontSize: 12, fontWeight: "600", marginTop: spacing.lg, textAlign: "center" },
+  footer: { color: "#64748B", fontSize: 12, fontWeight: "500", marginTop: spacing.xl, textAlign: "center" },
 });

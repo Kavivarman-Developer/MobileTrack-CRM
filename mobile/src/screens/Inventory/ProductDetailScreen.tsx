@@ -1,14 +1,21 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { getCompatibleAccessories, getProduct, getStockMovements, Product, restockProduct } from "../../services/api";
 
-function stockState(product: Product) {
-  if (product.stockQty <= 0) return { label: "Out", color: colors.danger, bg: colors.redSoft };
-  if (product.stockQty <= product.lowStockThreshold) return { label: "Low", color: colors.warning, bg: colors.orangeSoft };
-  return { label: "In stock", color: colors.success, bg: colors.greenSoft };
+function stockTone(product: Product): "danger" | "warning" | "success" {
+  if (product.stockQty <= 0) return "danger";
+  if (product.stockQty <= product.lowStockThreshold) return "warning";
+  return "success";
+}
+
+function stockLabel(product: Product): string {
+  if (product.stockQty <= 0) return "Out of Stock";
+  if (product.stockQty <= product.lowStockThreshold) return "Low Stock";
+  return "In Stock";
 }
 
 export default function ProductDetailScreen({ route, navigation }: any) {
@@ -24,7 +31,6 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     enabled: product.data?.type !== "accessory",
   });
   const movements = useQuery({ queryKey: ["stock-movements", productId], queryFn: () => getStockMovements(productId) });
-  const status = product.data ? stockState(product.data) : null;
   const movementItems = useMemo(() => movements.data?.items || [], [movements.data]);
   const restock = useMutation({
     mutationFn: () => restockProduct(productId, { quantity: Number(quantity), note }),
@@ -39,36 +45,49 @@ export default function ProductDetailScreen({ route, navigation }: any) {
     onError: (error: Error) => Alert.alert("Restock failed", error.message),
   });
 
-  if (product.isLoading) return <Screen><Empty text="Loading product..." /></Screen>;
-  if (!product.data) return <Screen><Empty text="Product not found." /></Screen>;
+  if (product.isLoading) return <Screen><Empty icon="cube-outline" text="Loading product..." /></Screen>;
+  if (!product.data) return <Screen><Empty icon="alert-circle-outline" text="Product not found." /></Screen>;
+
+  const tone = stockTone(product.data);
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons color={colors.text} name="chevron-back" size={20} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setRestockOpen(true)} style={styles.restockButton}>
+            <Ionicons color="#ffffff" name="add-circle-outline" size={16} style={{ marginRight: 4 }} />
             <Text style={styles.restockText}>Restock</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Product Hero */}
         <View style={styles.hero}>
-          {product.data.images?.[0] ? <Image source={{ uri: product.data.images[0] }} style={styles.heroImage} /> : <View style={styles.heroInitial}><Text style={styles.heroInitialText}>{product.data.name.slice(0, 2).toUpperCase()}</Text></View>}
+          {product.data.images?.[0] ? (
+            <Image source={{ uri: product.data.images[0] }} style={styles.heroImage} />
+          ) : (
+            <View style={styles.heroInitial}>
+              <Text style={styles.heroInitialText}>{product.data.name.slice(0, 2).toUpperCase()}</Text>
+            </View>
+          )}
           <View style={styles.heroInfo}>
             <Text style={styles.name}>{product.data.name}</Text>
-            <Text style={styles.meta}>{product.data.sku}{product.data.barcode ? ` | ${product.data.barcode}` : ""}</Text>
-            <View style={[styles.stockBadge, { backgroundColor: status?.bg }]}>
-              <Text style={[styles.stockBadgeText, { color: status?.color }]}>{status?.label} | {product.data.stockQty} left</Text>
+            <Text style={styles.meta}>SKU: {product.data.sku}{product.data.barcode ? ` • ${product.data.barcode}` : ""}</Text>
+            <View style={{ marginTop: spacing.xs }}>
+              <Badge label={`${stockLabel(product.data)} (${product.data.stockQty} left)`} tone={tone} />
             </View>
             <Text style={styles.price}>Rs {formatMoney(product.data.price)}</Text>
           </View>
         </View>
 
+        {/* Compatible Accessories */}
         {product.data.type !== "accessory" && (
           <View style={styles.panel}>
-            <Text style={styles.section}>Compatible Accessories</Text>
-            {accessories.isLoading ? <Empty text="Loading accessories..." /> : accessories.data?.length ? (
+            <Text style={styles.sectionTitle}>Compatible Accessories</Text>
+            {accessories.isLoading ? <Empty icon="cube-outline" text="Loading accessories..." /> : accessories.data?.length ? (
               <FlatList
                 data={accessories.data}
                 horizontal
@@ -76,37 +95,39 @@ export default function ProductDetailScreen({ route, navigation }: any) {
                 showsHorizontalScrollIndicator={false}
                 renderItem={({ item }) => <AccessoryCard item={item} />}
               />
-            ) : <Empty text="No accessories linked yet." />}
+            ) : <Empty icon="link-outline" text="No compatible accessories linked yet." />}
           </View>
         )}
 
+        {/* Stock History */}
         <View style={styles.panel}>
-          <Text style={styles.section}>Stock History</Text>
+          <Text style={styles.sectionTitle}>Stock Movement History</Text>
           {movementItems.length ? movementItems.map((item) => (
             <View key={item._id} style={styles.movementRow}>
-              <View style={[styles.movementBadge, item.type === "IN" ? styles.inBadge : styles.outBadge]}>
-                <Text style={[styles.movementBadgeText, item.type === "IN" ? styles.inText : styles.outText]}>{item.type}</Text>
-              </View>
+              <Badge icon={item.type === "IN" ? "arrow-down-circle-outline" : "arrow-up-circle-outline"} label={item.type} tone={item.type === "IN" ? "success" : "danger"} />
               <View style={styles.movementInfo}>
-                <Text style={styles.movementTitle}>{item.quantity} units | {item.reason}</Text>
+                <Text style={styles.movementTitle}>{item.quantity} units • {item.reason}</Text>
                 <Text style={styles.movementMeta}>{new Date(item.createdAt).toLocaleString()}</Text>
                 {!!item.note && <Text style={styles.movementMeta}>{item.note}</Text>}
               </View>
             </View>
-          )) : <Empty text="No stock movements yet." />}
+          )) : <Empty icon="time-outline" text="No stock movements recorded yet." />}
         </View>
       </ScrollView>
 
+      {/* Restock Modal */}
       <Modal transparent animationType="slide" visible={restockOpen}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.section}>Restock Product</Text>
-            <Field keyboardType="numeric" onChangeText={setQuantity} placeholder="Quantity" value={quantity} />
-            <Field onChangeText={setNote} placeholder="Note" value={note} />
-            <Button loading={restock.isPending} onPress={() => restock.mutate()} title="Add stock" />
-            <TouchableOpacity onPress={() => setRestockOpen(false)} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sectionTitle}>Restock Product Quantity</Text>
+              <TouchableOpacity onPress={() => setRestockOpen(false)}>
+                <Ionicons color={colors.text} name="close" size={20} />
+              </TouchableOpacity>
+            </View>
+            <Field keyboardType="numeric" onChangeText={setQuantity} placeholder="Quantity to add (e.g. 10)" value={quantity} />
+            <Field onChangeText={setNote} placeholder="Restock note / supplier reference" value={note} />
+            <Button icon="checkmark-circle-outline" loading={restock.isPending} onPress={() => restock.mutate()} title="Confirm Add Stock" />
           </View>
         </View>
       </Modal>
@@ -115,14 +136,14 @@ export default function ProductDetailScreen({ route, navigation }: any) {
 }
 
 function AccessoryCard({ item }: { item: Product }) {
-  const status = stockState(item);
+  const tone = stockTone(item);
   return (
     <View style={styles.accessoryCard}>
       {item.images?.[0] ? <Image source={{ uri: item.images[0] }} style={styles.accessoryImage} /> : <View style={styles.accessoryInitial}><Text style={styles.heroInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text></View>}
       <Text numberOfLines={2} style={styles.accessoryName}>{item.name}</Text>
       <Text style={styles.accessoryPrice}>Rs {formatMoney(item.price)}</Text>
-      <View style={[styles.smallBadge, { backgroundColor: status.bg }]}>
-        <Text style={[styles.smallBadgeText, { color: status.color }]}>{status.label}</Text>
+      <View style={{ marginTop: 4 }}>
+        <Badge label={stockLabel(item)} tone={tone} />
       </View>
     </View>
   );
@@ -133,42 +154,37 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
+  container: { paddingBottom: spacing.xl },
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  backButton: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.md },
-  backText: { color: colors.primaryDark, fontWeight: "900" },
-  restockButton: { backgroundColor: colors.primary, borderRadius: 8, minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.md },
-  restockText: { color: "#fff", fontWeight: "900" },
-  hero: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flexDirection: "row", marginBottom: spacing.md, padding: spacing.md },
-  heroImage: { borderRadius: 8, height: 108, marginRight: spacing.md, width: 108 },
-  heroInitial: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: 8, height: 108, justifyContent: "center", marginRight: spacing.md, width: 108 },
-  heroInitialText: { color: colors.primaryDark, fontWeight: "900" },
+  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
+  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  restockButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.md },
+  restockText: { color: "#ffffff", fontWeight: "600", fontSize: 13 },
+
+  hero: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexDirection: "row", marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  heroImage: { borderRadius: radius.sm, height: 100, marginRight: spacing.md, width: 100 },
+  heroInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 100, justifyContent: "center", marginRight: spacing.md, width: 100 },
+  heroInitialText: { color: colors.primary, fontWeight: "700", fontSize: 20 },
   heroInfo: { flex: 1 },
-  name: { color: colors.text, fontSize: 22, fontWeight: "900" },
-  meta: { color: colors.muted, marginTop: 4 },
-  price: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: spacing.sm },
-  stockBadge: { alignSelf: "flex-start", borderRadius: 999, marginTop: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  stockBadgeText: { fontSize: 12, fontWeight: "900" },
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
-  accessoryCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginRight: spacing.sm, padding: spacing.sm, width: 140 },
-  accessoryImage: { borderRadius: 8, height: 66, marginBottom: spacing.sm, width: "100%" },
-  accessoryInitial: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: 8, height: 66, justifyContent: "center", marginBottom: spacing.sm, width: "100%" },
-  accessoryName: { color: colors.text, fontWeight: "900", minHeight: 38 },
-  accessoryPrice: { color: colors.text, fontWeight: "900", marginTop: 3 },
-  smallBadge: { alignSelf: "flex-start", borderRadius: 999, marginTop: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  smallBadgeText: { fontSize: 11, fontWeight: "900" },
-  movementRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", paddingVertical: spacing.sm },
-  movementBadge: { alignItems: "center", borderRadius: 8, height: 36, justifyContent: "center", marginRight: spacing.sm, width: 46 },
-  inBadge: { backgroundColor: colors.greenSoft },
-  outBadge: { backgroundColor: colors.redSoft },
-  movementBadgeText: { fontWeight: "900" },
-  inText: { color: colors.success },
-  outText: { color: colors.danger },
+  name: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  price: { color: colors.primary, fontSize: 18, fontWeight: "700", marginTop: spacing.xs },
+
+  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.sm },
+
+  accessoryCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, padding: spacing.sm, width: 130 },
+  accessoryImage: { borderRadius: radius.sm, height: 60, marginBottom: spacing.xs, width: "100%" },
+  accessoryInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 60, justifyContent: "center", marginBottom: spacing.xs, width: "100%" },
+  accessoryName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  accessoryPrice: { color: colors.text, fontWeight: "700", marginTop: 2 },
+
+  movementRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.sm, alignItems: "center" },
   movementInfo: { flex: 1 },
-  movementTitle: { color: colors.text, fontWeight: "900" },
-  movementMeta: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  sheetBackdrop: { backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "flex-end" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 8, borderTopRightRadius: 8, padding: spacing.md },
-  cancelButton: { alignItems: "center", minHeight: 48, justifyContent: "center", marginTop: spacing.sm },
-  cancelText: { color: colors.muted, fontWeight: "900" },
+  movementTitle: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  movementMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
+
+  sheetBackdrop: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xs },
 });

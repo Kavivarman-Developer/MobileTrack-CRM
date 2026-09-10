@@ -382,6 +382,42 @@ export async function recordOrderPayment(id: string, payload: { amount: number; 
   return data;
 }
 
+export type ManualOrderStatus = "new" | "process" | "pending" | "shipped" | "delivered";
+
+export type ManualOrder = {
+  _id: string;
+  orderNo: string;
+  customerName: string;
+  phone?: string;
+  shippingAddress?: string;
+  itemName: string;
+  quantity: number;
+  status: ManualOrderStatus;
+  paymentStatus: "unpaid" | "paid";
+  timeline: { status: ManualOrderStatus; timestamp: string }[];
+  createdAt: string;
+};
+
+export async function getManualOrders() {
+  const { data } = await api.get<ManualOrder[]>("/manual-orders");
+  return data;
+}
+
+export async function createManualOrder(payload: { customerName: string; phone?: string; shippingAddress?: string; itemName: string; quantity: number }) {
+  const { data } = await api.post<ManualOrder>("/manual-orders", payload);
+  return data;
+}
+
+export async function updateManualOrderStatus(id: string, status: ManualOrderStatus) {
+  const { data } = await api.patch<ManualOrder>(`/manual-orders/${id}/status`, { status });
+  return data;
+}
+
+export async function updateManualOrderPaymentStatus(id: string, paymentStatus: ManualOrder["paymentStatus"]) {
+  const { data } = await api.patch<ManualOrder>(`/manual-orders/${id}/payment-status`, { paymentStatus });
+  return data;
+}
+
 export async function getUpiConfig() {
   const { data } = await api.get<{ upiId: string; payeeName: string }>("/config/upi");
   return data;

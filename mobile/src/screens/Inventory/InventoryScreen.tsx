@@ -6,8 +6,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { z } from "zod";
-import { Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { createProduct, createVendor, deleteProduct, getProducts, getVendors, Product, updateProduct, uploadProductImage, Vendor } from "../../services/api";
 
 const blank = {
@@ -132,7 +132,6 @@ export default function InventoryScreen() {
         openingStock: Number(form.openingStock || 0),
         openingStockRatePerUnit: Number(form.openingStockRatePerUnit || 0),
         inventoryValuationMethod: parsed.inventoryValuationMethod,
-        // reorderPoint lives alongside lowStockThreshold until all legacy screens switch over.
         reorderPoint: Number(form.reorderPoint || 0),
         lowStockThreshold: Number(form.reorderPoint || 0),
         stockQty: Number(form.openingStock || 0),
@@ -247,27 +246,34 @@ export default function InventoryScreen() {
     <Screen>
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>Stock control</Text>
+          <Text style={styles.eyebrow}>STOCK CONTROL</Text>
           <Text style={styles.title}>Items</Text>
         </View>
-        <TouchableOpacity onPress={() => openForm()} style={styles.addButton}><Text style={styles.addButtonText}>+</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
+          <Ionicons color="#ffffff" name="add" size={24} />
+        </TouchableOpacity>
       </View>
+
       <View style={styles.statsGrid}>
-        <StatCard label="Items" value={inventoryStats.total} />
-        <StatCard danger={inventoryStats.lowStock > 0} label="Low stock" value={inventoryStats.lowStock} />
-        <StatCard label="Stock value" value={`Rs ${formatMoney(inventoryStats.stockValue)}`} wide />
+        <StatCard label="Total Items" value={inventoryStats.total} />
+        <StatCard danger={inventoryStats.lowStock > 0} label="Low Stock" value={inventoryStats.lowStock} />
+        <StatCard label="Stock Value" value={`Rs ${formatMoney(inventoryStats.stockValue)}`} wide />
       </View>
+
       <View style={styles.toolbar}>
-        <View style={styles.searchWrap}><Text style={styles.searchIcon}>Search</Text><Field style={styles.compactSearchField} onChangeText={setSearch} placeholder="Product name or SKU" value={search} /></View>
-        <TouchableOpacity onPress={openViewItems} style={styles.toolbarButton}><Text style={styles.toolbarButtonText}>View
-          </Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => openForm()} style={styles.toolbarButton}><Text style={styles.toolbarButtonText}>Add</Text></TouchableOpacity>
+        <View style={styles.searchWrap}>
+          <Field style={styles.compactSearchField} onChangeText={setSearch} placeholder="Search item name or SKU..." value={search} />
+        </View>
+        <TouchableOpacity onPress={openViewItems} style={styles.toolbarButton}>
+          <Text style={styles.toolbarButtonText}>View All</Text>
+        </TouchableOpacity>
       </View>
+
       <FlatList
         data={products.data || []}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Empty text={products.isLoading ? "Loading products..." : "No products yet."} />}
+        ListEmptyComponent={<Empty icon="cube-outline" text={products.isLoading ? "Loading products..." : "No products added yet."} />}
         renderItem={({ item }) => (
           <ProductRow
             item={item}
@@ -277,20 +283,26 @@ export default function InventoryScreen() {
           />
         )}
       />
+
+      {/* View Items Modal */}
       <Modal animationType="slide" visible={viewItemsOpen}>
         <Screen>
           <View style={styles.modalHeader}>
-            <View><Text style={styles.eyebrow}>All items</Text><Text style={styles.title}>View Items</Text></View>
-            <TouchableOpacity onPress={closeViewItems} style={styles.closeButton}><Text style={styles.closeButtonText}>x</Text></TouchableOpacity>
+            <View><Text style={styles.eyebrow}>ALL CATALOG ITEMS</Text><Text style={styles.title}>View Items</Text></View>
+            <TouchableOpacity onPress={closeViewItems} style={styles.closeButton}>
+              <Ionicons color={colors.text} name="close" size={20} />
+            </TouchableOpacity>
           </View>
           <View style={styles.toolbar}>
-            <View style={styles.searchWrap}><Text style={styles.searchIcon}>Search</Text><Field style={styles.compactSearchField} onChangeText={setViewSearch} placeholder="Search item name or SKU" value={viewSearch} /></View>
+            <View style={styles.searchWrap}>
+              <Field style={styles.compactSearchField} onChangeText={setViewSearch} placeholder="Search item name or SKU..." value={viewSearch} />
+            </View>
           </View>
           <FlatList
             data={viewProducts}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<Empty text={allProducts.isLoading ? "Loading all items..." : "No items found."} />}
+            ListEmptyComponent={<Empty icon="cube-outline" text={allProducts.isLoading ? "Loading all items..." : "No items found."} />}
             renderItem={({ item }) => (
               <ProductRow
                 item={item}
@@ -302,66 +314,62 @@ export default function InventoryScreen() {
           />
         </Screen>
       </Modal>
+
+      {/* Product Form Modal */}
       <Modal animationType="slide" visible={open}>
         <Screen>
           <View style={styles.modalHeader}>
-            <View><Text style={styles.eyebrow}>{editing ? "Update item" : "New item"}</Text><Text style={styles.title}>{editing ? "Edit Product" : "Add Product"}</Text></View>
-            <TouchableOpacity onPress={closeForm} style={styles.closeButton}><Text style={styles.closeButtonText}>x</Text></TouchableOpacity>
+            <View><Text style={styles.eyebrow}>{editing ? "UPDATE ITEM" : "NEW ITEM"}</Text><Text style={styles.title}>{editing ? "Edit Product" : "Add Product"}</Text></View>
+            <TouchableOpacity onPress={closeForm} style={styles.closeButton}>
+              <Ionicons color={colors.text} name="close" size={20} />
+            </TouchableOpacity>
           </View>
-          <ScrollView style={styles.formCard}>
+          <ScrollView style={styles.formCard} showsVerticalScrollIndicator={false}>
             <Section title="Item Type">
               <Segment value={form.itemType} options={[["goods", "Goods"], ["service", "Service"]]} onChange={(value) => setForm((prev) => ({ ...prev, itemType: value as FormState["itemType"] }))} />
             </Section>
-            <Section title="Basics">
+            <Section title="Basic Details">
               <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
-                {selectedImage || editing?.images?.[0] ? <Image source={{ uri: selectedImage || editing?.images?.[0] }} style={styles.previewImage} /> : <View style={styles.previewPlaceholder}><Ionicons color={colors.primary} name="image-outline" size={26} /><Text style={styles.previewTitle}>+ Add Image</Text></View>}
+                {selectedImage || editing?.images?.[0] ? <Image source={{ uri: selectedImage || editing?.images?.[0] }} style={styles.previewImage} /> : <View style={styles.previewPlaceholder}><Ionicons color={colors.primary} name="image-outline" size={28} /><Text style={styles.previewTitle}>+ Upload Product Image</Text></View>}
               </TouchableOpacity>
               <FormField formKey="name" label="Item Name" setForm={setForm} value={form.name} />
-              <ScanFieldInput formKey="sku" label="SKU" onScan={() => openScanner("sku")} setForm={setForm} value={form.sku} />
-              <FormField formKey="unit" label="Unit" setForm={setForm} value={form.unit} />
-              <TouchableOpacity onPress={() => Alert.alert("Configure Units", "Unit management can be added here.")} style={styles.inlineLink}><Text style={styles.inlineLinkText}>Configure Units</Text></TouchableOpacity>
+              <ScanFieldInput formKey="sku" label="SKU / Barcode" onScan={() => openScanner("sku")} setForm={setForm} value={form.sku} />
+              <FormField formKey="unit" label="Unit of Measure (pcs, kg, etc.)" setForm={setForm} value={form.unit} />
               <Text style={styles.fieldLabel}>Category</Text>
               <Segment value={form.category || "Smartphones"} options={[["Smartphones", "Smartphones"], ["Tablets", "Tablets"], ["Accessories", "Accessories"]]} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
-              <FormField formKey="category" label="Category name" setForm={setForm} value={form.category} />
+              <FormField formKey="category" label="Category Name" setForm={setForm} value={form.category} />
               <Toggle label="Returnable Item" value={form.returnable} onChange={() => setForm((prev) => ({ ...prev, returnable: !prev.returnable }))} />
             </Section>
             <PanelToggle label="Sales Information" value={form.salesEnabled} onChange={() => setForm((prev) => ({ ...prev, salesEnabled: !prev.salesEnabled }))} />
-            {form.salesEnabled && <Section title="Sales Information">
-              <FormField formKey="sellingPrice" keyboardType="numeric" label="Selling Price (INR)" setForm={setForm} value={form.sellingPrice} />
-              <Text style={styles.fieldLabel}>Account</Text>
-              <Segment value={form.salesAccount} options={[["Sales", "Sales"], ["Service Sales", "Service Sales"], ["Other Income", "Other Income"]]} onChange={(value) => setForm((prev) => ({ ...prev, salesAccount: value }))} />
-              <FormField formKey="salesAccount" label="Account name" setForm={setForm} value={form.salesAccount} />
-              <FormField formKey="salesDescription" label="Description" multiline setForm={setForm} value={form.salesDescription} />
+            {form.salesEnabled && <Section title="Sales Settings">
+              <FormField formKey="sellingPrice" keyboardType="numeric" label="Selling Price (INR ₹)" setForm={setForm} value={form.sellingPrice} />
+              <FormField formKey="salesAccount" label="Sales Account Name" setForm={setForm} value={form.salesAccount} />
+              <FormField formKey="salesDescription" label="Sales Description" multiline setForm={setForm} value={form.salesDescription} />
             </Section>}
             <PanelToggle label="Purchase Information" value={form.purchaseEnabled} onChange={() => setForm((prev) => ({ ...prev, purchaseEnabled: !prev.purchaseEnabled }))} />
-            {form.purchaseEnabled && <Section title="Purchase Information">
-              <FormField formKey="costPrice" keyboardType="numeric" label="Cost Price (INR)" setForm={setForm} value={form.costPrice} />
-              <Text style={styles.fieldLabel}>Account</Text>
-              <Segment value={form.purchaseAccount} options={[["Cost of Goods Sold", "Cost of Goods Sold"], ["Purchases", "Purchases"], ["Inventory Expense", "Inventory Expense"]]} onChange={(value) => setForm((prev) => ({ ...prev, purchaseAccount: value }))} />
-              <FormField formKey="purchaseAccount" label="Account name" setForm={setForm} value={form.purchaseAccount} />
-              <FormField formKey="purchaseDescription" label="Description" multiline setForm={setForm} value={form.purchaseDescription} />
+            {form.purchaseEnabled && <Section title="Purchase Settings">
+              <FormField formKey="costPrice" keyboardType="numeric" label="Cost Price (INR ₹)" setForm={setForm} value={form.costPrice} />
+              <FormField formKey="purchaseAccount" label="Purchase Account Name" setForm={setForm} value={form.purchaseAccount} />
+              <FormField formKey="purchaseDescription" label="Purchase Description" multiline setForm={setForm} value={form.purchaseDescription} />
               <Text style={styles.fieldLabel}>Preferred Vendor</Text>
-              <Field onChangeText={setVendorSearch} placeholder="Start typing to select a Vendor" value={vendorSearch} />
+              <Field onChangeText={setVendorSearch} placeholder="Start typing vendor name..." value={vendorSearch} />
               {(vendors.data || []).slice(0, 5).map((vendor) => <VendorOption key={vendor._id} selected={form.preferredVendor === vendor._id} vendor={vendor} onPress={() => setForm((prev) => ({ ...prev, preferredVendor: vendor._id }))} />)}
-              {!!vendorSearch && <TouchableOpacity onPress={() => quickVendor.mutate()} style={styles.inlineAdd}><Text style={styles.inlineAddText}>+ Add Vendor</Text></TouchableOpacity>}
+              {!!vendorSearch && <TouchableOpacity onPress={() => quickVendor.mutate()} style={styles.inlineAdd}><Text style={styles.inlineAddText}>+ Add New Vendor</Text></TouchableOpacity>}
             </Section>}
             <PanelToggle label="Track Inventory for this item" value={form.trackInventory} onChange={() => setForm((prev) => ({ ...prev, trackInventory: !prev.trackInventory }))} />
-            {form.trackInventory && <Section title="Inventory Tracking">
-              <Text style={styles.fieldLabel}>Inventory Account</Text>
-              <Segment value={form.inventoryAccount} options={[["Inventory Asset", "Inventory Asset"], ["Finished Goods", "Finished Goods"], ["Stock in Hand", "Stock in Hand"]]} onChange={(value) => setForm((prev) => ({ ...prev, inventoryAccount: value }))} />
-              <FormField formKey="inventoryAccount" label="Inventory account name" setForm={setForm} value={form.inventoryAccount} />
-              <InfoField formKey="openingStock" keyboardType="numeric" label="Opening Stock" setForm={setForm} value={form.openingStock} />
-              <InfoField formKey="openingStockRatePerUnit" keyboardType="numeric" label="Opening Stock Rate per Unit" setForm={setForm} value={form.openingStockRatePerUnit} />
-              <Text style={styles.fieldLabel}>Inventory Valuation Method</Text>
+            {form.trackInventory && <Section title="Stock Control Settings">
+              <FormField formKey="inventoryAccount" label="Inventory Account Name" setForm={setForm} value={form.inventoryAccount} />
+              <InfoField formKey="openingStock" keyboardType="numeric" label="Opening Stock Quantity" setForm={setForm} value={form.openingStock} />
+              <InfoField formKey="openingStockRatePerUnit" keyboardType="numeric" label="Opening Stock Rate / Unit" setForm={setForm} value={form.openingStockRatePerUnit} />
+              <Text style={styles.fieldLabel}>Valuation Method</Text>
               <Segment value={form.inventoryValuationMethod} options={[["FIFO", "FIFO"], ["LIFO", "LIFO"], ["Average", "Average"]]} onChange={(value) => setForm((prev) => ({ ...prev, inventoryValuationMethod: value as FormState["inventoryValuationMethod"] }))} />
-              <InfoField formKey="reorderPoint" keyboardType="numeric" label="Reorder Point" setForm={setForm} value={form.reorderPoint} />
+              <InfoField formKey="reorderPoint" keyboardType="numeric" label="Reorder Threshold" setForm={setForm} value={form.reorderPoint} />
             </Section>}
             <TouchableOpacity onPress={() => setForm((prev) => ({ ...prev, moreOpen: !prev.moreOpen }))} style={styles.collapseHeader}>
-              <Text style={styles.sectionTitle}>More fields</Text>
+              <Text style={styles.sectionTitle}>Additional Fields (Dimensions, UPC, Brand)</Text>
               <Ionicons color={colors.text} name={form.moreOpen ? "chevron-up" : "chevron-down"} size={20} />
             </TouchableOpacity>
-            {form.moreOpen && <Section title="More fields">
-              <Text style={styles.fieldLabel}>Dimensions</Text>
+            {form.moreOpen && <Section title="Dimensions & Barcodes">
               <View style={styles.formRow}>
                 <View style={styles.formQuarter}><FormField formKey="dimensionLength" keyboardType="numeric" label="Length" setForm={setForm} value={form.dimensionLength} /></View>
                 <View style={styles.formQuarter}><FormField formKey="dimensionWidth" keyboardType="numeric" label="Width" setForm={setForm} value={form.dimensionWidth} /></View>
@@ -378,21 +386,25 @@ export default function InventoryScreen() {
             </Section>}
             <Toggle label="Is this an accessory?" value={form.type === "accessory"} onChange={() => setForm((prev) => ({ ...prev, type: prev.type === "accessory" ? "standalone" : "accessory", compatibleWith: prev.type === "accessory" ? [] : prev.compatibleWith }))} />
             {form.type === "accessory" && <CompatiblePicker allProducts={allProducts.data || []} editing={editing} form={form} setForm={setForm} />}
-            <Button loading={save.isPending} onPress={() => save.mutate()} title="Save product" />
+            <Button icon="checkmark-circle-outline" loading={save.isPending} onPress={() => save.mutate()} title="Save Product" />
           </ScrollView>
         </Screen>
       </Modal>
+
+      {/* Barcode Scanner Modal */}
       <Modal animationType="slide" visible={scanOpen}>
         <Screen>
           <View style={styles.modalHeader}>
-            <View><Text style={styles.eyebrow}>Barcode scanner</Text><Text style={styles.title}>Scan {scanField.toUpperCase()}</Text></View>
-            <TouchableOpacity onPress={() => setScanOpen(false)} style={styles.closeButton}><Text style={styles.closeButtonText}>x</Text></TouchableOpacity>
+            <View><Text style={styles.eyebrow}>BARCODE SCANNER</Text><Text style={styles.title}>Scan {scanField.toUpperCase()}</Text></View>
+            <TouchableOpacity onPress={() => setScanOpen(false)} style={styles.closeButton}>
+              <Ionicons color={colors.text} name="close" size={20} />
+            </TouchableOpacity>
           </View>
           {permission?.granted ? (
             <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "code128", "upc_a", "upc_e"] } as any} onBarcodeScanned={(event: any) => handleBarcode(event.data)}>
               <View style={styles.scanOverlay}><View style={styles.scanFrame} /><Text style={styles.scanHint}>Point camera at barcode</Text></View>
             </CameraView>
-          ) : <View style={styles.formCard}><Text style={styles.previewTitle}>Camera access needed</Text><Button onPress={() => requestPermission()} title="Allow camera" /></View>}
+          ) : <View style={styles.formCard}><Text style={styles.previewTitle}>Camera Access Needed</Text><Button onPress={() => requestPermission()} title="Allow Camera" /></View>}
         </Screen>
       </Modal>
     </Screen>
@@ -404,15 +416,15 @@ function Section({ children, title }: { children: React.ReactNode; title: string
 }
 
 function Segment({ onChange, options, value }: { onChange: (value: string) => void; options: string[][]; value: string }) {
-  return <View style={styles.segment}>{options.map(([key, label]) => <TouchableOpacity key={key} onPress={() => onChange(key)} style={[styles.segmentButton, value === key && styles.segmentActive]}><Text style={styles.segmentText}>{label}</Text></TouchableOpacity>)}</View>;
+  return <View style={styles.segment}>{options.map(([key, label]) => <TouchableOpacity key={key} onPress={() => onChange(key)} style={[styles.segmentButton, value === key && styles.segmentActive]}><Text style={[styles.segmentText, value === key && styles.segmentTextActive]}>{label}</Text></TouchableOpacity>)}</View>;
 }
 
 function Toggle({ label, onChange, value }: { label: string; onChange: () => void; value: boolean }) {
-  return <TouchableOpacity onPress={onChange} style={styles.toggleLine}><Text style={styles.toggleTitle}>{label}</Text><Ionicons color={value ? colors.success : colors.muted} name={value ? "checkbox-outline" : "square-outline"} size={24} /></TouchableOpacity>;
+  return <TouchableOpacity onPress={onChange} style={styles.toggleLine}><Text style={styles.toggleTitle}>{label}</Text><Ionicons color={value ? colors.success : colors.muted} name={value ? "checkbox" : "square-outline"} size={22} /></TouchableOpacity>;
 }
 
 function PanelToggle({ label, onChange, value }: { label: string; onChange: () => void; value: boolean }) {
-  return <TouchableOpacity onPress={onChange} style={[styles.toggleRow, value && styles.toggleActive]}><Text style={styles.toggleTitle}>{label}</Text><Text style={[styles.toggleValue, value && styles.toggleValueActive]}>{value ? "On" : "Off"}</Text></TouchableOpacity>;
+  return <TouchableOpacity onPress={onChange} style={[styles.toggleRow, value && styles.toggleActive]}><Text style={styles.toggleTitle}>{label}</Text><Badge label={value ? "ON" : "OFF"} tone={value ? "success" : "neutral"} /></TouchableOpacity>;
 }
 
 function VendorOption({ onPress, selected, vendor }: { onPress: () => void; selected: boolean; vendor: Vendor }) {
@@ -424,22 +436,27 @@ function FormField({ formKey, keyboardType = "default", label, multiline, setFor
 }
 
 function ScanFieldInput(props: { formKey: keyof FormState; label: string; onScan: () => void; setForm: React.Dispatch<React.SetStateAction<FormState>>; value: string }) {
-  return <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>{props.label}</Text><View style={styles.inputWithIcon}><Field onChangeText={(text) => props.setForm((prev) => ({ ...prev, [props.formKey]: text }))} placeholder={props.label} value={props.value} /><TouchableOpacity onPress={props.onScan} style={styles.iconButton}><Ionicons color={colors.primaryDark} name="scan-outline" size={22} /></TouchableOpacity></View></View>;
+  return <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>{props.label}</Text><View style={styles.inputWithIcon}><Field onChangeText={(text) => props.setForm((prev) => ({ ...prev, [props.formKey]: text }))} placeholder={props.label} value={props.value} /><TouchableOpacity onPress={props.onScan} style={styles.iconButton}><Ionicons color={colors.primary} name="scan-outline" size={20} /></TouchableOpacity></View></View>;
 }
 
 function InfoField(props: { formKey: keyof FormState; keyboardType?: "numeric"; label: string; setForm: React.Dispatch<React.SetStateAction<FormState>>; value: string }) {
-  return <View style={styles.fieldBlock}><View style={styles.infoLabelRow}><Text style={styles.fieldLabel}>{props.label}</Text><TouchableOpacity onPress={() => Alert.alert(props.label, "Used for inventory valuation and reorder alerts.")}><Ionicons color={colors.muted} name="information-circle-outline" size={18} /></TouchableOpacity></View><Field keyboardType={props.keyboardType} onChangeText={(text) => props.setForm((prev) => ({ ...prev, [props.formKey]: text }))} value={props.value} /></View>;
+  return <View style={styles.fieldBlock}><View style={styles.infoLabelRow}><Text style={styles.fieldLabel}>{props.label}</Text><TouchableOpacity onPress={() => Alert.alert(props.label, "Used for inventory valuation and reorder alerts.")}><Ionicons color={colors.muted} name="information-circle-outline" size={16} /></TouchableOpacity></View><Field keyboardType={props.keyboardType} onChangeText={(text) => props.setForm((prev) => ({ ...prev, [props.formKey]: text }))} value={props.value} /></View>;
 }
 
 function CompatiblePicker({ allProducts, editing, form, setForm }: { allProducts: Product[]; editing: Product | null; form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>> }) {
-  return <View style={styles.compatPanel}><Text style={styles.fieldLabel}>Compatible phone models</Text>{allProducts.filter((item) => item._id !== editing?._id && item.type !== "accessory").slice(0, 8).map((item) => {
+  return <View style={styles.compatPanel}><Text style={styles.fieldLabel}>Compatible Phone Models</Text>{allProducts.filter((item) => item._id !== editing?._id && item.type !== "accessory").slice(0, 8).map((item) => {
     const selected = form.compatibleWith.includes(item._id);
     return <TouchableOpacity key={item._id} onPress={() => setForm((prev) => ({ ...prev, compatibleWith: selected ? prev.compatibleWith.filter((id) => id !== item._id) : [...prev.compatibleWith, item._id] }))} style={[styles.compatOption, selected && styles.compatSelected]}><Text style={[styles.compatName, selected && styles.compatNameSelected]}>{item.name}</Text><Text style={styles.compatSku}>{item.sku}</Text></TouchableOpacity>;
   })}</View>;
 }
 
 function StatCard({ danger, label, value, wide }: { danger?: boolean; label: string; value: string | number; wide?: boolean }) {
-  return <View style={[styles.statCard, wide && styles.statWide]}><Text style={[styles.statValue, danger && styles.statDanger]}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+  return (
+    <View style={[styles.statCard, wide && styles.statWide]}>
+      <Text style={[styles.statValue, danger && styles.statDanger]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
 }
 
 function ProductRow({ item, onDelete, onDetails, onEdit }: { item: Product; onDelete: () => void; onDetails: () => void; onEdit: () => void }) {
@@ -451,13 +468,32 @@ function ProductRow({ item, onDelete, onDetails, onEdit }: { item: Product; onDe
       <TouchableOpacity activeOpacity={0.8} onPress={onDetails} style={styles.productMain}>
         <View style={styles.avatar}>{imageUrl ? <Image source={{ uri: imageUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{item.name.slice(0, 2).toUpperCase()}</Text>}</View>
         <View style={styles.productInfo}>
-          <View style={styles.productTop}><Text numberOfLines={1} style={styles.name}>{item.name}</Text><View style={[styles.statusPill, isLow ? styles.lowPill : styles.okPill]}><Text style={[styles.statusText, isLow ? styles.lowText : styles.okText]}>{isLow ? "Low" : "OK"}</Text></View></View>
-          <Text style={styles.meta}>{item.sku} | Rs {formatMoney(item.sellingPrice ?? item.price)}</Text>
-          <View style={styles.stockTrack}><View style={[styles.stockFill, { backgroundColor: isLow ? colors.danger : colors.primary, flex: progress }]} /><View style={{ flex: 1 - progress }} /></View>
-          <Text style={styles.stockText}>{item.stockQty} in stock | Alert at {item.lowStockThreshold}</Text>
+          <View style={styles.productTop}>
+            <Text numberOfLines={1} style={styles.name}>{item.name}</Text>
+            <Badge label={isLow ? "Low" : "OK"} tone={isLow ? "warning" : "success"} />
+          </View>
+          <Text style={styles.meta}>{item.sku} • Rs {formatMoney(item.sellingPrice ?? item.price)}</Text>
+          <View style={styles.stockTrack}>
+            <View style={[styles.stockFill, { backgroundColor: isLow ? colors.warning : colors.primary, flex: progress }]} />
+            <View style={{ flex: 1 - progress }} />
+          </View>
+          <Text style={styles.stockText}>{item.stockQty} in stock (Reorder threshold: {item.lowStockThreshold})</Text>
         </View>
       </TouchableOpacity>
-      <View style={styles.actions}><TouchableOpacity onPress={onEdit} style={styles.actionButton}><Text style={styles.actionText}>Edit</Text></TouchableOpacity><TouchableOpacity onPress={onDetails} style={[styles.actionButton, styles.detailsButton]}><Text style={styles.actionText}>Details</Text></TouchableOpacity><TouchableOpacity onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}><Text style={styles.deleteText}>Delete</Text></TouchableOpacity></View>
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
+          <Ionicons color={colors.primary} name="create-outline" size={15} style={{ marginRight: 4 }} />
+          <Text style={styles.actionText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDetails} style={[styles.actionButton, styles.detailsButton]}>
+          <Ionicons color={colors.text} name="eye-outline" size={15} style={{ marginRight: 4 }} />
+          <Text style={styles.actionTextDark}>Details</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}>
+          <Ionicons color={colors.danger} name="trash-outline" size={15} style={{ marginRight: 4 }} />
+          <Text style={styles.deleteText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -472,90 +508,90 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 25, fontWeight: "900", marginTop: 1 },
-  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, height: 46, justifyContent: "center", width: 46 },
-  addButtonText: { color: "#fff", fontSize: 28, fontWeight: "700", marginTop: -2 },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, marginTop: 2 },
+  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card },
+
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  statCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.md, width: "31%" },
+  statCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, padding: spacing.md, width: "31%", ...shadows.card },
   statWide: { flex: 1, minWidth: "31%" },
-  statValue: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  statValue: { color: colors.text, fontSize: 16, fontWeight: "700" },
   statDanger: { color: colors.danger },
-  statLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  statLabel: { color: colors.muted, fontSize: 11, fontWeight: "500", marginTop: 4 },
+
   toolbar: { alignItems: "center", flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   searchWrap: { flex: 1 },
-  searchIcon: { color: colors.muted, fontSize: 10, fontWeight: "800", marginBottom: spacing.xs, textTransform: "uppercase" },
-  toolbarButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, minHeight: 42, justifyContent: "center", width: 66, paddingHorizontal: spacing.sm },
-  toolbarButtonText: { color: "#fff", fontWeight: "900", fontSize: 12, },
-  compactSearchField: { minHeight: 40, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-  listContent: { paddingBottom: spacing.lg },
-  productCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, overflow: "hidden" },
+  toolbarButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 48, justifyContent: "center", paddingHorizontal: spacing.md },
+  toolbarButtonText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
+  compactSearchField: { marginBottom: 0, minHeight: 48 },
+  listContent: { paddingBottom: spacing.xl },
+
+  productCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
   productMain: { flexDirection: "row", padding: spacing.md },
-  avatar: { alignItems: "center", backgroundColor: colors.tealSoft, borderRadius: 8, height: 48, justifyContent: "center", marginRight: spacing.sm, width: 48 },
-  avatarImage: { borderRadius: 8, height: 48, width: 48 },
-  avatarText: { color: colors.primaryDark, fontWeight: "900" },
+  avatar: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 48, justifyContent: "center", marginRight: spacing.sm, width: 48 },
+  avatarImage: { borderRadius: radius.sm, height: 48, width: 48 },
+  avatarText: { color: colors.primary, fontWeight: "700" },
   productInfo: { flex: 1 },
   productTop: { alignItems: "center", flexDirection: "row", gap: spacing.sm, justifyContent: "space-between" },
-  name: { color: colors.text, flex: 1, fontSize: 12, fontWeight: "900" },
+  name: { color: colors.text, flex: 1, fontSize: 15, fontWeight: "600" },
   meta: { color: colors.muted, marginTop: 2, fontSize: 12 },
-  statusPill: { borderRadius: 999, paddingHorizontal: spacing.sm, paddingVertical: 4 },
-  okPill: { backgroundColor: colors.greenSoft },
-  lowPill: { backgroundColor: colors.orangeSoft },
-  statusText: { fontSize: 12, fontWeight: "900" },
-  okText: { color: colors.success },
-  lowText: { color: colors.danger },
-  stockTrack: { backgroundColor: colors.background, borderRadius: 999, flexDirection: "row", height: 7, marginTop: spacing.sm, overflow: "hidden" },
-  stockFill: { borderRadius: 999 },
-  stockText: { color: colors.muted, fontSize: 12, marginTop: 5 },
+  stockTrack: { backgroundColor: colors.surfaceTint, borderRadius: radius.pill, flexDirection: "row", height: 6, marginTop: spacing.sm, overflow: "hidden" },
+  stockFill: { borderRadius: radius.pill },
+  stockText: { color: colors.muted, fontSize: 11, marginTop: 4 },
+
   actions: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row" },
-  actionButton: { alignItems: "center", flex: 1, paddingVertical: spacing.sm },
-  actionText: { color: colors.primary, fontWeight: "900" },
+  actionButton: { alignItems: "center", flex: 1, flexDirection: "row", justifyContent: "center", paddingVertical: 10 },
+  actionText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
+  actionTextDark: { color: colors.text, fontWeight: "600", fontSize: 13 },
   deleteButton: { borderLeftColor: colors.border, borderLeftWidth: 1 },
   detailsButton: { borderLeftColor: colors.border, borderLeftWidth: 1 },
-  deleteText: { color: colors.danger, fontWeight: "900" },
+  deleteText: { color: colors.danger, fontWeight: "600", fontSize: 13 },
+
   modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 42, justifyContent: "center", width: 42 },
-  closeButtonText: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  formCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, padding: spacing.md },
+  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
+  formCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
   sectionBox: { borderBottomColor: colors.border, borderBottomWidth: 1, marginBottom: spacing.md, paddingBottom: spacing.md },
-  sectionTitle: { color: colors.text, fontSize: 17, fontWeight: "900", marginBottom: spacing.sm },
-  segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
-  segmentButton: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minHeight: 42, justifyContent: "center", minWidth: 86, paddingHorizontal: spacing.md },
-  segmentActive: { backgroundColor: colors.orangeSoft, borderColor: colors.primary },
-  segmentText: { color: colors.text, fontWeight: "900" },
-  toggleRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, minHeight: 54, padding: spacing.md },
-  toggleActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
+  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.sm },
+
+  segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  segmentButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minHeight: 42, justifyContent: "center", paddingHorizontal: spacing.md },
+  segmentActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  segmentText: { color: colors.text, fontSize: 13, fontWeight: "500" },
+  segmentTextActive: { color: colors.primary, fontWeight: "700" },
+
+  toggleRow: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md },
+  toggleActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   toggleLine: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm, minHeight: 44 },
-  toggleTitle: { color: colors.text, fontWeight: "900" },
-  toggleValue: { color: colors.muted, fontWeight: "900" },
-  toggleValueActive: { color: colors.primaryDark },
-  imagePicker: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 150, justifyContent: "center", marginBottom: spacing.md, overflow: "hidden" },
+  toggleTitle: { color: colors.text, fontWeight: "600", fontSize: 14 },
+
+  imagePicker: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, height: 140, justifyContent: "center", marginBottom: spacing.md, overflow: "hidden" },
   previewImage: { height: "100%", width: "100%" },
   previewPlaceholder: { alignItems: "center", padding: spacing.md },
-  previewTitle: { color: colors.text, fontSize: 17, fontWeight: "900", marginTop: spacing.xs },
+  previewTitle: { color: colors.muted, fontSize: 13, fontWeight: "500", marginTop: spacing.xs },
+
   fieldBlock: { marginBottom: spacing.xs },
-  fieldLabel: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.xs },
+  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
   inputWithIcon: { position: "relative" },
-  iconButton: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 42, justifyContent: "center", position: "absolute", right: 4, top: 3, width: 42, zIndex: 2 },
+  iconButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 42, justifyContent: "center", position: "absolute", right: 4, top: 3, width: 42, zIndex: 2 },
   infoLabelRow: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  inlineLink: { alignSelf: "flex-start", marginBottom: spacing.sm },
-  inlineLinkText: { color: colors.primaryDark, fontWeight: "900" },
-  inlineAdd: { alignItems: "center", borderColor: colors.primary, borderRadius: 8, borderWidth: 1, minHeight: 42, justifyContent: "center", marginTop: spacing.xs },
-  inlineAddText: { color: colors.primaryDark, fontWeight: "900" },
-  vendorOption: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
+
+  inlineAdd: { alignItems: "center", borderColor: colors.primary, borderRadius: radius.sm, borderWidth: 1, minHeight: 44, justifyContent: "center", marginTop: spacing.xs },
+  inlineAddText: { color: colors.primary, fontWeight: "600" },
+  vendorOption: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
   vendorSelected: { backgroundColor: colors.greenSoft, borderColor: colors.success },
-  collapseHeader: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md, minHeight: 52, padding: spacing.md },
-  formRow: { flexDirection: "row", gap: spacing.sm },
+  collapseHeader: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md, minHeight: 48, paddingHorizontal: spacing.md },
+  formRow: { flexDirection: "row", gap: spacing.xs },
   formHalf: { flex: 1 },
   formQuarter: { flex: 1 },
   compatPanel: { marginBottom: spacing.sm },
-  compatOption: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
+  compatOption: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
   compatSelected: { backgroundColor: colors.greenSoft, borderColor: colors.success },
-  compatName: { color: colors.text, fontWeight: "900" },
+  compatName: { color: colors.text, fontWeight: "600" },
   compatNameSelected: { color: colors.success },
   compatSku: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  camera: { borderRadius: 8, flex: 1, overflow: "hidden" },
+
+  camera: { borderRadius: radius.md, flex: 1, overflow: "hidden" },
   scanOverlay: { alignItems: "center", flex: 1, justifyContent: "center" },
-  scanFrame: { borderColor: "#fff", borderRadius: 8, borderWidth: 3, height: 220, width: 220 },
-  scanHint: { backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 8, color: "#fff", fontWeight: "900", marginTop: spacing.md, padding: spacing.sm },
+  scanFrame: { borderColor: "#ffffff", borderRadius: radius.md, borderWidth: 3, height: 220, width: 220 },
+  scanHint: { backgroundColor: "rgba(15, 23, 42, 0.65)", borderRadius: radius.sm, color: "#ffffff", fontWeight: "600", marginTop: spacing.md, padding: spacing.sm },
 });

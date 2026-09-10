@@ -1,8 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, spacing } from "../../constants/theme";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { createBillingInvoice, Customer, getCustomers, getOrders, getProducts, Order, Product, recordOrderPayment } from "../../services/api";
 
 type CartLine = { product: Product; qty: number };
@@ -118,50 +119,53 @@ export default function BillingScreen() {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>Invoice desk</Text>
+            <Text style={styles.eyebrow}>INVOICE DESK</Text>
             <Text style={styles.title}>Billing</Text>
           </View>
           <View style={styles.headerTotal}>
-            <Text style={styles.headerTotalLabel}>Due</Text>
+            <Text style={styles.headerTotalLabel}>Total Due</Text>
             <Text style={styles.headerTotalValue}>Rs {formatMoney(dueTotal)}</Text>
           </View>
         </View>
 
+        {/* Current Bill Hero Banner */}
         <View style={styles.totalPanel}>
-          <Text style={styles.totalLabel}>Current bill</Text>
+          <Text style={styles.totalLabel}>Current Bill Total</Text>
           <Text style={styles.totalValue}>Rs {formatMoney(total)}</Text>
-          <Text style={styles.totalHint}>Paid Rs {formatMoney(paidPreview)} | Balance Rs {formatMoney(balancePreview)}</Text>
+          <Text style={styles.totalHint}>Paid Rs {formatMoney(paidPreview)} | Balance Due Rs {formatMoney(balancePreview)}</Text>
         </View>
 
+        {/* Select Customer */}
         <View style={styles.panel}>
-          <Text style={styles.section}>Customer</Text>
+          <Text style={styles.sectionTitle}>Select Customer</Text>
           <FlatList
             data={customers.data || []}
             horizontal
             keyExtractor={(item) => item._id}
             showsHorizontalScrollIndicator={false}
-            ListEmptyComponent={<Empty text={customers.isLoading ? "Loading customers..." : "No customers found."} />}
+            ListEmptyComponent={<Empty icon="people-outline" text={customers.isLoading ? "Loading customers..." : "No customers found."} />}
             renderItem={({ item }) => <CustomerChip active={customerId === item._id} customer={item} onPress={() => setCustomerId(item._id)} />}
           />
         </View>
 
+        {/* Add Items to Bill */}
         <View style={styles.panel}>
-          <Text style={styles.section}>Items</Text>
-          <Field onChangeText={setProductSearch} placeholder="Search product or SKU" value={productSearch} />
+          <Text style={styles.sectionTitle}>Add Products</Text>
+          <Field onChangeText={setProductSearch} placeholder="Search product name or SKU" value={productSearch} />
           <FlatList
             data={filteredProducts.slice(0, 12)}
             horizontal
             keyExtractor={(item) => item._id}
             showsHorizontalScrollIndicator={false}
-            ListEmptyComponent={<Empty text={products.isLoading ? "Loading products..." : "No products found."} />}
+            ListEmptyComponent={<Empty icon="cube-outline" text={products.isLoading ? "Loading products..." : "No products found."} />}
             renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => add(item)} style={styles.product}>
+              <TouchableOpacity onPress={() => add(item)} style={styles.productCard}>
                 <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
                 <Text style={styles.productPrice}>Rs {formatMoney(item.price)}</Text>
-                <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>{item.stockQty} stock</Text>
+                <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>{item.stockQty} in stock</Text>
               </TouchableOpacity>
             )}
           />
@@ -169,78 +173,100 @@ export default function BillingScreen() {
             <View key={line.product._id} style={styles.cartLine}>
               <View style={styles.cartInfo}>
                 <Text numberOfLines={1} style={styles.cartName}>{line.product.name}</Text>
-                <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} x {line.qty}</Text>
+                <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} × {line.qty}</Text>
               </View>
               <View style={styles.qty}>
-                <TouchableOpacity onPress={() => setQty(line.product._id, line.qty - 1)} style={styles.qtyButton}><Text style={styles.qtyText}>-</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setQty(line.product._id, line.qty - 1)} style={styles.qtyButton}>
+                  <Ionicons color={colors.primary} name="remove" size={16} />
+                </TouchableOpacity>
                 <Text style={styles.qtyValue}>{line.qty}</Text>
-                <TouchableOpacity onPress={() => setQty(line.product._id, line.qty + 1)} style={styles.qtyButton}><Text style={styles.qtyText}>+</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setQty(line.product._id, line.qty + 1)} style={styles.qtyButton}>
+                  <Ionicons color={colors.primary} name="add" size={16} />
+                </TouchableOpacity>
               </View>
             </View>
           ))}
         </View>
 
+        {/* Billing Options */}
         <View style={styles.panel}>
-          <Text style={styles.section}>Billing options</Text>
+          <Text style={styles.sectionTitle}>Billing Options</Text>
           <View style={styles.row}>
-            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount" value={discount} /></View>
-            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST" value={gst} /></View>
+            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount (Rs)" value={discount} /></View>
+            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST (Rs)" value={gst} /></View>
           </View>
+          <Text style={styles.fieldLabel}>Payment Status</Text>
           <View style={styles.chips}>
             <Choice active={paymentStatus === "paid"} label="Paid" onPress={() => setPaymentStatus("paid")} />
             <Choice active={paymentStatus === "partial"} label="Partial" onPress={() => setPaymentStatus("partial")} />
             <Choice active={paymentStatus === "pending"} label="Pending" onPress={() => setPaymentStatus("pending")} />
           </View>
+          <Text style={styles.fieldLabel}>Payment Method</Text>
           <View style={styles.chips}>
             {["cash", "upi", "card"].map((method) => <Choice key={method} active={paymentMethod === method} label={method.toUpperCase()} onPress={() => setPaymentMethod(method)} />)}
           </View>
-          {paymentStatus === "partial" && <Field keyboardType="numeric" onChangeText={setAmountPaid} placeholder="Amount received" value={amountPaid} />}
-          {paymentStatus !== "paid" && <Field onChangeText={setDueDate} placeholder="Due date YYYY-MM-DD" value={dueDate} />}
-          <Field multiline onChangeText={setNotes} placeholder="Notes" value={notes} />
-          <Button loading={createInvoice.isPending} onPress={validateAndCreate} title="Save bill" />
+          {paymentStatus === "partial" && <Field keyboardType="numeric" onChangeText={setAmountPaid} placeholder="Amount Received (Rs)" value={amountPaid} />}
+          {paymentStatus !== "paid" && <Field onChangeText={setDueDate} placeholder="Due Date (YYYY-MM-DD)" value={dueDate} />}
+          <Field multiline onChangeText={setNotes} placeholder="Additional invoice notes" value={notes} />
+          <Button icon="receipt-outline" loading={createInvoice.isPending} onPress={validateAndCreate} title="Save & Print Bill" />
         </View>
 
+        {/* Past Invoices */}
         <View style={styles.panel}>
           <View style={styles.panelHeader}>
-            <Text style={styles.section}>Invoices</Text>
-            <Text style={styles.countPill}>{orders.data?.length || 0}</Text>
+            <Text style={styles.sectionTitle}>Invoices History</Text>
+            <Badge label={`${orders.data?.length || 0} bills`} tone="neutral" />
           </View>
           <View style={styles.chips}>
             {(["all", "pending", "partial", "paid"] as PaymentFilter[]).map((item) => <Choice key={item} active={filter === item} label={item.toUpperCase()} onPress={() => setFilter(item)} />)}
           </View>
           {(orders.data || []).length ? (orders.data || []).map((order) => (
-            <View key={order._id} style={styles.invoiceRow}>
+            <View key={order._id} style={styles.invoiceCard}>
               <View style={styles.invoiceTop}>
                 <View style={styles.invoiceInfo}>
                   <Text style={styles.invoiceNo}>{order.invoiceNumber || order._id.slice(-6).toUpperCase()}</Text>
-                  <Text style={styles.invoiceMeta}>{order.customer?.name || "Walk-in customer"} | {new Date(order.createdAt).toLocaleDateString()}</Text>
+                  <Text style={styles.invoiceMeta}>{order.customer?.name || "Walk-in customer"} • {new Date(order.createdAt).toLocaleDateString()}</Text>
                 </View>
                 <Badge label={order.paymentStatus} tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "partial" ? "warning" : "danger"} />
               </View>
               <View style={styles.amountRow}>
                 <Text style={styles.invoiceAmount}>Rs {formatMoney(order.total)}</Text>
-                <Text style={styles.dueText}>Due Rs {formatMoney(getBalance(order))}</Text>
+                {getBalance(order) > 0 && <Text style={styles.dueText}>Due: Rs {formatMoney(getBalance(order))}</Text>}
               </View>
               <View style={styles.invoiceActions}>
-                <TouchableOpacity onPress={() => shareInvoice(order)} style={styles.actionButton}><Text style={styles.actionText}>Share</Text></TouchableOpacity>
-                {getBalance(order) > 0 && <TouchableOpacity onPress={() => { setPaymentOrder(order); setCollectAmount(String(getBalance(order))); }} style={styles.actionButtonPrimary}><Text style={styles.actionTextPrimary}>Collect</Text></TouchableOpacity>}
+                <TouchableOpacity onPress={() => shareInvoice(order)} style={styles.actionButton}>
+                  <Ionicons color={colors.primary} name="share-outline" size={16} style={{ marginRight: 4 }} />
+                  <Text style={styles.actionText}>Share</Text>
+                </TouchableOpacity>
+                {getBalance(order) > 0 && (
+                  <TouchableOpacity onPress={() => { setPaymentOrder(order); setCollectAmount(String(getBalance(order))); }} style={styles.actionButtonPrimary}>
+                    <Ionicons color="#ffffff" name="cash-outline" size={16} style={{ marginRight: 4 }} />
+                    <Text style={styles.actionTextPrimary}>Collect Payment</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-          )) : <Empty text={orders.isLoading ? "Loading invoices..." : "No invoices found."} />}
+          )) : <Empty icon="receipt-outline" text={orders.isLoading ? "Loading invoices..." : "No invoices found."} />}
         </View>
       </ScrollView>
 
+      {/* Collect Payment Modal */}
       <Modal transparent animationType="slide" visible={!!paymentOrder}>
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.section}>Collect payment</Text>
-            <Text style={styles.invoiceMeta}>{paymentOrder?.invoiceNumber} balance Rs {formatMoney(paymentOrder ? getBalance(paymentOrder) : 0)}</Text>
-            <Field keyboardType="numeric" onChangeText={setCollectAmount} placeholder="Amount" value={collectAmount} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sectionTitle}>Collect Payment</Text>
+              <TouchableOpacity onPress={() => setPaymentOrder(null)}>
+                <Ionicons color={colors.text} name="close" size={20} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.invoiceMeta}>{paymentOrder?.invoiceNumber} balance due: Rs {formatMoney(paymentOrder ? getBalance(paymentOrder) : 0)}</Text>
+            <Field keyboardType="numeric" onChangeText={setCollectAmount} placeholder="Amount to collect (Rs)" value={collectAmount} />
+            <Text style={styles.fieldLabel}>Method</Text>
             <View style={styles.chips}>
               {["cash", "upi", "card"].map((method) => <Choice key={method} active={collectMethod === method} label={method.toUpperCase()} onPress={() => setCollectMethod(method)} />)}
             </View>
-            <Button loading={collectPayment.isPending} onPress={() => collectPayment.mutate()} title="Update payment" />
-            <TouchableOpacity onPress={() => setPaymentOrder(null)} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            <Button icon="checkmark-circle-outline" loading={collectPayment.isPending} onPress={() => collectPayment.mutate()} title="Update Invoice Balance" />
           </View>
         </View>
       </Modal>
@@ -252,7 +278,7 @@ function CustomerChip({ active, customer, onPress }: { active: boolean; customer
   return (
     <TouchableOpacity onPress={onPress} style={[styles.customerChip, active && styles.customerChipActive]}>
       <Text numberOfLines={1} style={[styles.customerName, active && styles.customerNameActive]}>{customer.name}</Text>
-      <Text style={styles.customerDue}>Due Rs {formatMoney(customer.pendingBalance || 0)}</Text>
+      <Text style={styles.customerDue}>Due: Rs {formatMoney(customer.pendingBalance || 0)}</Text>
     </TouchableOpacity>
   );
 }
@@ -274,60 +300,67 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
+  container: { paddingBottom: spacing.xl },
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 30, fontWeight: "900", marginTop: 2 },
-  headerTotal: { alignItems: "flex-end", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minWidth: 108, padding: spacing.sm },
-  headerTotalLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  headerTotalValue: { color: colors.danger, fontSize: 16, fontWeight: "900", marginTop: 2 },
-  totalPanel: { backgroundColor: colors.secondary, borderRadius: 8, marginBottom: spacing.md, padding: spacing.md },
-  totalLabel: { color: colors.blueSoft, fontWeight: "800" },
-  totalValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 2 },
-  totalHint: { color: colors.blueSoft, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, marginTop: 2 },
+  headerTotal: { alignItems: "flex-end", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minWidth: 100, padding: spacing.xs, ...shadows.card },
+  headerTotalLabel: { color: colors.muted, fontSize: 10, fontWeight: "600" },
+  headerTotalValue: { color: colors.danger, fontSize: 16, fontWeight: "700", marginTop: 2 },
+
+  totalPanel: { backgroundColor: colors.secondary, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  totalLabel: { color: colors.blueSoft, fontWeight: "600", fontSize: 13 },
+  totalValue: { color: "#ffffff", fontSize: 32, fontWeight: "700", marginTop: 2 },
+  totalHint: { color: colors.blueSoft, fontSize: 12, fontWeight: "500", marginTop: spacing.xs },
+
+  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
   panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
-  customerChip: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginRight: spacing.sm, minHeight: 62, padding: spacing.sm, width: 150 },
-  customerChipActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
-  customerName: { color: colors.text, fontWeight: "900" },
-  customerNameActive: { color: colors.primaryDark },
-  customerDue: { color: colors.muted, fontSize: 12, fontWeight: "800", marginTop: 4 },
-  product: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, height: 118, marginRight: spacing.sm, marginTop: spacing.xs, padding: spacing.sm, width: 136 },
-  productName: { color: colors.text, fontWeight: "900", minHeight: 38 },
-  productPrice: { color: colors.primaryDark, fontSize: 16, fontWeight: "900", marginTop: spacing.xs },
-  stockOk: { color: colors.success, fontSize: 12, fontWeight: "800", marginTop: 4 },
-  stockLow: { color: colors.danger, fontSize: 12, fontWeight: "800", marginTop: 4 },
+  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.xs },
+  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs, marginTop: spacing.xs },
+
+  customerChip: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, minHeight: 56, padding: spacing.sm, width: 140 },
+  customerChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  customerName: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  customerNameActive: { color: colors.primary, fontWeight: "700" },
+  customerDue: { color: colors.muted, fontSize: 11, marginTop: 2 },
+
+  productCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 110, marginRight: spacing.xs, marginTop: spacing.xs, padding: spacing.sm, width: 130 },
+  productName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  productPrice: { color: colors.primary, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  stockOk: { color: colors.success, fontSize: 11, fontWeight: "500", marginTop: 2 },
+  stockLow: { color: colors.danger, fontSize: 11, fontWeight: "500", marginTop: 2 },
+
   cartLine: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
   cartInfo: { flex: 1, paddingRight: spacing.sm },
-  cartName: { color: colors.text, fontWeight: "900" },
-  cartMeta: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  qty: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  qtyButton: { alignItems: "center", backgroundColor: colors.background, borderRadius: 8, height: 34, justifyContent: "center", width: 34 },
-  qtyText: { color: colors.primary, fontSize: 20, fontWeight: "900", marginTop: -2 },
-  qtyValue: { color: colors.text, fontWeight: "900", minWidth: 22, textAlign: "center" },
+  cartName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  cartMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  qty: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
+  qtyButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36 },
+  qtyValue: { color: colors.text, fontWeight: "700", minWidth: 24, textAlign: "center" },
+
   row: { flexDirection: "row", gap: spacing.sm },
   half: { flex: 1 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
-  choice: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, minHeight: 42, justifyContent: "center", paddingHorizontal: spacing.md },
-  choiceActive: { backgroundColor: colors.tealSoft, borderColor: colors.primary },
-  choiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  choiceTextActive: { color: colors.primaryDark },
-  countPill: { backgroundColor: colors.background, borderRadius: 999, color: colors.primaryDark, fontWeight: "900", minWidth: 34, overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: "center" },
-  invoiceRow: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.sm },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  choice: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.md },
+  choiceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  choiceText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  choiceTextActive: { color: colors.primary, fontWeight: "700" },
+
+  invoiceCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
   invoiceTop: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   invoiceInfo: { flex: 1, paddingRight: spacing.sm },
-  invoiceNo: { color: colors.text, fontSize: 15, fontWeight: "900" },
-  invoiceMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginBottom: spacing.sm, marginTop: 3 },
+  invoiceNo: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  invoiceMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   amountRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
-  invoiceAmount: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  dueText: { color: colors.danger, fontWeight: "900" },
+  invoiceAmount: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  dueText: { color: colors.danger, fontSize: 13, fontWeight: "700" },
   invoiceActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-  actionButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, flex: 1, minHeight: 42, justifyContent: "center" },
-  actionButtonPrimary: { alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, flex: 1, minHeight: 42, justifyContent: "center" },
-  actionText: { color: colors.primaryDark, fontWeight: "900" },
-  actionTextPrimary: { color: "#fff", fontWeight: "900" },
-  sheetBackdrop: { backgroundColor: "rgba(0,0,0,0.35)", flex: 1, justifyContent: "flex-end" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 8, borderTopRightRadius: 8, padding: spacing.md },
-  cancelButton: { alignItems: "center", minHeight: 48, justifyContent: "center", marginTop: spacing.sm },
-  cancelText: { color: colors.muted, fontWeight: "900" },
+  actionButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, flexDirection: "row", minHeight: 44, justifyContent: "center" },
+  actionButtonPrimary: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, flex: 1, flexDirection: "row", minHeight: 44, justifyContent: "center" },
+  actionText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
+  actionTextPrimary: { color: "#ffffff", fontWeight: "600", fontSize: 13 },
+
+  sheetBackdrop: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xs },
 });

@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Button, Empty, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing } from "../../constants/theme";
+import { Badge, Button, Empty, Screen } from "../../components/Layout";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { blockAdminUser, getAdminOrganization, getAdminOrganizationUsers, unblockAdminUser, updateAdminOrganization } from "../../services/api";
 
 export default function OrganizationDetailScreen({ navigation, route }: any) {
@@ -42,44 +42,57 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
   });
   const dashboard = detail.data?.dashboard;
   const organization = detail.data?.organization;
+
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}><Text style={styles.backText}>Back</Text></TouchableOpacity>
-          <View style={styles.headerCopy}><Text style={styles.eyebrow}>Tenant detail</Text><Text style={styles.title}>{organization?.name || "Organization"}</Text></View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons color={colors.text} name="chevron-back" size={20} />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <View style={styles.headerCopy}>
+            <Text style={styles.eyebrow}>TENANT DETAIL</Text>
+            <Text style={styles.title}>{organization?.name || "Organization"}</Text>
+          </View>
         </View>
-        {detail.isLoading && <Empty text="Loading organization..." />}
+
+        {detail.isLoading && <Empty icon="business-outline" text="Loading organization details..." />}
+
         {dashboard && (
           <>
             <View style={styles.grid}>
               <Metric icon="cube-outline" label="Products" value={dashboard.productCount} />
               <Metric icon="people-outline" label="Customers" value={dashboard.customerCount} />
               <Metric icon="receipt-outline" label="Orders" value={dashboard.totalOrders} />
-              <Metric icon="cash-outline" label="Sales" value={`Rs ${formatMoney(dashboard.totalSales)}`} />
-              <Metric icon="trending-up-outline" label="Profit" value={`Rs ${formatMoney(dashboard.totalProfit)}`} />
+              <Metric icon="cash-outline" label="Sales Total" value={`Rs ${formatMoney(dashboard.totalSales)}`} />
+              <Metric icon="trending-up-outline" label="Net Profit" value={`Rs ${formatMoney(dashboard.totalProfit)}`} />
               <Metric icon="alert-circle-outline" label="Low Stock" value={dashboard.lowStockProductCount} />
             </View>
+
             <View style={styles.panel}>
-              <Text style={styles.section}>Subscription</Text>
+              <Text style={styles.sectionTitle}>Subscription Settings</Text>
               <View style={styles.subscriptionCard}>
-                <Text style={styles.subscriptionTitle}>{organization?.plan || "free"} / {organization?.billingCycle || "monthly"}</Text>
+                <Text style={styles.subscriptionTitle}>{organization?.plan || "free"} • {organization?.billingCycle || "monthly"}</Text>
                 <Text style={styles.meta}>Status: {organization?.subscriptionStatus || "trial"}</Text>
                 <Text style={styles.meta}>Ends: {organization?.subscriptionEndDate ? new Date(organization.subscriptionEndDate).toLocaleDateString() : "Not set"}</Text>
+                <Text style={styles.fieldLabel}>Billing Cycle</Text>
                 <View style={styles.segment}>
                   <Choice active={organization?.billingCycle === "monthly"} label="Monthly" onPress={() => updateSub.mutate({ billingCycle: "monthly", renewSubscription: true })} />
                   <Choice active={organization?.billingCycle === "yearly"} label="Yearly" onPress={() => updateSub.mutate({ billingCycle: "yearly", renewSubscription: true })} />
                 </View>
+                <Text style={styles.fieldLabel}>Subscription Status</Text>
                 <View style={styles.segment}>
                   <Choice active={organization?.subscriptionStatus === "active"} label="Active" onPress={() => updateSub.mutate({ subscriptionStatus: "active", isActive: true })} />
-                  <Choice active={organization?.subscriptionStatus === "past_due"} label="Past due" onPress={() => updateSub.mutate({ subscriptionStatus: "past_due" })} />
+                  <Choice active={organization?.subscriptionStatus === "past_due"} label="Past Due" onPress={() => updateSub.mutate({ subscriptionStatus: "past_due" })} />
                   <Choice active={organization?.subscriptionStatus === "cancelled"} label="Cancel" onPress={() => updateSub.mutate({ subscriptionStatus: "cancelled", isActive: false })} />
                 </View>
               </View>
+
               <View style={styles.subscriptionCard}>
                 <View style={styles.settingRow}>
                   <View style={styles.settingCopy}>
-                    <Text style={styles.subscriptionTitle}>Forgot password</Text>
+                    <Text style={styles.subscriptionTitle}>Forgot Password Reset</Text>
                     <Text style={styles.meta}>{organization?.forgotPasswordEnabled ? "Shop owner can reset password from login" : "Hidden from shop owner login"}</Text>
                   </View>
                   <TouchableOpacity
@@ -91,33 +104,39 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={styles.section}>Users</Text>
+
+              <Text style={styles.sectionTitle}>Tenant Users & Permissions</Text>
               {(users.data || []).map((user) => (
                 <View key={user._id} style={styles.userRow}>
                   <View style={styles.userInfo}>
                     <View style={styles.userNameLine}>
                       <Text style={styles.userName}>{user.name}</Text>
-                      <View style={[styles.statusPill, user.isActive === false && styles.statusBlocked]}>
-                        <Text style={[styles.statusText, user.isActive === false && styles.statusBlockedText]}>{user.isActive === false ? "Blocked" : "Active"}</Text>
-                      </View>
+                      <Badge label={user.isActive === false ? "Blocked" : "Active"} tone={user.isActive === false ? "danger" : "success"} />
                     </View>
                     <Text style={styles.meta}>{user.email}</Text>
-                    {!!user.blockedReason && <Text style={styles.meta}>{user.blockedReason}</Text>}
+                    {!!user.blockedReason && <Text style={styles.metaReason}>Reason: {user.blockedReason}</Text>}
                   </View>
                   <View style={styles.userActions}>
-                    <Text style={styles.role}>{user.role}</Text>
+                    <Badge label={user.role} tone="info" />
                     <TouchableOpacity
                       disabled={blockUser.isPending || unblockUser.isPending}
                       onPress={() => user.isActive === false ? unblockUser.mutate(user._id) : blockUser.mutate(user._id)}
                       style={[styles.userActionButton, user.isActive === false ? styles.unblockButton : styles.blockButton]}
                     >
-                      <Text style={[styles.userActionText, user.isActive !== false && styles.blockText]}>{user.isActive === false ? "Unblock" : "Block"}</Text>
+                      <Text style={[styles.userActionText, user.isActive !== false && styles.blockText]}>{user.isActive === false ? "Unblock" : "Block User"}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ))}
             </View>
-            <Button loading={toggle.isPending} onPress={() => toggle.mutate()} title={organization?.isActive ? "Suspend organization" : "Reactivate organization"} />
+
+            <Button
+              icon={organization?.isActive ? "pause-circle-outline" : "play-circle-outline"}
+              loading={toggle.isPending}
+              onPress={() => toggle.mutate()}
+              title={organization?.isActive ? "Suspend Organization" : "Reactivate Organization"}
+              variant={organization?.isActive ? "danger" : "primary"}
+            />
           </>
         )}
       </ScrollView>
@@ -125,12 +144,22 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
   );
 }
 
-function Metric({ icon, label, value }: { icon: any; label: string; value: string | number }) {
-  return <View style={styles.metric}><Ionicons color={colors.primaryDark} name={icon} size={20} /><Text numberOfLines={1} style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
+function Metric({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string | number }) {
+  return (
+    <View style={styles.metric}>
+      <Ionicons color={colors.primary} name={icon} size={20} />
+      <Text numberOfLines={1} style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
 }
 
 function Choice({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
-  return <TouchableOpacity onPress={onPress} style={[styles.choice, active && styles.choiceActive]}><Text style={styles.choiceText}>{label}</Text></TouchableOpacity>;
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.choice, active && styles.choiceActive]}>
+      <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
 }
 
 function formatMoney(value: number) {
@@ -141,42 +170,46 @@ const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xl },
   header: { alignItems: "center", flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   headerCopy: { flex: 1 },
-  backButton: { alignItems: "center", backgroundColor: colors.blueSoft, borderColor: colors.secondary, borderRadius: radius.md, borderWidth: 1, minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.md },
-  backText: { color: colors.secondary, fontWeight: "900" },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: "900", textTransform: "uppercase" },
-  title: { color: colors.text, fontSize: 24, fontWeight: "900" },
+  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
+  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  eyebrow: { color: colors.primary, ...typography.eyebrow },
+  title: { color: colors.text, ...typography.h1, marginTop: 2 },
+
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  metric: { backgroundColor: colors.surface, borderRadius: radius.md, minHeight: 108, padding: spacing.md, width: "48%", ...shadows.card },
-  metricValue: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: spacing.sm },
+  metric: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, minHeight: 100, padding: spacing.md, width: "48%", ...shadows.card },
+  metricValue: { color: colors.text, fontSize: 17, fontWeight: "700", marginTop: spacing.xs },
   metricLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  panel: { backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  section: { color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm },
-  subscriptionCard: { backgroundColor: colors.background, borderRadius: radius.sm, marginBottom: spacing.md, padding: spacing.md },
-  subscriptionTitle: { color: colors.text, fontSize: 16, fontWeight: "900", marginBottom: 2, textTransform: "capitalize" },
+
+  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
+  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.sm },
+  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs, marginTop: spacing.sm },
+
+  subscriptionCard: { backgroundColor: colors.surfaceTint, borderRadius: radius.sm, marginBottom: spacing.md, padding: spacing.md },
+  subscriptionTitle: { color: colors.text, fontSize: 15, fontWeight: "700", marginBottom: 2, textTransform: "capitalize" },
+  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  metaReason: { color: colors.danger, fontSize: 12, marginTop: 2 },
+
   settingRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   settingCopy: { flex: 1 },
-  togglePill: { backgroundColor: colors.border, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 54 },
+  togglePill: { backgroundColor: colors.border, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 52 },
   togglePillOn: { backgroundColor: colors.greenSoft },
   toggleKnob: { backgroundColor: colors.surface, borderRadius: radius.pill, height: 24, width: 24, ...shadows.card },
   toggleKnobOn: { alignSelf: "flex-end", backgroundColor: colors.success },
-  segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
-  choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  choiceActive: { backgroundColor: colors.orangeSoft, borderColor: colors.primary },
-  choiceText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+
+  segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
+  choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  choiceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  choiceText: { color: colors.text, fontSize: 12, fontWeight: "500" },
+  choiceTextActive: { color: colors.primary, fontWeight: "700" },
+
   userRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingVertical: spacing.sm },
   userInfo: { flex: 1 },
-  userNameLine: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  userName: { color: colors.text, fontWeight: "900" },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  role: { color: colors.primaryDark, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  userNameLine: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
+  userName: { color: colors.text, fontSize: 14, fontWeight: "600" },
   userActions: { alignItems: "flex-end", gap: spacing.xs },
-  userActionButton: { borderRadius: radius.sm, minWidth: 74, paddingHorizontal: spacing.sm, paddingVertical: 7 },
+  userActionButton: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: 4 },
   blockButton: { backgroundColor: colors.redSoft },
   unblockButton: { backgroundColor: colors.greenSoft },
-  userActionText: { color: colors.success, fontSize: 12, fontWeight: "900", textAlign: "center" },
+  userActionText: { fontSize: 12, fontWeight: "600" },
   blockText: { color: colors.danger },
-  statusPill: { backgroundColor: colors.greenSoft, borderRadius: radius.pill, paddingHorizontal: spacing.xs, paddingVertical: 3 },
-  statusBlocked: { backgroundColor: colors.redSoft },
-  statusText: { color: colors.success, fontSize: 10, fontWeight: "900" },
-  statusBlockedText: { color: colors.danger },
 });

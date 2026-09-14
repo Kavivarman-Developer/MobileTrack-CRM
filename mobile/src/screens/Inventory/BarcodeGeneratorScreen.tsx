@@ -8,8 +8,9 @@ import { useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Barcode from "react-native-barcode-svg";
 import { captureRef } from "react-native-view-shot";
-import { Badge, Button, Card, Empty, Eyebrow, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Badge, Button, Empty, Field, IconButton, IosScreenHeader, IosSearchBar, IosSegment, Screen } from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { fonts, spacing } from "../../constants/theme";
 import { getProducts, Product } from "../../services/api";
 
 type BarcodeFormat = "CODE128" | "EAN13" | "UPC" | "CODE39";
@@ -230,120 +231,59 @@ export default function BarcodeGeneratorScreen({ navigation }: any) {
   }
 
   return (
-    <Screen>
-      <View style={styles.headerBar}>
-        <TouchableOpacity
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons color={colors.text} name="chevron-back" size={20} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Eyebrow icon="barcode-outline">Inventory Tools</Eyebrow>
-          <Text style={styles.headerTitle}>Barcode Generator</Text>
-        </View>
-        <Badge icon="sparkles-outline" label="Tool" tone="info" />
-      </View>
+    <Screen style={styles.screen}>
+      <IosScreenHeader
+        eyebrow="Inventory tools"
+        left={<IconButton accessibilityLabel="Go back" icon="chevron-back" onPress={() => navigation.goBack()} />}
+        right={<Badge icon="barcode-outline" label="Tool" tone="info" />}
+        title="Barcodes"
+      />
 
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setTab("custom")}
-          style={[styles.tabButton, tab === "custom" && styles.tabButtonActive]}
-        >
-          <Ionicons
-            color={tab === "custom" ? colors.primary : colors.muted}
-            name="create-outline"
-            size={16}
-            style={{ marginRight: 6 }}
-          />
-          <Text style={[styles.tabText, tab === "custom" && styles.tabTextActive]}>
-            Custom Barcode
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setTab("products")}
-          style={[styles.tabButton, tab === "products" && styles.tabButtonActive]}
-        >
-          <Ionicons
-            color={tab === "products" ? colors.primary : colors.muted}
-            name="grid-outline"
-            size={16}
-            style={{ marginRight: 6 }}
-          />
-          <Text style={[styles.tabText, tab === "products" && styles.tabTextActive]}>
-            Product Sheet
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.segmentWrap}>
+        <IosSegment
+          onChange={setTab}
+          options={[
+            { key: "custom", label: "Custom" },
+            { key: "products", label: "Product sheet" },
+          ]}
+          value={tab}
+        />
       </View>
 
       {tab === "custom" ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <Card style={styles.panelCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons color={colors.primary} name="keypad-outline" size={18} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>SKU / Barcode Value</Text>
-                <Text style={styles.cardHint}>Enter a SKU or code to generate a scannable barcode.</Text>
-              </View>
-            </View>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>SKU / barcode value</Text>
+            <Text style={styles.cardHint}>Enter a SKU or code to generate a scannable barcode.</Text>
+            <Field autoCapitalize="characters" onChangeText={setValue} placeholder="e.g. SKU-12345" value={value} />
 
-            <Field
-              autoCapitalize="characters"
-              onChangeText={setValue}
-              placeholder="e.g. SKU-12345"
-              value={value}
-            />
-
-            <Text style={[styles.cardTitle, { marginTop: spacing.sm, marginBottom: spacing.xs }]}>
-              Barcode Format
-            </Text>
+            <Text style={[styles.cardTitle, styles.formatTitle]}>Barcode format</Text>
             <View style={styles.formatGrid}>
               {formats.map((item) => {
                 const isActive = format === item.key;
                 return (
                   <TouchableOpacity
                     key={item.key}
-                    activeOpacity={0.8}
                     onPress={() => setFormat(item.key)}
                     style={[styles.formatChip, isActive && styles.formatChipActive]}
                   >
-                    <View style={styles.formatChipHeader}>
-                      <Ionicons
-                        color={isActive ? colors.primary : colors.muted}
-                        name={isActive ? "radio-button-on" : "radio-button-off"}
-                        size={16}
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={[styles.formatLabel, isActive && styles.formatLabelActive]}>
-                        {item.label}
-                      </Text>
-                    </View>
-                    <Text style={[styles.formatHint, isActive && styles.formatHintActive]}>
-                      {item.hint}
-                    </Text>
+                    <Text style={[styles.formatLabel, isActive && styles.formatLabelActive]}>{item.label}</Text>
+                    <Text style={[styles.formatHint, isActive && styles.formatHintActive]}>{item.hint}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            <Button icon="barcode-outline" onPress={handleGenerate} title="Generate Barcode" />
-          </Card>
+            <Button icon="barcode-outline" onPress={handleGenerate} title="Generate barcode" />
+          </View>
 
-          <Card style={styles.panelCard}>
+          <View style={styles.card}>
             {generated ? (
               <>
-                <View style={styles.previewHeaderRow}>
-                  <Text style={styles.cardTitle}>Live Preview</Text>
+                <View style={styles.previewHeader}>
+                  <Text style={styles.cardTitle}>Live preview</Text>
                   <Badge icon="checkmark-circle-outline" label="Ready" tone="success" />
                 </View>
-
                 <View collapsable={false} ref={shotRef} style={styles.barcodeCard}>
                   <Barcode
                     backgroundColor="#ffffff"
@@ -357,94 +297,62 @@ export default function BarcodeGeneratorScreen({ navigation }: any) {
                   />
                   <Text style={styles.barcodeValue}>{generated.value}</Text>
                 </View>
-
                 {!!barcodeError && <Text style={styles.errorText}>{barcodeError}</Text>}
-
                 <View style={styles.infoCallout}>
-                  <Ionicons color={colors.info} name="information-circle-outline" size={18} style={{ marginRight: 8 }} />
-                  <Text style={styles.infoCalloutText}>
-                    Display full-screen or print to scan with your app's barcode scanner.
-                  </Text>
+                  <Ionicons color={ios.blue} name="information-circle-outline" size={18} />
+                  <Text style={styles.infoCalloutText}>Display full-screen or print to scan with your barcode scanner.</Text>
                 </View>
-
                 <View style={styles.actionRow}>
                   <View style={styles.actionHalf}>
-                    <Button icon="download-outline" loading={downloading} onPress={handleDownload} title="Download PNG" />
+                    <Button icon="download-outline" loading={downloading} onPress={handleDownload} title="Download" />
                   </View>
                   <View style={styles.actionHalf}>
-                    <Button icon="print-outline" loading={printing} onPress={handlePrint} title="Print Barcode" variant="secondary" />
+                    <Button icon="print-outline" loading={printing} onPress={handlePrint} title="Print" variant="secondary" />
                   </View>
                 </View>
               </>
             ) : (
               <Empty icon="barcode-outline" text="Generate a barcode to preview, download, or print it." />
             )}
-          </Card>
+          </View>
         </ScrollView>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <Card style={styles.panelCard}>
-            <View style={styles.listHeaderRow}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <View style={styles.listHeader}>
               <View style={{ flex: 1 }}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.cardTitle}>Product Barcodes</Text>
-                  <View style={{ marginLeft: spacing.xs }}>
-                    <Badge
-                      icon="cube-outline"
-                      label={`${selectedProducts.length}/${productList.length}`}
-                      tone={selectedProducts.length > 0 ? "info" : "neutral"}
-                    />
-                  </View>
+                <View style={styles.previewHeader}>
+                  <Text style={styles.cardTitle}>Product barcodes</Text>
+                  <Badge
+                    icon="cube-outline"
+                    label={`${selectedProducts.length}/${productList.length}`}
+                    tone={selectedProducts.length > 0 ? "info" : "neutral"}
+                  />
                 </View>
-                <Text style={styles.cardHint}>
-                  Each selected item produces a CODE128 sticker sheet.
-                </Text>
+                <Text style={styles.cardHint}>Each selected item produces a CODE128 sticker.</Text>
               </View>
-
-              <TouchableOpacity activeOpacity={0.7} onPress={toggleSelectAll} style={styles.selectAllButton}>
-                <Ionicons
-                  color={colors.primary}
-                  name={allFilteredSelected ? "checkbox" : "square-outline"}
-                  size={20}
-                />
-                <Text style={styles.selectAllText}>
-                  {allFilteredSelected ? "Deselect" : "Select All"}
-                </Text>
+              <TouchableOpacity onPress={toggleSelectAll} style={styles.selectAll}>
+                <Ionicons color={ios.blue} name={allFilteredSelected ? "checkbox" : "square-outline"} size={18} />
+                <Text style={styles.selectAllText}>{allFilteredSelected ? "Deselect" : "Select all"}</Text>
               </TouchableOpacity>
             </View>
 
-            <Field
-              onChangeText={setProductSearch}
-              placeholder="Search product name, SKU, or barcode..."
-              style={styles.searchField}
-              value={productSearch}
-            />
+            <IosSearchBar onChangeText={setProductSearch} placeholder="Search name, SKU, barcode…" style={styles.search} value={productSearch} />
 
             {products.isLoading ? (
-              <Empty icon="cube-outline" text="Loading products..." />
+              <Empty icon="cube-outline" text="Loading products…" />
             ) : filteredProducts.length ? (
               filteredProducts.map((item: Product) => {
                 const checked = !excludedIds.has(item._id);
                 return (
-                  <TouchableOpacity
-                    key={item._id}
-                    activeOpacity={0.7}
-                    onPress={() => toggleProduct(item._id)}
-                    style={styles.productRow}
-                  >
-                    <Ionicons
-                      color={checked ? colors.primary : colors.muted}
-                      name={checked ? "checkbox" : "square-outline"}
-                      size={22}
-                    />
+                  <TouchableOpacity key={item._id} onPress={() => toggleProduct(item._id)} style={styles.productRow}>
+                    <Ionicons color={checked ? ios.blue : ios.secondary} name={checked ? "checkbox" : "square-outline"} size={22} />
                     <View style={styles.productAvatar}>
-                      <Ionicons color={colors.primary} name="cube-outline" size={16} />
+                      <Ionicons color={ios.blue} name="cube-outline" size={16} />
                     </View>
-                    <View style={styles.productRowInfo}>
-                      <Text numberOfLines={1} style={styles.productRowName}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.productRowMeta}>{item.barcode || item.sku}</Text>
+                    <View style={styles.productInfo}>
+                      <Text numberOfLines={1} style={styles.productName}>{item.name}</Text>
+                      <Text style={styles.productMeta}>{item.barcode || item.sku}</Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -452,28 +360,17 @@ export default function BarcodeGeneratorScreen({ navigation }: any) {
             ) : (
               <Empty
                 icon="cube-outline"
-                text={productList.length ? "No products match your search." : "No products in your inventory yet."}
+                text={productList.length ? "No products match your search." : "No products in inventory yet."}
               />
             )}
-          </Card>
+          </View>
 
           <View style={styles.actionRow}>
             <View style={styles.actionHalf}>
-              <Button
-                icon="download-outline"
-                loading={sheetDownloading}
-                onPress={handleDownloadSheet}
-                title="Download PDF"
-              />
+              <Button icon="download-outline" loading={sheetDownloading} onPress={handleDownloadSheet} title="Download PDF" />
             </View>
             <View style={styles.actionHalf}>
-              <Button
-                icon="print-outline"
-                loading={sheetPrinting}
-                onPress={handlePrintSheet}
-                title="Print All"
-                variant="secondary"
-              />
+              <Button icon="print-outline" loading={sheetPrinting} onPress={handlePrintSheet} title="Print all" variant="secondary" />
             </View>
           </View>
         </ScrollView>
@@ -483,152 +380,88 @@ export default function BarcodeGeneratorScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  headerBar: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.xs,
+  screen: { backgroundColor: ios.bg },
+  segmentWrap: { marginBottom: 4 },
+  content: { paddingBottom: spacing.xl, paddingTop: 10 },
+  card: {
+    backgroundColor: ios.card,
+    borderRadius: 18,
+    marginBottom: 12,
+    padding: 16,
   },
-  backButton: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-    ...shadows.card,
-  },
-  headerTitleWrap: { flex: 1, marginLeft: spacing.sm },
-  headerTitle: { color: colors.text, ...typography.h2 },
-
-  tabRow: {
-    backgroundColor: colors.surfaceTint,
-    borderRadius: radius.md,
-    flexDirection: "row",
-    marginBottom: spacing.md,
-    padding: 4,
-  },
-  tabButton: {
-    alignItems: "center",
-    borderRadius: radius.sm,
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  tabButtonActive: {
-    backgroundColor: colors.surface,
-    ...shadows.card,
-  },
-  tabText: { color: colors.muted, fontSize: 13, fontWeight: "600" },
-  tabTextActive: { color: colors.primary, fontWeight: "700" },
-
-  content: { paddingBottom: spacing.xl },
-  panelCard: { marginBottom: spacing.md, padding: spacing.md },
-  sectionHeaderRow: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs },
-  iconCircle: {
-    alignItems: "center",
-    backgroundColor: colors.primaryLight,
-    borderRadius: radius.pill,
-    height: 32,
-    justifyContent: "center",
-    marginRight: spacing.xs,
-    width: 32,
-  },
-  cardTitle: { color: colors.text, ...typography.h3 },
-  cardHint: { color: colors.muted, fontSize: 12, marginTop: 2, marginBottom: spacing.xs },
-
-  formatGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.md },
+  cardTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
+  cardHint: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13, marginBottom: 10, marginTop: 2 },
+  formatTitle: { marginBottom: 8, marginTop: 12 },
+  formatGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   formatChip: {
-    backgroundColor: colors.surfaceTint,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    minHeight: 52,
+    backgroundColor: ios.fill,
+    borderRadius: 12,
     minWidth: "47%",
-    padding: spacing.xs + 2,
+    padding: 10,
   },
-  formatChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  formatChipHeader: { alignItems: "center", flexDirection: "row", marginBottom: 2 },
-  formatLabel: { color: colors.text, fontSize: 13, fontWeight: "700" },
-  formatLabelActive: { color: colors.primary },
-  formatHint: { color: colors.muted, fontSize: 11, marginLeft: 22 },
-  formatHintActive: { color: colors.primary },
-
-  previewHeaderRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
+  formatChipActive: { backgroundColor: "#007AFF14" },
+  formatLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13 },
+  formatLabelActive: { color: ios.blue },
+  formatHint: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
+  formatHintActive: { color: ios.blue },
+  previewHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   barcodeCard: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    backgroundColor: "#FFFFFF",
+    borderColor: ios.separator,
+    borderRadius: 14,
     borderStyle: "dashed",
     borderWidth: 1.5,
-    marginBottom: spacing.sm,
-    padding: spacing.md,
+    marginBottom: 10,
+    padding: 16,
   },
-  barcodeValue: { color: "#111827", fontSize: 14, fontWeight: "700", letterSpacing: 1.5, marginTop: spacing.xs },
-  errorText: { color: colors.danger, fontSize: 12, fontWeight: "600", marginBottom: spacing.sm },
-
+  barcodeValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 14, letterSpacing: 1.5, marginTop: 8 },
+  errorText: { color: ios.red, fontFamily: fonts.semibold, fontSize: 12, marginBottom: 8 },
   infoCallout: {
     alignItems: "center",
-    backgroundColor: colors.blueSoft,
-    borderRadius: radius.sm,
+    backgroundColor: "#007AFF14",
+    borderRadius: 12,
     flexDirection: "row",
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 2,
+    gap: 8,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  infoCalloutText: { color: colors.info, flex: 1, fontSize: 12, fontWeight: "500" },
-
-  listHeaderRow: {
+  infoCalloutText: { color: ios.blue, flex: 1, fontFamily: fonts.medium, fontSize: 12 },
+  listHeader: { marginBottom: 4 },
+  selectAll: {
     alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.xs,
-  },
-  selectAllButton: {
-    alignItems: "center",
-    backgroundColor: colors.primaryLight,
-    borderRadius: radius.pill,
+    alignSelf: "flex-start",
+    backgroundColor: "#007AFF14",
+    borderRadius: 999,
     flexDirection: "row",
     gap: 4,
-    minHeight: 36,
-    paddingHorizontal: spacing.sm,
+    marginTop: 8,
+    minHeight: 34,
+    paddingHorizontal: 12,
   },
-  selectAllText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
-  searchField: { marginTop: spacing.xs, marginBottom: spacing.xs },
-
+  selectAllText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 12 },
+  search: { marginBottom: 8, marginTop: 8 },
   productRow: {
     alignItems: "center",
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
+    borderTopColor: ios.separator,
+    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
-    gap: spacing.xs,
+    gap: 8,
     minHeight: 52,
-    paddingVertical: spacing.xs,
+    paddingVertical: 8,
   },
   productAvatar: {
     alignItems: "center",
-    backgroundColor: colors.surfaceTint,
-    borderRadius: radius.sm,
+    backgroundColor: ios.fill,
+    borderRadius: 10,
     height: 32,
     justifyContent: "center",
-    marginLeft: 4,
     width: 32,
   },
-  productRowInfo: { flex: 1, marginLeft: 4 },
-  productRowName: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  productRowMeta: { color: colors.muted, fontSize: 12, marginTop: 2, fontFamily: "monospace" },
-
-  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
+  productInfo: { flex: 1 },
+  productName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14 },
+  productMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  actionRow: { flexDirection: "row", gap: 10 },
   actionHalf: { flex: 1 },
 });
-

@@ -1,14 +1,34 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Alert, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Badge,
+  Button,
+  Empty,
+  Field,
+  IosScreenHeader,
+  IosSearchBar,
+  IosSegment,
+  Screen,
+  SelectOption,
+  Sheet,
+  StatStrip,
+} from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { fonts, radius, spacing } from "../../constants/theme";
 import { createBillingInvoice, Customer, getCustomers, getOrders, getProducts, Order, Product, recordOrderPayment } from "../../services/api";
 
 type CartLine = { product: Product; qty: number };
 type PaymentStatus = "paid" | "partial" | "pending";
 type PaymentFilter = "all" | "paid" | "partial" | "pending";
+
+const FILTER_OPTIONS: { key: PaymentFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "partial", label: "Partial" },
+  { key: "paid", label: "Paid" },
+];
 
 export default function BillingScreen() {
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -120,174 +140,177 @@ export default function BillingScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>INVOICE DESK</Text>
-            <Text style={styles.title}>Billing</Text>
-          </View>
-          <View style={styles.headerTotal}>
-            <Text style={styles.headerTotalLabel}>Total Due</Text>
-            <Text style={styles.headerTotalValue}>Rs {formatMoney(dueTotal)}</Text>
-          </View>
+        <IosScreenHeader eyebrow="Billing" title="Billing" />
+
+        <StatStrip
+          items={[
+            { label: "Due total", value: `₹${formatMoney(dueTotal)}`, icon: "alert-circle-outline", tone: "orange" },
+            { label: "Cart", value: `₹${formatMoney(total)}`, icon: "cart-outline", tone: "purple" },
+            { label: "Balance", value: `₹${formatMoney(balancePreview)}`, icon: "wallet-outline", tone: "green" },
+          ]}
+        />
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Customer</Text>
+          {(customers.data || []).length ? (
+            (customers.data || []).slice(0, 8).map((item) => (
+              <SelectOption
+                key={item._id}
+                label={item.name}
+                meta={`Due ₹${formatMoney(item.pendingBalance || 0)}`}
+                onPress={() => setCustomerId(item._id)}
+                selected={customerId === item._id}
+              />
+            ))
+          ) : (
+            <Empty icon="people-outline" text={customers.isLoading ? "Loading customers..." : "No customers found."} />
+          )}
         </View>
 
-        {/* Current Bill Hero Banner */}
-        <View style={styles.totalPanel}>
-          <Text style={styles.totalLabel}>Current Bill Total</Text>
-          <Text style={styles.totalValue}>Rs {formatMoney(total)}</Text>
-          <Text style={styles.totalHint}>Paid Rs {formatMoney(paidPreview)} | Balance Due Rs {formatMoney(balancePreview)}</Text>
-        </View>
-
-        {/* Select Customer */}
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Select Customer</Text>
-          <FlatList
-            data={customers.data || []}
-            horizontal
-            keyExtractor={(item) => item._id}
-            showsHorizontalScrollIndicator={false}
-            ListEmptyComponent={<Empty icon="people-outline" text={customers.isLoading ? "Loading customers..." : "No customers found."} />}
-            renderItem={({ item }) => <CustomerChip active={customerId === item._id} customer={item} onPress={() => setCustomerId(item._id)} />}
-          />
-        </View>
-
-        {/* Add Items to Bill */}
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Add Products</Text>
-          <Field onChangeText={setProductSearch} placeholder="Search product name or SKU" value={productSearch} />
-          <FlatList
-            data={filteredProducts.slice(0, 12)}
-            horizontal
-            keyExtractor={(item) => item._id}
-            showsHorizontalScrollIndicator={false}
-            ListEmptyComponent={<Empty icon="cube-outline" text={products.isLoading ? "Loading products..." : "No products found."} />}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => add(item)} style={styles.productCard}>
-                <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>Rs {formatMoney(item.price)}</Text>
-                <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>{item.stockQty} in stock</Text>
-              </TouchableOpacity>
-            )}
-          />
-          {cart.map((line) => (
-            <View key={line.product._id} style={styles.cartLine}>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Add products</Text>
+          <IosSearchBar onChangeText={setProductSearch} placeholder="Search name or SKU" value={productSearch} />
+          {filteredProducts.slice(0, 12).length ? (
+            filteredProducts.slice(0, 12).map((item) => {
+              const inCart = cart.find((line) => line.product._id === item._id);
+              return (
+                <SelectOption
+                  key={item._id}
+                  label={item.name}
+                  meta={`₹${formatMoney(item.price)} · ${item.stockQty} in stock${inCart ? ` · Cart ${inCart.qty}` : ""}`}
+                  onPress={() => add(item)}
+                  selected={Boolean(inCart)}
+                />
+              );
+            })
+          ) : (
+            <Empty icon="cube-outline" text={products.isLoading ? "Loading products..." : "No products found."} />
+          )}
+          {cart.map((line, index) => (
+            <View key={line.product._id} style={[styles.cartLine, index === 0 && styles.cartLineFirst]}>
               <View style={styles.cartInfo}>
                 <Text numberOfLines={1} style={styles.cartName}>{line.product.name}</Text>
-                <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} × {line.qty}</Text>
+                <Text style={styles.cartMeta}>₹{formatMoney(line.product.price)} × {line.qty}</Text>
               </View>
               <View style={styles.qty}>
                 <TouchableOpacity onPress={() => setQty(line.product._id, line.qty - 1)} style={styles.qtyButton}>
-                  <Ionicons color={colors.primary} name="remove" size={16} />
+                  <Ionicons color={ios.label} name="remove" size={16} />
                 </TouchableOpacity>
                 <Text style={styles.qtyValue}>{line.qty}</Text>
                 <TouchableOpacity onPress={() => setQty(line.product._id, line.qty + 1)} style={styles.qtyButton}>
-                  <Ionicons color={colors.primary} name="add" size={16} />
+                  <Ionicons color={ios.label} name="add" size={16} />
                 </TouchableOpacity>
               </View>
             </View>
           ))}
         </View>
 
-        {/* Billing Options */}
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Billing Options</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Payment options</Text>
           <View style={styles.row}>
-            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount (Rs)" value={discount} /></View>
-            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST (Rs)" value={gst} /></View>
+            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount (₹)" value={discount} /></View>
+            <View style={styles.half}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST (₹)" value={gst} /></View>
           </View>
-          <Text style={styles.fieldLabel}>Payment Status</Text>
-          <View style={styles.chips}>
-            <Choice active={paymentStatus === "paid"} label="Paid" onPress={() => setPaymentStatus("paid")} />
-            <Choice active={paymentStatus === "partial"} label="Partial" onPress={() => setPaymentStatus("partial")} />
-            <Choice active={paymentStatus === "pending"} label="Pending" onPress={() => setPaymentStatus("pending")} />
-          </View>
-          <Text style={styles.fieldLabel}>Payment Method</Text>
-          <View style={styles.chips}>
-            {["cash", "upi", "card"].map((method) => <Choice key={method} active={paymentMethod === method} label={method.toUpperCase()} onPress={() => setPaymentMethod(method)} />)}
-          </View>
-          {paymentStatus === "partial" && <Field keyboardType="numeric" onChangeText={setAmountPaid} placeholder="Amount Received (Rs)" value={amountPaid} />}
-          {paymentStatus !== "paid" && <Field onChangeText={setDueDate} placeholder="Due Date (YYYY-MM-DD)" value={dueDate} />}
-          <Field multiline onChangeText={setNotes} placeholder="Additional invoice notes" value={notes} />
-          <Button icon="receipt-outline" loading={createInvoice.isPending} onPress={validateAndCreate} title="Save & Print Bill" />
+          <Text style={styles.fieldLabel}>Status</Text>
+          <SelectOption label="Paid" meta="Full amount received" onPress={() => setPaymentStatus("paid")} selected={paymentStatus === "paid"} />
+          <SelectOption label="Partial" meta="Some amount received" onPress={() => setPaymentStatus("partial")} selected={paymentStatus === "partial"} />
+          <SelectOption label="Pending" meta="Pay later" onPress={() => setPaymentStatus("pending")} selected={paymentStatus === "pending"} />
+          <Text style={styles.fieldLabel}>Method</Text>
+          {["cash", "upi", "card"].map((method) => (
+            <SelectOption
+              key={method}
+              label={method.toUpperCase()}
+              onPress={() => setPaymentMethod(method)}
+              selected={paymentMethod === method}
+            />
+          ))}
+          {paymentStatus === "partial" && <Field keyboardType="numeric" onChangeText={setAmountPaid} placeholder="Amount received (₹)" value={amountPaid} />}
+          {paymentStatus !== "paid" && <Field onChangeText={setDueDate} placeholder="Due date (YYYY-MM-DD)" value={dueDate} />}
+          <Field multiline onChangeText={setNotes} placeholder="Invoice notes" value={notes} />
+          <Button icon="receipt-outline" loading={createInvoice.isPending} onPress={validateAndCreate} title="Save bill" />
         </View>
 
-        {/* Past Invoices */}
-        <View style={styles.panel}>
+        <View style={styles.card}>
           <View style={styles.panelHeader}>
-            <Text style={styles.sectionTitle}>Invoices History</Text>
-            <Badge label={`${orders.data?.length || 0} bills`} tone="neutral" />
+            <Text style={styles.sectionTitleInline}>Invoices</Text>
+            <Badge label={`${orders.data?.length || 0}`} tone="neutral" />
           </View>
-          <View style={styles.chips}>
-            {(["all", "pending", "partial", "paid"] as PaymentFilter[]).map((item) => <Choice key={item} active={filter === item} label={item.toUpperCase()} onPress={() => setFilter(item)} />)}
-          </View>
-          {(orders.data || []).length ? (orders.data || []).map((order) => (
-            <View key={order._id} style={styles.invoiceCard}>
-              <View style={styles.invoiceTop}>
-                <View style={styles.invoiceInfo}>
-                  <Text style={styles.invoiceNo}>{order.invoiceNumber || order._id.slice(-6).toUpperCase()}</Text>
-                  <Text style={styles.invoiceMeta}>{order.customer?.name || "Walk-in customer"} • {new Date(order.createdAt).toLocaleDateString()}</Text>
+          <IosSegment options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
+          {(orders.data || []).length ? (orders.data || []).map((order) => {
+            const balance = getBalance(order);
+            const accent =
+              order.paymentStatus === "paid" ? ios.green : order.paymentStatus === "partial" ? ios.orange : ios.red;
+            return (
+              <View key={order._id} style={styles.invoiceCard}>
+                <View style={[styles.invoiceAccent, { backgroundColor: accent }]} />
+                <View style={styles.invoiceBody}>
+                  <View style={styles.invoiceTop}>
+                    <View style={styles.invoiceInfo}>
+                      <Text style={styles.invoiceNo}>{order.invoiceNumber || order._id.slice(-6).toUpperCase()}</Text>
+                      <Text style={styles.invoiceMeta}>
+                        {order.customer?.name || "Walk-in"} · {new Date(order.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Badge
+                      label={order.paymentStatus}
+                      tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "partial" ? "warning" : "danger"}
+                    />
+                  </View>
+                  <View style={styles.amountRow}>
+                    <Text style={styles.invoiceAmount}>₹{formatMoney(order.total)}</Text>
+                    {balance > 0 && <Text style={styles.dueText}>Due ₹{formatMoney(balance)}</Text>}
+                  </View>
+                  <View style={styles.invoiceActions}>
+                    <TouchableOpacity onPress={() => shareInvoice(order)} style={styles.actionButton}>
+                      <Ionicons color={ios.blue} name="share-outline" size={16} style={{ marginRight: 4 }} />
+                      <Text style={styles.actionText}>Share</Text>
+                    </TouchableOpacity>
+                    {balance > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setPaymentOrder(order);
+                          setCollectAmount(String(balance));
+                        }}
+                        style={styles.actionButtonPrimary}
+                      >
+                        <Ionicons color="#ffffff" name="cash-outline" size={16} style={{ marginRight: 4 }} />
+                        <Text style={styles.actionTextPrimary}>Collect</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-                <Badge label={order.paymentStatus} tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "partial" ? "warning" : "danger"} />
               </View>
-              <View style={styles.amountRow}>
-                <Text style={styles.invoiceAmount}>Rs {formatMoney(order.total)}</Text>
-                {getBalance(order) > 0 && <Text style={styles.dueText}>Due: Rs {formatMoney(getBalance(order))}</Text>}
-              </View>
-              <View style={styles.invoiceActions}>
-                <TouchableOpacity onPress={() => shareInvoice(order)} style={styles.actionButton}>
-                  <Ionicons color={colors.primary} name="share-outline" size={16} style={{ marginRight: 4 }} />
-                  <Text style={styles.actionText}>Share</Text>
-                </TouchableOpacity>
-                {getBalance(order) > 0 && (
-                  <TouchableOpacity onPress={() => { setPaymentOrder(order); setCollectAmount(String(getBalance(order))); }} style={styles.actionButtonPrimary}>
-                    <Ionicons color="#ffffff" name="cash-outline" size={16} style={{ marginRight: 4 }} />
-                    <Text style={styles.actionTextPrimary}>Collect Payment</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )) : <Empty icon="receipt-outline" text={orders.isLoading ? "Loading invoices..." : "No invoices found."} />}
+            );
+          }) : <Empty icon="receipt-outline" text={orders.isLoading ? "Loading invoices..." : "No invoices found."} />}
         </View>
       </ScrollView>
 
-      {/* Collect Payment Modal */}
-      <Modal transparent animationType="slide" visible={!!paymentOrder}>
-        <View style={styles.sheetBackdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sectionTitle}>Collect Payment</Text>
-              <TouchableOpacity onPress={() => setPaymentOrder(null)}>
-                <Ionicons color={colors.text} name="close" size={20} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.invoiceMeta}>{paymentOrder?.invoiceNumber} balance due: Rs {formatMoney(paymentOrder ? getBalance(paymentOrder) : 0)}</Text>
-            <Field keyboardType="numeric" onChangeText={setCollectAmount} placeholder="Amount to collect (Rs)" value={collectAmount} />
-            <Text style={styles.fieldLabel}>Method</Text>
-            <View style={styles.chips}>
-              {["cash", "upi", "card"].map((method) => <Choice key={method} active={collectMethod === method} label={method.toUpperCase()} onPress={() => setCollectMethod(method)} />)}
-            </View>
-            <Button icon="checkmark-circle-outline" loading={collectPayment.isPending} onPress={() => collectPayment.mutate()} title="Update Invoice Balance" />
-          </View>
+      <Sheet
+        hint={`${paymentOrder?.invoiceNumber || "Invoice"} balance due: ₹${formatMoney(paymentOrder ? getBalance(paymentOrder) : 0)}`}
+        onClose={() => setPaymentOrder(null)}
+        title="Collect payment"
+        visible={!!paymentOrder}
+      >
+        <Field keyboardType="numeric" onChangeText={setCollectAmount} placeholder="Amount to collect (₹)" value={collectAmount} />
+        <Text style={styles.fieldLabel}>Method</Text>
+        {["cash", "upi", "card"].map((method) => (
+          <SelectOption
+            key={method}
+            label={method.toUpperCase()}
+            onPress={() => setCollectMethod(method)}
+            selected={collectMethod === method}
+          />
+        ))}
+        <View style={styles.sheetFooter}>
+          <Button
+            icon="checkmark-circle-outline"
+            loading={collectPayment.isPending}
+            onPress={() => collectPayment.mutate()}
+            title="Update balance"
+          />
         </View>
-      </Modal>
+      </Sheet>
     </Screen>
-  );
-}
-
-function CustomerChip({ active, customer, onPress }: { active: boolean; customer: Customer; onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[styles.customerChip, active && styles.customerChipActive]}>
-      <Text numberOfLines={1} style={[styles.customerName, active && styles.customerNameActive]}>{customer.name}</Text>
-      <Text style={styles.customerDue}>Due: Rs {formatMoney(customer.pendingBalance || 0)}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function Choice({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[styles.choice, active && styles.choiceActive]}>
-      <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -301,66 +324,145 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   container: { paddingBottom: spacing.xl },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, marginTop: 2 },
-  headerTotal: { alignItems: "flex-end", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minWidth: 100, padding: spacing.xs, ...shadows.card },
-  headerTotalLabel: { color: colors.muted, fontSize: 10, fontWeight: "600" },
-  headerTotalValue: { color: colors.danger, fontSize: 16, fontWeight: "700", marginTop: 2 },
+  card: {
+    backgroundColor: ios.card,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  sectionTitle: {
+    color: ios.label,
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+    marginBottom: spacing.sm,
+  },
+  sectionTitleInline: {
+    color: ios.label,
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  fieldLabel: {
+    color: ios.secondary,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  panelHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
 
-  totalPanel: { backgroundColor: colors.secondary, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  totalLabel: { color: colors.blueSoft, fontWeight: "600", fontSize: 13 },
-  totalValue: { color: "#ffffff", fontSize: 32, fontWeight: "700", marginTop: 2 },
-  totalHint: { color: colors.blueSoft, fontSize: 12, fontWeight: "500", marginTop: spacing.xs },
+  customerChip: {
+    backgroundColor: ios.fill,
+    borderRadius: radius.md,
+    marginRight: spacing.xs,
+    minHeight: 56,
+    padding: spacing.sm,
+    width: 140,
+  },
+  customerChipActive: { backgroundColor: ios.blue },
+  customerName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  customerNameActive: { color: "#FFFFFF" },
+  customerDue: { color: ios.secondary, fontSize: 11, marginTop: 2 },
+  customerDueActive: { color: "rgba(255,255,255,0.8)" },
 
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.xs },
-  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs, marginTop: spacing.xs },
+  productCard: {
+    backgroundColor: ios.fill,
+    borderRadius: radius.md,
+    height: 110,
+    marginRight: spacing.xs,
+    marginTop: spacing.xs,
+    padding: spacing.sm,
+    width: 130,
+  },
+  productName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  productPrice: { color: ios.blue, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  stockOk: { color: ios.green, fontSize: 11, fontWeight: "500", marginTop: 2 },
+  stockLow: { color: ios.red, fontSize: 11, fontWeight: "500", marginTop: 2 },
 
-  customerChip: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, minHeight: 56, padding: spacing.sm, width: 140 },
-  customerChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  customerName: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  customerNameActive: { color: colors.primary, fontWeight: "700" },
-  customerDue: { color: colors.muted, fontSize: 11, marginTop: 2 },
-
-  productCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 110, marginRight: spacing.xs, marginTop: spacing.xs, padding: spacing.sm, width: 130 },
-  productName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
-  productPrice: { color: colors.primary, fontSize: 15, fontWeight: "700", marginTop: 2 },
-  stockOk: { color: colors.success, fontSize: 11, fontWeight: "500", marginTop: 2 },
-  stockLow: { color: colors.danger, fontSize: 11, fontWeight: "500", marginTop: 2 },
-
-  cartLine: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
+  cartLine: {
+    alignItems: "center",
+    borderTopColor: ios.separator,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  cartLineFirst: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: spacing.sm },
   cartInfo: { flex: 1, paddingRight: spacing.sm },
-  cartName: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  cartMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  cartName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600" },
+  cartMeta: { color: ios.secondary, fontSize: 12, marginTop: 2 },
   qty: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  qtyButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36 },
-  qtyValue: { color: colors.text, fontWeight: "700", minWidth: 24, textAlign: "center" },
+  qtyButton: {
+    alignItems: "center",
+    backgroundColor: ios.fill,
+    borderRadius: radius.sm,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  qtyValue: { color: ios.label, fontFamily: fonts.bold, fontWeight: "700", minWidth: 24, textAlign: "center" },
 
   row: { flexDirection: "row", gap: spacing.sm },
   half: { flex: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
-  choice: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minHeight: 40, justifyContent: "center", paddingHorizontal: spacing.md },
-  choiceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  choiceText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  choiceTextActive: { color: colors.primary, fontWeight: "700" },
+  choice: {
+    alignItems: "center",
+    backgroundColor: ios.fill,
+    borderRadius: radius.pill,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
+  },
+  choiceActive: { backgroundColor: ios.blue },
+  choiceText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
+  choiceTextActive: { color: "#FFFFFF" },
 
-  invoiceCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
+  invoiceCard: {
+    backgroundColor: ios.fill,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    marginBottom: spacing.sm,
+    overflow: "hidden",
+  },
+  invoiceAccent: { width: 4 },
+  invoiceBody: { flex: 1, padding: spacing.md },
   invoiceTop: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   invoiceInfo: { flex: 1, paddingRight: spacing.sm },
-  invoiceNo: { color: colors.text, fontSize: 15, fontWeight: "700" },
-  invoiceMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  invoiceNo: { color: ios.label, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
+  invoiceMeta: { color: ios.secondary, fontSize: 12, marginTop: 2 },
   amountRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
-  invoiceAmount: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  dueText: { color: colors.danger, fontSize: 13, fontWeight: "700" },
+  invoiceAmount: { color: ios.label, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
+  dueText: { color: ios.red, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   invoiceActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-  actionButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flex: 1, flexDirection: "row", minHeight: 44, justifyContent: "center" },
-  actionButtonPrimary: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, flex: 1, flexDirection: "row", minHeight: 44, justifyContent: "center" },
-  actionText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
-  actionTextPrimary: { color: "#ffffff", fontWeight: "600", fontSize: 13 },
+  actionButton: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: radius.sm,
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  actionButtonPrimary: {
+    alignItems: "center",
+    backgroundColor: ios.blue,
+    borderRadius: radius.sm,
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  actionText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  actionTextPrimary: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
 
-  sheetBackdrop: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
-  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xs },
+  sheetFooter: { marginTop: spacing.sm },
 });

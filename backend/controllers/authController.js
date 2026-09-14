@@ -13,6 +13,50 @@ const GOOGLE_AUDIENCE = [
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
 ].filter(Boolean);
 
+function normalizePhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("91")) return digits.slice(-10);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  if (digits.length > 10) return digits.slice(-10);
+  return digits;
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function isPhone(value) {
+  const digits = normalizePhone(value);
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function detectIdentifierKind(value) {
+  const trimmed = String(value || "").trim();
+  if (isEmail(trimmed)) return "email";
+  if (isPhone(trimmed)) return "phone";
+  return null;
+}
+
+async function findUserByPhone(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+  const users = await User.find({ phone: { $exists: true, $nin: [null, ""] } });
+  return (
+    users.find((user) => {
+      const stored = normalizePhone(user.phone);
+      return stored === normalized || stored.endsWith(normalized) || normalized.endsWith(stored);
+    }) || null
+  );
+}
+
+async function findUserByIdentifier(identifier) {
+  const trimmed = String(identifier || "").trim();
+  const kind = detectIdentifierKind(trimmed);
+  if (kind === "email") return User.findOne({ email: trimmed.toLowerCase() });
+  if (kind === "phone") return findUserByPhone(trimmed);
+  return null;
+}
+
 async function authPayload(user) {
   if (user.role && !["superadmin", "admin", "staff"].includes(user.role)) user.role = "admin";
   if (user.isActive === false) {
@@ -54,15 +98,69 @@ async function authPayload(user) {
   };
 }
 
+async function lookupAccount(req, res, next) {
+  try {
+    const identifier = String(req.body.identifier || "").trim();
+    const kind = detectIdentifierKind(identifier);
+    if (!kind) {
+      return res.status(400).json({ message: "Enter a valid email or 10-digit mobile number" });
+    }
+
+    const user = await findUserByIdentifier(identifier);
+    if (!user) {
+      return res.json({
+        exists: false,
+        kind,
+        email: kind === "email" ? identifier.toLowerCase() : "",
+        phone: kind === "phone" ? normalizePhone(identifier) : "",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+    }
+
+    res.json({
+      exists: true,
+      kind,
+      email: user.email,
+      phone: user.phone || "",
+      nameHint: user.name ? String(user.name).split(" ")[0] : "",
+      authProvider: user.authProvider || "local",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function register(req, res, next) {
   try {
     const { name, email, password, phone, role = "admin", businessName } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: "Email already registered" });
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanPhone = phone ? normalizePhone(phone) : "";
+    if (!name || !cleanEmail || !password) return res.status(400).json({ message: "Name, email and password are required" });
+    if (String(password).length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!isEmail(cleanEmail)) return res.status(400).json({ message: "Enter a valid email" });
+    if (phone && !isPhone(phone)) return res.status(400).json({ message: "Enter a valid mobile number" });
+
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) return res.status(409).json({ message: "Email already registered" });
+    if (cleanPhone) {
+      const existingPhone = await findUserByPhone(cleanPhone);
+      if (existingPhone) return res.status(409).json({ message: "Mobile number already registered" });
+    }
+
     const safeRole = role === "staff" ? "staff" : "admin";
-    const organization = await Organization.create({ name: businessName || `${name}'s Business` });
-    const user = await User.create({ name, email, password, phone, role: safeRole, organizationId: organization._id, authProvider: "local" });
+    const organization = await Organization.create({ name: businessName || `${name}'s Shop` });
+    const user = await User.create({
+      name: String(name).trim(),
+      email: cleanEmail,
+      password,
+      phone: cleanPhone || undefined,
+      role: safeRole,
+      organizationId: organization._id,
+      authProvider: "local",
+    });
     organization.ownerUserId = user._id;
     await organization.save();
     res.status(201).json(await authPayload(user));
@@ -74,8 +172,11 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const identifier = String(req.body.identifier || req.body.email || req.body.phone || "").trim();
+    const password = String(req.body.password || "");
+    if (!identifier || !password) return res.status(400).json({ message: "Email/mobile and password are required" });
+
+    const user = await findUserByIdentifier(identifier);
     if (!user || !(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid credentials" });
     if (user.isActive === false) {
       return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
@@ -210,4 +311,4 @@ async function googleLogin(req, res, next) {
   }
 }
 
-module.exports = { register, login, googleLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };
+module.exports = { lookupAccount, register, login, googleLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };

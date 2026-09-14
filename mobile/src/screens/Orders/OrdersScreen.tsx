@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactNode, useMemo, useState } from "react";
-import { Alert, Modal, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Alert, Modal, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Badge, Button, FabButton, Field, IconButton, IosScreenHeader, IosSearchBar, PageHeader, Screen, StatStrip } from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import { apiErrorMessage, createManualOrder, getManualOrders, ManualOrder, ManualOrderStatus, updateManualOrderPaymentStatus, updateManualOrderStatus } from "../../services/api";
 
 type OrderStatus = ManualOrderStatus;
@@ -13,18 +14,33 @@ type DateFilter = "all" | "today" | "week" | "month" | "custom";
 const blank = { customerName: "", phone: "", shippingAddress: "", itemName: "", quantity: "1" };
 const statuses: OrderStatus[] = ["new", "process", "pending", "shipped", "delivered"];
 
+const statusColor: Record<OrderStatus, string> = {
+  new: ios.blue,
+  process: ios.indigo,
+  pending: ios.orange,
+  shipped: ios.teal,
+  delivered: ios.green,
+};
+
+const statusIcon: Record<OrderStatus, keyof typeof Ionicons.glyphMap> = {
+  new: "sparkles",
+  process: "sync",
+  pending: "time",
+  shipped: "airplane",
+  delivered: "checkmark-circle",
+};
+
 export default function OrdersScreen() {
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("month");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(todayKey().slice(0, 7));
-  const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [pastWeekOpen, setPastWeekOpen] = useState(false);
   const [selected, setSelected] = useState<ManualOrder | null>(null);
   const [form, setForm] = useState(blank);
+  const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
 
   const ordersQuery = useQuery({ queryKey: ["manual-orders"], queryFn: getManualOrders });
@@ -42,7 +58,6 @@ export default function OrdersScreen() {
       queryClient.invalidateQueries({ queryKey: ["manual-orders"] });
       setForm(blank);
       setFormOpen(false);
-      setPastWeekOpen(true);
     },
     onError: (error) => Alert.alert("Failed to save order", apiErrorMessage(error)),
   });
@@ -73,12 +88,10 @@ export default function OrdersScreen() {
     createMutation.mutate();
   }
 
-  function updateStatus(order: ManualOrder, status: OrderStatus) {
-    statusMutation.mutate({ order, status });
-  }
-
-  function updatePaymentStatus(order: ManualOrder, paymentStatus: ManualOrder["paymentStatus"]) {
-    paymentStatusMutation.mutate({ order, paymentStatus });
+  async function onRefresh() {
+    setRefreshing(true);
+    await ordersQuery.refetch();
+    setRefreshing(false);
   }
 
   const filtered = useMemo(() => orders.filter((order) => {
@@ -88,103 +101,138 @@ export default function OrdersScreen() {
     const searchMatch = !keyword || `${order.orderNo} ${order.customerName} ${order.phone || ""} ${order.itemName} ${order.shippingAddress || ""}`.toLowerCase().includes(keyword);
     return statusMatch && dateMatch && searchMatch;
   }), [dateFilter, filter, orders, search, selectedDate]);
+
   const monthStats = useMemo(() => {
     const monthOrders = orders.filter((order) => matchesDateFilter(order.createdAt, "month", selectedDate));
     return {
       total: monthOrders.length,
       unpaid: monthOrders.filter((order) => order.paymentStatus === "unpaid").length,
+      newCount: monthOrders.filter((order) => order.status === "new").length,
     };
   }, [orders, selectedDate]);
 
   return (
-    <Screen>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>ORDER MANAGEMENT</Text>
-          <Text style={styles.title}>Orders</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => setSearchOpen((open) => !open)} style={styles.searchIconButton}>
-            <Ionicons color={colors.text} name={searchOpen ? "close" : "search-outline"} size={22} />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <Screen style={styles.screen}>
+      <IosScreenHeader eyebrow="Orders" title="Orders" />
 
-      {searchOpen && (
-        <View style={styles.searchBox}>
-          <Ionicons color={colors.muted} name="search-outline" size={18} />
-          <Field onChangeText={setSearch} placeholder="Search order ID, customer, item..." style={styles.searchInput} value={search} />
-        </View>
-      )}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={ios.secondary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <StatStrip
+          items={[
+            { label: "This month", value: String(monthStats.total), icon: "file-tray-full-outline", tone: "purple" },
+            { label: "New", value: String(monthStats.newCount), icon: "sparkles-outline", tone: "blue" },
+            { label: "Unpaid", value: String(monthStats.unpaid), icon: "time-outline", tone: "orange" },
+          ]}
+        />
+        <IosSearchBar onChangeText={setSearch} placeholder="Search orders, customers, items…" value={search} />
 
-      {/* Summary Banner */}
-      <View style={styles.summaryPanel}>
-        <View style={styles.summaryBlock}>
-          <Text style={styles.summaryLabel}>THIS MONTH</Text>
-          <Text style={styles.summaryValue}>{monthStats.total} {monthStats.total === 1 ? "order" : "orders"}</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryBlockRight}>
-          <Text style={styles.summaryLabel}>UNPAID</Text>
-          <Text style={[styles.summaryValue, styles.summaryUnpaid]}>{monthStats.unpaid} {monthStats.unpaid === 1 ? "order" : "orders"}</Text>
-        </View>
-      </View>
-
-      {/* Status Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={styles.filtersContent}>
-        <FilterChip active={filter === "all"} label={`All ${orders.length}`} onPress={() => setFilter("all")} />
-        <FilterChip active={filter === "new"} dot={colors.info} label="New" onPress={() => setFilter("new")} />
-        <FilterChip active={filter === "process"} dot={colors.purple} label="Process" onPress={() => setFilter("process")} />
-        <FilterChip active={filter === "pending"} dot={colors.warning} label="Pending" onPress={() => setFilter("pending")} />
-        <FilterChip active={filter === "shipped"} dot="#12B6CB" label="Shipped" onPress={() => setFilter("shipped")} />
-        <FilterChip active={filter === "delivered"} dot={colors.success} label="Delivered" onPress={() => setFilter("delivered")} />
-      </ScrollView>
-
-      {/* Date Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateFilters} contentContainerStyle={styles.filtersContent}>
-        <FilterChip active={dateFilter === "all"} label="All Dates" onPress={() => setDateFilter("all")} />
-        <FilterChip active={dateFilter === "today"} label="Today" onPress={() => setDateFilter("today")} />
-        <FilterChip active={dateFilter === "week"} label="7 Days" onPress={() => setDateFilter("week")} />
-        <FilterChip active={dateFilter === "month"} label="Month" onPress={() => setDateFilter("month")} />
-        <FilterChip active={dateFilter === "custom"} label={dateFilter === "custom" ? formatDateShort(selectedDate) : "Select Date"} onPress={() => setDatePickerOpen(true)} />
-      </ScrollView>
-
-      {/* Orders List */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => setPastWeekOpen((open) => !open)} style={styles.groupHeader}>
-          <Text style={styles.groupLabel}>{dateGroupLabel(dateFilter)}</Text>
-          <Ionicons color={colors.muted} name={pastWeekOpen ? "chevron-up" : "chevron-down"} size={18} />
-        </TouchableOpacity>
-        {pastWeekOpen && (
-          filtered.length ? filtered.map((order) => (
-            <TouchableOpacity key={order._id} onPress={() => setSelected(order)} style={styles.orderCard}>
-              <View style={styles.orderMainRow}>
-                <View style={[styles.avatar, { backgroundColor: statusSoftTone[order.status] }]}>
-                  <Text style={[styles.avatarText, { color: statusTone[order.status] }]}>{order.customerName.slice(0, 1).toUpperCase()}</Text>
-                </View>
-                <View style={styles.orderInfo}>
-                  <Text style={styles.orderNo}>{order.orderNo}</Text>
-                  <Text numberOfLines={1} style={styles.orderMeta}>{order.customerName} • {order.quantity} item • {formatDateTime(order.createdAt)}</Text>
-                </View>
-                <Badge label={order.paymentStatus === "paid" ? "Paid" : "Unpaid"} tone={order.paymentStatus === "paid" ? "success" : "danger"} />
-              </View>
-              <View style={styles.sourceRow}>
-                <Ionicons color={colors.muted} name="document-text-outline" size={14} />
-                <Text style={styles.sourceText}>Manual Order</Text>
-                <Badge label={order.status.toUpperCase()} tone={order.status === "delivered" ? "success" : order.status === "pending" ? "warning" : "info"} />
-              </View>
+        <View style={styles.segment}>
+          {([
+            ["today", "Today"],
+            ["week", "7 days"],
+            ["month", "Month"],
+            ["all", "All"],
+          ] as [DateFilter, string][]).map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setDateFilter(key)}
+              style={[styles.segmentItem, dateFilter === key && styles.segmentItemOn]}
+            >
+              <Text style={[styles.segmentText, dateFilter === key && styles.segmentTextOn]}>{label}</Text>
             </TouchableOpacity>
-          )) : <Empty icon="receipt-outline" text={ordersQuery.isLoading ? "Loading orders..." : "No manual orders found."} />
+          ))}
+        </View>
+        <TouchableOpacity
+          onPress={() => setDatePickerOpen(true)}
+          style={[styles.datePick, dateFilter === "custom" && styles.datePickOn]}
+        >
+          <Ionicons color={dateFilter === "custom" ? ios.blue : ios.secondary} name="calendar-outline" size={16} />
+          <Text style={[styles.datePickText, dateFilter === "custom" && styles.datePickTextOn]}>
+            {dateFilter === "custom" ? formatDateShort(selectedDate) : "Pick a date"}
+          </Text>
+        </TouchableOpacity>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <FilterChip active={filter === "all"} label="All" onPress={() => setFilter("all")} />
+          {statuses.map((status) => (
+            <FilterChip
+              key={status}
+              active={filter === status}
+              color={statusColor[status]}
+              icon={statusIcon[status]}
+              label={statusLabel(status)}
+              onPress={() => setFilter(status)}
+            />
+          ))}
+        </ScrollView>
+
+        <View style={styles.listHead}>
+          <Text style={styles.sectionLabelInline}>{dateGroupLabel(dateFilter)}</Text>
+          <Text style={styles.listCount}>{filtered.length}</Text>
+        </View>
+
+        {filtered.length ? (
+          <View style={styles.list}>
+            {filtered.map((order) => (
+              <TouchableOpacity key={order._id} onPress={() => setSelected(order)} style={styles.orderCard}>
+                <View style={[styles.accent, { backgroundColor: statusColor[order.status] }]} />
+                <View style={styles.orderInner}>
+                  <View style={styles.orderTop}>
+                    <View style={[styles.avatar, { backgroundColor: `${statusColor[order.status]}1F` }]}>
+                      <Ionicons color={statusColor[order.status]} name={statusIcon[order.status]} size={18} />
+                    </View>
+                    <View style={styles.orderTitleBlock}>
+                      <Text numberOfLines={1} style={styles.orderNo}>{order.orderNo}</Text>
+                      <Text numberOfLines={1} style={styles.orderCustomer}>{order.customerName}</Text>
+                    </View>
+                    <View style={[styles.payPill, order.paymentStatus === "paid" ? styles.payPaid : styles.payUnpaid]}>
+                      <Text style={[styles.payPillText, order.paymentStatus === "paid" ? styles.payPaidText : styles.payUnpaidText]}>
+                        {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text numberOfLines={1} style={styles.orderItem}>{order.itemName}</Text>
+                  <View style={styles.orderFoot}>
+                    <Text style={styles.orderMeta}>{order.quantity} qty · {formatDateTime(order.createdAt)}</Text>
+                    <View style={styles.orderFootRight}>
+                      <Text style={[styles.statusText, { color: statusColor[order.status] }]}>{statusLabel(order.status)}</Text>
+                      <Ionicons color="#C7C7CC" name="chevron-forward" size={16} />
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons color={ios.blue} name="receipt-outline" size={28} />
+            </View>
+            <Text style={styles.emptyTitle}>{ordersQuery.isLoading ? "Loading orders…" : "No orders here"}</Text>
+            <Text style={styles.emptyText}>
+              {ordersQuery.isLoading ? "Pull to refresh if this takes a moment." : "Try another filter, or create a new manual order."}
+            </Text>
+            {!ordersQuery.isLoading ? (
+              <TouchableOpacity onPress={() => setFormOpen(true)} style={styles.emptyBtn}>
+                <Text style={styles.emptyBtnText}>Create order</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         )}
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity onPress={() => setFormOpen(true)} style={styles.fab}>
-        <Ionicons color="#ffffff" name="add" size={28} />
-      </TouchableOpacity>
+      <FabButton accessibilityLabel="Create order" onPress={() => setFormOpen(true)} />
 
       <CreateOrderModal form={form} onChange={setForm} onClose={() => setFormOpen(false)} onSave={createOrder} saving={createMutation.isPending} visible={formOpen} />
-      <OrderDetailSheet order={selected} onClose={() => setSelected(null)} onPaymentStatusChange={updatePaymentStatus} onStatusChange={updateStatus} />
+      <OrderDetailSheet
+        order={selected}
+        onClose={() => setSelected(null)}
+        onPaymentStatusChange={(order, paymentStatus) => paymentStatusMutation.mutate({ order, paymentStatus })}
+        onStatusChange={(order, status) => statusMutation.mutate({ order, status })}
+      />
       <DateSelectModal
         month={pickerMonth}
         onChangeMonth={setPickerMonth}
@@ -201,16 +249,36 @@ export default function OrdersScreen() {
   );
 }
 
+function FilterChip({
+  active,
+  color,
+  icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  color?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.chip, active && styles.chipOn]}>
+      {icon ? <Ionicons color={active ? "#FFFFFF" : color || ios.label} name={icon} size={14} /> : null}
+      <Text style={[styles.chipText, active && styles.chipTextOn]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function CreateOrderModal({ form, onChange, onClose, onSave, saving, visible }: { form: typeof blank; onChange: (form: typeof blank) => void; onClose: () => void; onSave: () => void; saving: boolean; visible: boolean }) {
   return (
     <Modal animationType="slide" visible={visible}>
       <Screen>
-        <View style={styles.modalHeader}>
-          <Text style={styles.titleSmall}>Create New Order</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons color={colors.text} name="close" size={20} />
-          </TouchableOpacity>
-        </View>
+        <PageHeader
+          eyebrow="Manual order"
+          right={<IconButton accessibilityLabel="Close" icon="close" onPress={onClose} />}
+          title="Create New Order"
+        />
         <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.fieldLabel}>Customer Name</Text>
           <Field onChangeText={(value) => onChange({ ...form, customerName: value })} placeholder="e.g. Rahul Sharma" value={form.customerName} />
@@ -234,13 +302,15 @@ function OrderDetailSheet({ order, onClose, onPaymentStatusChange, onStatusChang
   return (
     <Modal animationType="slide" visible={!!order}>
       <Screen>
-        <View style={styles.detailHeader}>
-          <TouchableOpacity onPress={onClose} style={styles.iconButton}>
-            <Ionicons color={colors.text} name="chevron-back" size={24} />
-          </TouchableOpacity>
-          <Text style={styles.detailNo}>{order.orderNo}</Text>
-          <Badge label={statusLabel(order.status)} tone={order.status === "delivered" ? "success" : "info"} />
-        </View>
+        <PageHeader
+          left={(
+            <TouchableOpacity onPress={onClose} style={styles.iconButton}>
+              <Ionicons color={colors.text} name="chevron-back" size={24} />
+            </TouchableOpacity>
+          )}
+          right={<Badge label={statusLabel(order.status)} tone={order.status === "delivered" ? "success" : "info"} />}
+          title={order.orderNo}
+        />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailContent}>
           <DetailCard icon="cube-outline" title="Order Status">
@@ -376,15 +446,6 @@ function DetailCard({ children, icon, title }: { children: ReactNode; icon: keyo
   );
 }
 
-function FilterChip({ active, dot, label, onPress }: { active: boolean; dot?: string; label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
-      {dot && <View style={[styles.filterDot, { backgroundColor: dot }]} />}
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
@@ -437,7 +498,7 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
 }
 
 function statusLabel(status: OrderStatus) {
-  return status.toUpperCase();
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 function formatDateTime(value?: string) {
@@ -461,11 +522,11 @@ function matchesDateFilter(value: string, filter: DateFilter, selectedDate: stri
 }
 
 function dateGroupLabel(filter: DateFilter) {
-  if (filter === "today") return "TODAY";
-  if (filter === "week") return "LAST 7 DAYS";
-  if (filter === "month") return "THIS MONTH";
-  if (filter === "custom") return "SELECTED DATE";
-  return "ALL DATES";
+  if (filter === "today") return "Today";
+  if (filter === "week") return "Last 7 days";
+  if (filter === "month") return "This month";
+  if (filter === "custom") return "Selected date";
+  return "All orders";
 }
 
 function formatDateShort(value: string) {
@@ -499,46 +560,172 @@ function formatMonth(monthKey: string) {
   return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 }
 
-const statusTone = { new: colors.info, process: colors.purple, pending: colors.warning, shipped: "#12B6CB", delivered: colors.success } as const;
-const statusSoftTone = { new: colors.blueSoft, process: colors.purpleSoft, pending: colors.orangeSoft, shipped: "#E5FAFC", delivered: colors.greenSoft } as const;
-
 const styles = StyleSheet.create({
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xs },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, fontSize: 24 },
-  titleSmall: { color: colors.text, ...typography.h2 },
-  headerActions: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  searchIconButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
-  searchBox: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs, minHeight: 44, paddingHorizontal: spacing.sm },
+  screen: { backgroundColor: ios.bg },
+  header: { alignItems: "flex-start", flexDirection: "row", marginBottom: 12, marginTop: 4, paddingHorizontal: spacing.md },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: 10 },
+  greeting: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
+  title: { color: ios.label, fontFamily: fonts.bold, fontSize: 28, letterSpacing: -0.5, lineHeight: 32, marginTop: 1 },
+  headerAdd: {
+    alignItems: "center",
+    backgroundColor: ios.blue,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: "center",
+    marginTop: 4,
+    width: 36,
+  },
+  content: { alignSelf: "center", maxWidth: 430, paddingBottom: 110, paddingHorizontal: spacing.md, width: "100%" },
+  searchBox: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
   searchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 40, paddingHorizontal: 0 },
 
-  summaryPanel: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexDirection: "row", marginBottom: spacing.sm, minHeight: 64, paddingHorizontal: spacing.md, ...shadows.card },
-  summaryBlock: { flex: 1 },
-  summaryBlockRight: { alignItems: "flex-end", flex: 1 },
-  summaryDivider: { backgroundColor: colors.border, height: 34, marginHorizontal: spacing.md, width: 1 },
-  summaryLabel: { color: colors.muted, fontSize: 11, fontWeight: "600" },
-  summaryValue: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 2 },
-  summaryUnpaid: { color: colors.danger },
+  hero: {
+    backgroundColor: ios.dark,
+    borderRadius: 22,
+    marginBottom: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  heroOverline: { color: "rgba(255,255,255,0.62)", fontFamily: fonts.medium, fontSize: 13 },
+  heroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 40, letterSpacing: -1, lineHeight: 46, marginTop: 2 },
+  heroSub: { color: "rgba(255,255,255,0.55)", fontFamily: fonts.regular, fontSize: 14, marginTop: 2 },
+  heroPills: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  heroPill: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    color: "#FFFFFF",
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  heroCta: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 16,
+    minHeight: 46,
+    paddingHorizontal: 16,
+  },
+  heroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 15 },
 
-  filters: { flexGrow: 0, height: 38, marginBottom: spacing.xs, marginHorizontal: -spacing.md },
-  dateFilters: { flexGrow: 0, height: 38, marginBottom: spacing.xs, marginHorizontal: -spacing.md },
-  filtersContent: { gap: spacing.xs, paddingHorizontal: spacing.md },
-  filterChip: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: spacing.sm },
-  filterChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
-  filterDot: { borderRadius: radius.pill, height: 8, width: 8 },
-  filterText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  filterTextActive: { color: "#ffffff" },
+  segment: { backgroundColor: ios.fill, borderRadius: 12, flexDirection: "row", padding: 3 },
+  segmentItem: { alignItems: "center", borderRadius: 9, flex: 1, justifyContent: "center", minHeight: 34 },
+  segmentItemOn: { backgroundColor: ios.card },
+  segmentText: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
+  segmentTextOn: { color: ios.label, fontFamily: fonts.semibold },
+  datePick: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: ios.card,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  datePickOn: { backgroundColor: "#007AFF14" },
+  datePickText: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
+  datePickTextOn: { color: ios.blue },
 
-  content: { paddingBottom: 110, paddingTop: 4 },
-  groupHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 6, minHeight: 24 },
-  groupLabel: { color: colors.muted, fontSize: 12, fontWeight: "600" },
-  orderCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md, ...shadows.card },
-  orderMainRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  avatar: { alignItems: "center", borderRadius: radius.pill, height: 38, justifyContent: "center", width: 38 },
-  avatarText: { fontSize: 14, fontWeight: "700" },
-  orderInfo: { flex: 1, minWidth: 0 },
-  orderNo: { color: colors.text, fontSize: 15, fontWeight: "700" },
-  orderMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  chipRow: { gap: 8, marginTop: 14, paddingBottom: 2 },
+  chip: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 34,
+    paddingHorizontal: 12,
+  },
+  chipOn: { backgroundColor: ios.label },
+  chipText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13 },
+  chipTextOn: { color: "#FFFFFF" },
+
+  listHead: { alignItems: "center", flexDirection: "row", marginBottom: 8, marginLeft: 4, marginTop: 18 },
+  sectionLabelInline: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13 },
+  listCount: {
+    backgroundColor: ios.fill,
+    borderRadius: 999,
+    color: ios.label,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    marginLeft: 8,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  list: { gap: 10 },
+  orderCard: {
+    backgroundColor: ios.card,
+    borderRadius: 18,
+    flexDirection: "row",
+    overflow: "hidden",
+  },
+  accent: { width: 4 },
+  orderInner: { flex: 1, minWidth: 0, padding: 14 },
+  orderTop: { alignItems: "center", flexDirection: "row", gap: 10 },
+  avatar: { alignItems: "center", borderRadius: 14, height: 40, justifyContent: "center", width: 40 },
+  orderTitleBlock: { flex: 1, minWidth: 0 },
+  orderNo: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: -0.3 },
+  orderCustomer: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13, marginTop: 1 },
+  payPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  payPaid: { backgroundColor: "#34C7591F" },
+  payUnpaid: { backgroundColor: "#FF3B301F" },
+  payPillText: { fontFamily: fonts.semibold, fontSize: 11 },
+  payPaidText: { color: ios.green },
+  payUnpaidText: { color: ios.red },
+  orderItem: { color: ios.label, fontFamily: fonts.medium, fontSize: 14, marginTop: 10 },
+  orderFoot: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  orderMeta: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 12 },
+  orderFootRight: { alignItems: "center", flexDirection: "row", gap: 4 },
+  statusText: { fontFamily: fonts.semibold, fontSize: 12 },
+
+  emptyCard: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+  },
+  emptyIcon: {
+    alignItems: "center",
+    backgroundColor: "#007AFF14",
+    borderRadius: 22,
+    height: 56,
+    justifyContent: "center",
+    marginBottom: 12,
+    width: 56,
+  },
+  emptyTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 17 },
+  emptyText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 14, marginTop: 4, textAlign: "center" },
+  emptyBtn: {
+    backgroundColor: ios.dark,
+    borderRadius: 14,
+    marginTop: 16,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 14, textAlign: "center" },
+
+  formContent: { paddingBottom: spacing.xl },
+  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
 
   labelChoices: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   labelChoice: { alignItems: "center", backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", gap: 6, paddingHorizontal: spacing.sm, paddingVertical: 8 },
@@ -548,18 +735,7 @@ const styles = StyleSheet.create({
   paidChoiceActive: { backgroundColor: colors.greenSoft, borderColor: colors.success },
   paidChoiceText: { color: colors.success },
 
-  sourceRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm, paddingTop: spacing.xs },
-  sourceText: { color: colors.muted, fontSize: 12, fontWeight: "500" },
-
-  fab: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.pill, bottom: spacing.lg, height: 52, justifyContent: "center", position: "absolute", right: spacing.lg, width: 52, ...shadows.floating },
-  modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
-  formContent: { paddingBottom: spacing.xl },
-  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
-
-  detailHeader: { alignItems: "center", flexDirection: "row", gap: spacing.xs, justifyContent: "space-between", marginBottom: spacing.sm },
   iconButton: { alignItems: "center", height: 40, justifyContent: "center", width: 40 },
-  detailNo: { color: colors.text, fontSize: 18, fontWeight: "700" },
   detailContent: { paddingBottom: 80 },
   detailCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
   detailCardHeader: { padding: spacing.sm },

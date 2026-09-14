@@ -4,8 +4,9 @@ import { useNavigation } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Button, Empty, FabButton, Field, IconButton, IosScreenHeader, IosSearchBar, PageHeader, Screen, SelectOption, StatStrip } from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { fonts, radius, spacing } from "../../constants/theme";
 import { apiErrorMessage, createOrder, getCustomers, getOrders, getProducts, Product, scanProduct } from "../../services/api";
 
 type CartLine = { product: Product; qty: number };
@@ -41,6 +42,8 @@ export default function SalesScreen() {
     });
   }, [productSearch, products.data]);
   const total = Math.max(subtotal - Number(discount || 0) + Number(gst || 0), 0);
+  const periodSales = useMemo(() => (orders.data || []).reduce((sum, order) => sum + Number(order.total || 0), 0), [orders.data]);
+
   const save = useMutation({
     mutationFn: () => createOrder({ customer: customer || undefined, discount: Number(discount || 0), gst: Number(gst || 0), paymentStatus: "paid", items: cart.map((line) => ({ product: line.product._id, qty: line.qty })) }),
     onSuccess: () => {
@@ -50,7 +53,7 @@ export default function SalesScreen() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      Alert.alert("Invoice saved", `Total: Rs ${total}`);
+      Alert.alert("Invoice saved", `Total: ₹${formatMoney(total)}`);
     },
     onError: (error: Error) => Alert.alert("Invoice failed", apiErrorMessage(error)),
   });
@@ -85,183 +88,191 @@ export default function SalesScreen() {
     setCartOpen(false);
   }
 
+  function saveInvoice() {
+    if (!cart.length) {
+      Alert.alert("Cart is empty", "Add a product first.");
+      return;
+    }
+    save.mutate();
+  }
+
   return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>BILLING COUNTER</Text>
-            <Text style={styles.title}>Sales</Text>
+    <Screen style={styles.screen}>
+      <IosScreenHeader
+        eyebrow="Sales desk"
+        right={(
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeValue}>{itemCount}</Text>
+            <Text style={styles.cartBadgeLabel}>cart</Text>
           </View>
-          <View style={styles.invoiceBadge}>
-            <Text style={styles.invoiceBadgeValue}>{itemCount}</Text>
-            <Text style={styles.invoiceBadgeLabel}>items in cart</Text>
-          </View>
+        )}
+        title="Sales"
+      />
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <StatStrip
+          items={[
+            { label: "Invoice", value: `₹${formatMoney(total)}`, icon: "receipt-outline", tone: "purple" },
+            { label: "Cart items", value: String(itemCount), icon: "cart-outline", tone: "blue" },
+            { label: "Period sales", value: `₹${formatMoney(periodSales)}`, icon: "trending-up-outline", tone: "green" },
+          ]}
+        />
+
+        <Text style={styles.sectionLabel}>Do this now</Text>
+        <View style={styles.actionGrid}>
+          <ActionTile color={ios.blue} ion="scan" label="Scan" onPress={() => setScanOpen(true)} />
+          <ActionTile color={ios.green} ion="search" label="Browse" onPress={() => setProductPickerOpen(true)} />
+          <ActionTile color={ios.orange} ion="flash" label="Quick sale" onPress={() => navigation.navigate("QuickSale")} />
+          <ActionTile color={ios.indigo} ion="people" label="Customer" onPress={() => setTotalsOpen(true)} />
         </View>
 
-        {/* Invoice Total Banner */}
-        <View style={styles.totalBanner}>
-          <Text style={styles.totalLabel}>Invoice total</Text>
-          <Text style={styles.totalValue}>Rs {formatMoney(total)}</Text>
-          <Text style={styles.totalHint}>Subtotal Rs {formatMoney(subtotal)} | Discount Rs {formatMoney(Number(discount || 0))} | GST Rs {formatMoney(Number(gst || 0))}</Text>
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionLabelInline}>Quick add</Text>
+          <Text style={styles.listCount}>{products.data?.length || 0}</Text>
         </View>
-
-        {/* Product Picker Panel */}
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Product Picker</Text>
-              <Text style={styles.sectionHint}>Tap an item to add to cart</Text>
-            </View>
-            <View style={styles.productHeaderActions}>
-              <TouchableOpacity onPress={() => setProductPickerOpen(true)} style={styles.viewButton}>
-                <Ionicons color="#ffffff" name="search" size={14} style={{ marginRight: 4 }} />
-                <Text style={styles.viewButtonText}>Browse</Text>
-              </TouchableOpacity>
-              <Badge label={String(products.data?.length || 0)} tone="neutral" />
-            </View>
-          </View>
-          <TouchableOpacity onPress={() => setScanOpen(true)} style={styles.scanButton}>
-            <Ionicons color={colors.primary} name="scan-outline" size={18} style={{ marginRight: 6 }} />
-            <Text style={styles.scanButtonText}>Scan Barcode to Add</Text>
-          </TouchableOpacity>
-          <FlatList
-            data={products.data || []}
-            horizontal
-            keyExtractor={(item) => item._id}
-            ListEmptyComponent={<Empty icon="cube-outline" text="No products available." />}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => add(item)} style={styles.productCard}>
-                {item.images?.[0] ? (
-                  <Image source={{ uri: item.images[0] }} style={styles.productImage} />
-                ) : (
-                  <View style={styles.productInitial}>
-                    <Text style={styles.productInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text>
-                  </View>
-                )}
-                <Text numberOfLines={2} style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>Rs {formatMoney(item.price)}</Text>
-                <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>
-                  {item.stockQty} in stock
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-
-        {/* Cart Panel */}
-        {cart.length > 0 && cartOpen && (
-          <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <View>
-                <Text style={styles.sectionTitle}>Current Cart</Text>
-                <Text style={styles.sectionHint}>Adjust quantities before saving invoice</Text>
-              </View>
-              <View style={styles.cartHeaderActions}>
-                <Badge label={`${cart.length} lines`} tone="info" />
-                <TouchableOpacity onPress={closeCart} style={styles.cartCloseButton}>
-                  <Ionicons color={colors.text} name="close" size={18} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            {cart.map((line) => (
-              <View key={line.product._id} style={styles.cartLine}>
-                <View style={styles.cartInfo}>
-                  <Text numberOfLines={1} style={styles.cartText}>{line.product.name}</Text>
-                  <Text style={styles.cartMeta}>Rs {formatMoney(line.product.price)} × {line.qty}</Text>
-                </View>
-                <View style={styles.qty}>
-                  <TouchableOpacity onPress={() => setCart((items) => items.map((x) => x.product._id === line.product._id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))} style={styles.qtyButton}>
-                    <Ionicons color={colors.primary} name="remove" size={16} />
-                  </TouchableOpacity>
-                  <Text style={styles.qtyValue}>{line.qty}</Text>
-                  <TouchableOpacity onPress={() => add(line.product)} style={styles.qtyButton}>
-                    <Ionicons color={colors.primary} name="add" size={16} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+        <IosSearchBar
+          onChangeText={setProductSearch}
+          placeholder="Search products…"
+          style={styles.quickSearch}
+          value={productSearch}
+        />
+        {(filteredProducts.slice(0, 12).length ? filteredProducts.slice(0, 12) : []).length ? (
+          filteredProducts.slice(0, 12).map((item) => {
+            const line = cart.find((row) => row.product._id === item._id);
+            return (
+              <SelectOption
+                key={item._id}
+                label={item.name}
+                meta={`₹${formatMoney(item.price)} · ${item.stockQty} left${line ? ` · Cart ${line.qty}` : ""}`}
+                onPress={() => add(item)}
+                selected={Boolean(line)}
+              />
+            );
+          })
+        ) : (
+          <View style={styles.emptyInline}>
+            <Text style={styles.emptyInlineText}>{products.isLoading ? "Loading…" : "No products"}</Text>
           </View>
         )}
 
-        {/* Customer & Totals Panel */}
-        <View style={styles.panel}>
-          <TouchableOpacity onPress={() => setTotalsOpen((value) => !value)} style={styles.panelHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Customer & Totals</Text>
-              <Text style={styles.sectionHint}>{totalsOpen ? "Optional customer & discount settings" : "Tap to set customer, discount, GST"}</Text>
+        {cart.length > 0 && cartOpen && (
+          <>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionLabelInline}>Current cart</Text>
+              <TouchableOpacity onPress={closeCart} style={styles.clearBtn}>
+                <Text style={styles.clearBtnText}>Clear</Text>
+              </TouchableOpacity>
             </View>
-            <Ionicons color={colors.primary} name={totalsOpen ? "chevron-up" : "chevron-down"} size={20} />
-          </TouchableOpacity>
-          {totalsOpen && (
-            <>
-              <FlatList
-                data={customers.data || []}
-                horizontal
-                keyExtractor={(item) => item._id}
-                showsHorizontalScrollIndicator={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => setCustomer(item._id)} style={[styles.chip, customer === item._id && styles.chipActive]}>
-                    <Text style={[styles.chipText, customer === item._id && styles.chipTextActive]}>{item.name}</Text>
-                  </TouchableOpacity>
-                )}
+            <View style={styles.cartCard}>
+              {cart.map((line, index) => (
+                <View key={line.product._id} style={[styles.cartLine, index < cart.length - 1 && styles.cartLineBorder]}>
+                  <View style={styles.cartInfo}>
+                    <Text numberOfLines={1} style={styles.cartText}>{line.product.name}</Text>
+                    <Text style={styles.cartMeta}>₹{formatMoney(line.product.price)} × {line.qty}</Text>
+                  </View>
+                  <View style={styles.qty}>
+                    <TouchableOpacity
+                      onPress={() => setCart((items) => items.map((x) => x.product._id === line.product._id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}
+                      style={styles.qtyButton}
+                    >
+                      <Ionicons color={ios.label} name="remove" size={16} />
+                    </TouchableOpacity>
+                    <Text style={styles.qtyValue}>{line.qty}</Text>
+                    <TouchableOpacity onPress={() => add(line.product)} style={styles.qtyButton}>
+                      <Ionicons color={ios.label} name="add" size={16} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        <TouchableOpacity onPress={() => setTotalsOpen((value) => !value)} style={styles.collapseCard}>
+          <View style={styles.collapseCopy}>
+            <Text style={styles.collapseTitle}>Customer & totals</Text>
+            <Text style={styles.collapseHint}>{totalsOpen ? "Discount, GST, customer" : "Tap to edit"}</Text>
+          </View>
+          <Ionicons color={ios.secondary} name={totalsOpen ? "chevron-up" : "chevron-down"} size={18} />
+        </TouchableOpacity>
+        {totalsOpen && (
+          <View style={styles.totalsCard}>
+            {(customers.data || []).map((item) => (
+              <SelectOption
+                key={item._id}
+                label={item.name}
+                meta={item.phone || "Customer"}
+                onPress={() => setCustomer(item._id)}
+                selected={customer === item._id}
               />
-              <View style={styles.inputRow}>
-                <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount (Rs)" value={discount} /></View>
-                <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST (Rs)" value={gst} /></View>
-              </View>
-              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>Rs {formatMoney(subtotal)}</Text></View>
-              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Grand Total</Text><Text style={styles.summaryStrong}>Rs {formatMoney(total)}</Text></View>
-              <Button icon="checkmark-circle-outline" loading={save.isPending} onPress={() => cart.length ? save.mutate() : Alert.alert("Cart is empty")} title="Save Invoice" />
-            </>
-          )}
-        </View>
-
-        {/* Date-wise Invoices List */}
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Date-wise Invoices</Text>
-              <Text style={styles.sectionHint}>Filter sales history by invoice date</Text>
+            ))}
+            <View style={styles.inputRow}>
+              <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setDiscount} placeholder="Discount (₹)" value={discount} /></View>
+              <View style={styles.inputHalf}><Field keyboardType="numeric" onChangeText={setGst} placeholder="GST (₹)" value={gst} /></View>
             </View>
-            <Badge label={String(orders.data?.length || 0)} tone="neutral" />
-          </View>
-          <View style={styles.filterRow}>
-            <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
-            <FilterChip active={datePreset === "week"} label="7 Days" onPress={() => setDatePreset("week")} />
-            <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
-          </View>
-          {orders.data?.length ? orders.data.slice(0, 8).map((order) => (
-            <View key={order._id} style={styles.orderRow}>
-              <View>
-                <Text style={styles.orderTitle}>{order.customer?.name || "Walk-in customer"}</Text>
-                <Text style={styles.orderMeta}>{new Date(order.createdAt).toLocaleDateString()} | {order.items?.length || 0} line items</Text>
-              </View>
-              <Text style={styles.orderTotal}>Rs {formatMoney(order.total)}</Text>
-            </View>
-          )) : <Empty icon="receipt-outline" text={orders.isLoading ? "Loading invoices..." : "No invoices for this filter."} />}
-        </View>
-      </ScrollView>
-
-      {/* Floating Action Button for Quick Sale */}
-      <TouchableOpacity onPress={() => navigation.navigate("QuickSale")} style={styles.fab}>
-        <Ionicons color="#ffffff" name="flash" size={18} style={{ marginRight: 6 }} />
-        <Text style={styles.fabText}>Quick Sale</Text>
-      </TouchableOpacity>
-
-      {/* Barcode Scanner Modal */}
-      <Modal animationType="slide" visible={scanOpen}>
-        <Screen>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.eyebrow}>CART SCANNER</Text>
-              <Text style={styles.title}>Scan Barcode</Text>
-            </View>
-            <TouchableOpacity onPress={() => setScanOpen(false)} style={styles.closeButton}>
-              <Ionicons color={colors.text} name="close" size={20} />
+            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>₹{formatMoney(subtotal)}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Grand total</Text><Text style={styles.summaryStrong}>₹{formatMoney(total)}</Text></View>
+            <TouchableOpacity onPress={saveInvoice} style={styles.saveBtn}>
+              <Text style={styles.saveBtnText}>{save.isPending ? "Saving…" : "Save invoice"}</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionLabelInline}>Recent invoices</Text>
+          <Text style={styles.listCount}>{orders.data?.length || 0}</Text>
+        </View>
+        <View style={styles.segment}>
+          {([
+            ["today", "Today"],
+            ["week", "7 days"],
+            ["month", "Month"],
+          ] as [DatePreset, string][]).map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setDatePreset(key)}
+              style={[styles.segmentItem, datePreset === key && styles.segmentItemOn]}
+            >
+              <Text style={[styles.segmentText, datePreset === key && styles.segmentTextOn]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.periodSales}>₹{formatMoney(periodSales)} in this period</Text>
+
+        {orders.data?.length ? (
+          <View style={styles.invoiceList}>
+            {orders.data.slice(0, 8).map((order) => (
+              <View key={order._id} style={styles.invoiceCard}>
+                <View style={styles.invoiceIcon}>
+                  <Ionicons color={ios.blue} name="receipt" size={16} />
+                </View>
+                <View style={styles.invoiceCopy}>
+                  <Text numberOfLines={1} style={styles.invoiceTitle}>{order.customer?.name || "Walk-in customer"}</Text>
+                  <Text style={styles.invoiceMeta}>
+                    {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {order.items?.length || 0} lines
+                  </Text>
+                </View>
+                <Text style={styles.invoiceTotal}>₹{formatMoney(order.total)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>{orders.isLoading ? "Loading invoices…" : "No invoices yet"}</Text>
+            <Text style={styles.emptyText}>{orders.isLoading ? "Just a moment." : "Save a bill to see it here."}</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <FabButton accessibilityLabel="Browse products" onPress={() => setProductPickerOpen(true)} />
+
+      <Modal animationType="slide" visible={scanOpen}>
+        <Screen>
+          <PageHeader
+            eyebrow="Cart scanner"
+            right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setScanOpen(false)} />}
+            title="Scan Barcode"
+          />
           {permission?.granted ? (
             <CameraView
               style={styles.camera}
@@ -274,31 +285,26 @@ export default function SalesScreen() {
               </View>
             </CameraView>
           ) : (
-            <View style={styles.panel}>
-              <Text style={styles.sectionTitle}>Camera Access Needed</Text>
+            <View style={styles.permissionCard}>
+              <Text style={styles.collapseTitle}>Camera access needed</Text>
               <Button onPress={() => requestPermission()} title="Allow Camera" />
             </View>
           )}
         </Screen>
       </Modal>
 
-      {/* Product Browser Modal */}
       <Modal animationType="slide" visible={productPickerOpen}>
         <Screen>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.eyebrow}>PRODUCT BROWSER</Text>
-              <Text style={styles.title}>Add Items</Text>
-            </View>
-            <TouchableOpacity onPress={() => setProductPickerOpen(false)} style={styles.closeButton}>
-              <Ionicons color={colors.text} name="close" size={20} />
-            </TouchableOpacity>
-          </View>
+          <PageHeader
+            eyebrow="Product browser"
+            right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setProductPickerOpen(false)} />}
+            title="Add Items"
+          />
           <View style={styles.searchPanel}>
-            <Field onChangeText={setProductSearch} placeholder="Search product name, SKU, or category" value={productSearch} />
+            <SearchField onChangeText={setProductSearch} placeholder="Search product name, SKU, or category" value={productSearch} />
             <View style={styles.searchMetaRow}>
               <Text style={styles.searchMeta}>{filteredProducts.length} items found</Text>
-              <Text style={styles.searchMeta}>{itemCount} items in cart</Text>
+              <Text style={styles.searchMeta}>{itemCount} in cart</Text>
             </View>
           </View>
           <FlatList
@@ -310,23 +316,13 @@ export default function SalesScreen() {
             renderItem={({ item }) => {
               const line = cart.find((row) => row.product._id === item._id);
               return (
-                <View style={styles.productRow}>
-                  {item.images?.[0] ? (
-                    <Image source={{ uri: item.images[0] }} style={styles.productRowImage} />
-                  ) : (
-                    <View style={styles.productRowInitial}>
-                      <Text style={styles.productInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={styles.productRowInfo}>
-                    <Text numberOfLines={1} style={styles.productRowName}>{item.name}</Text>
-                    <Text numberOfLines={1} style={styles.productRowMeta}>{item.sku || "No SKU"} | Rs {formatMoney(item.price)}</Text>
-                    <Text style={item.stockQty <= item.lowStockThreshold ? styles.stockLow : styles.stockOk}>
-                      {item.stockQty} in stock{line ? ` | Cart: ${line.qty}` : ""}
-                    </Text>
-                  </View>
-                  <Button icon="add-circle-outline" onPress={() => add(item)} style={{ minHeight: 40, paddingHorizontal: 12 }} title="Add" />
-                </View>
+                <SelectOption
+                  key={item._id}
+                  label={item.name}
+                  meta={`${item.sku || "No SKU"} · ₹${formatMoney(item.price)} · ${item.stockQty} stock${line ? ` · Cart ${line.qty}` : ""}`}
+                  onPress={() => add(item)}
+                  selected={Boolean(line)}
+                />
               );
             }}
           />
@@ -336,10 +332,23 @@ export default function SalesScreen() {
   );
 }
 
-function FilterChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function ActionTile({
+  color,
+  ion,
+  label,
+  onPress,
+}: {
+  color: string;
+  ion: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
-      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
+    <TouchableOpacity onPress={onPress} style={styles.actionTile}>
+      <View style={[styles.actionIcon, { backgroundColor: color }]}>
+        <Ionicons color="#FFFFFF" name={ion} size={20} />
+      </View>
+      <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -358,91 +367,249 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingBottom: 90 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, marginTop: 2 },
-  invoiceBadge: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, minWidth: 70, padding: spacing.xs, ...shadows.card },
-  invoiceBadgeValue: { color: colors.primary, fontSize: 18, fontWeight: "700" },
-  invoiceBadgeLabel: { color: colors.muted, fontSize: 10, fontWeight: "600" },
+  screen: { backgroundColor: ios.bg },
+  header: { alignItems: "flex-start", flexDirection: "row", marginBottom: 12, marginTop: 4, paddingHorizontal: spacing.md },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: 10 },
+  greeting: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
+  title: { color: ios.label, fontFamily: fonts.bold, fontSize: 28, letterSpacing: -0.5, lineHeight: 32, marginTop: 1 },
+  cartBadge: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 14,
+    minWidth: 56,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  cartBadgeValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 18 },
+  cartBadgeLabel: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 11 },
 
-  totalBanner: { backgroundColor: colors.secondary, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  totalLabel: { color: colors.blueSoft, fontWeight: "600", fontSize: 13 },
-  totalValue: { color: "#ffffff", fontSize: 30, fontWeight: "700", marginTop: 2 },
-  totalHint: { color: colors.blueSoft, fontSize: 12, marginTop: spacing.xs },
+  content: { alignSelf: "center", maxWidth: 430, paddingBottom: 110, width: "100%" },
+  quickSearch: { marginBottom: 4 },
 
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  panelHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  productHeaderActions: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  viewButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, flexDirection: "row", height: 36, justifyContent: "center", paddingHorizontal: spacing.sm },
-  viewButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "600" },
-  cartHeaderActions: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  cartCloseButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 32, justifyContent: "center", width: 32 },
+  hero: {
+    backgroundColor: ios.navy,
+    borderRadius: 22,
+    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  heroOverline: { color: "rgba(255,255,255,0.62)", fontFamily: fonts.medium, fontSize: 13 },
+  heroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 40, letterSpacing: -1, lineHeight: 46, marginTop: 2 },
+  heroPills: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  heroPill: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    color: "#FFFFFF",
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  heroHint: { color: "rgba(255,255,255,0.5)", fontFamily: fonts.regular, fontSize: 12, marginTop: 10 },
+  heroCta: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 16,
+    minHeight: 46,
+    paddingHorizontal: 16,
+  },
+  heroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 15 },
 
-  sectionTitle: { color: colors.text, ...typography.h3 },
-  sectionHint: { color: colors.muted, fontSize: 12, fontWeight: "500", marginTop: 2 },
+  sectionLabel: {
+    color: ios.secondary,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    marginBottom: 8,
+    marginLeft: 4,
+    marginTop: 16,
+  },
+  sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: 8, marginLeft: 4, marginTop: 18 },
+  sectionLabelInline: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
+  listCount: {
+    backgroundColor: ios.fill,
+    borderRadius: 999,
+    color: ios.label,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  actionTile: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 18,
+    flexBasis: "47%",
+    flexGrow: 1,
+    minHeight: 96,
+    paddingVertical: 16,
+  },
+  actionIcon: { alignItems: "center", borderRadius: 14, height: 40, justifyContent: "center", width: 40 },
+  actionLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, marginTop: 8 },
 
-  scanButton: { alignItems: "center", backgroundColor: colors.primaryLight, borderColor: colors.primary, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 44, justifyContent: "center", marginBottom: spacing.sm },
-  scanButtonText: { color: colors.primary, fontWeight: "600" },
+  productStrip: { gap: 10, paddingBottom: 2 },
+  productCard: {
+    backgroundColor: ios.card,
+    borderRadius: 16,
+    padding: 12,
+    width: 132,
+  },
+  productImage: { borderRadius: 12, height: 56, marginBottom: 8, width: "100%" },
+  productInitial: {
+    alignItems: "center",
+    backgroundColor: `${ios.blue}14`,
+    borderRadius: 12,
+    height: 56,
+    justifyContent: "center",
+    marginBottom: 8,
+    width: "100%",
+  },
+  productInitialText: { color: ios.blue, fontFamily: fonts.bold, fontSize: 15 },
+  productName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, minHeight: 34 },
+  productPrice: { color: ios.label, fontFamily: fonts.bold, fontSize: 15, marginTop: 4 },
+  stockOk: { color: ios.green, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+  stockLow: { color: ios.red, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+  emptyInline: { paddingVertical: 20, paddingHorizontal: 8 },
+  emptyInlineText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 14 },
 
-  productCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, height: 160, marginRight: spacing.sm, padding: spacing.sm, width: 140, ...shadows.card },
-  productInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 50, justifyContent: "center", marginBottom: spacing.xs, width: "100%" },
-  productImage: { borderRadius: radius.sm, height: 50, marginBottom: spacing.xs, width: "100%" },
-  productInitialText: { color: colors.primary, fontWeight: "700" },
-  productName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
-  productPrice: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 2 },
-  stockOk: { color: colors.success, fontSize: 11, fontWeight: "600", marginTop: 2 },
-  stockLow: { color: colors.danger, fontSize: 11, fontWeight: "600", marginTop: 2 },
+  clearBtn: { backgroundColor: "#FF3B3014", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  clearBtnText: { color: ios.red, fontFamily: fonts.semibold, fontSize: 12 },
+  cartCard: { backgroundColor: ios.card, borderRadius: 18, overflow: "hidden", paddingHorizontal: 14 },
+  cartLine: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingVertical: 12 },
+  cartLineBorder: { borderBottomColor: "rgba(60,60,67,0.12)", borderBottomWidth: StyleSheet.hairlineWidth },
+  cartInfo: { flex: 1, paddingRight: 10 },
+  cartText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 15 },
+  cartMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  qty: { alignItems: "center", flexDirection: "row", gap: 8 },
+  qtyButton: {
+    alignItems: "center",
+    backgroundColor: ios.fill,
+    borderRadius: 10,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  qtyValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 15, minWidth: 20, textAlign: "center" },
 
-  cartLine: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
-  cartInfo: { flex: 1, paddingRight: spacing.sm },
-  cartText: { color: colors.text, fontWeight: "600" },
-  cartMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  qty: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  qtyButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: 36 },
-  qtyValue: { color: colors.text, fontWeight: "700", minWidth: 24, textAlign: "center" },
-
-  chip: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, marginRight: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
-  chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  chipText: { color: colors.text, fontSize: 13, fontWeight: "500" },
-  chipTextActive: { color: colors.primary, fontWeight: "700" },
-
-  inputRow: { flexDirection: "row", gap: spacing.sm },
+  collapseCard: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 16,
+    flexDirection: "row",
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  collapseCopy: { flex: 1 },
+  collapseTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
+  collapseHint: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  totalsCard: { backgroundColor: ios.card, borderRadius: 16, marginTop: 8, padding: 14 },
+  chipRow: { gap: 8, marginBottom: 10 },
+  chip: {
+    backgroundColor: ios.fill,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  chipOn: { backgroundColor: ios.label },
+  chipText: { color: ios.label, fontFamily: fonts.medium, fontSize: 13 },
+  chipTextOn: { color: "#FFFFFF" },
+  inputRow: { flexDirection: "row", gap: 10 },
   inputHalf: { flex: 1 },
   summaryRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  summaryLabel: { color: colors.muted, fontSize: 14, fontWeight: "500" },
-  summaryValue: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  summaryStrong: { color: colors.primary, fontSize: 18, fontWeight: "700" },
+  summaryLabel: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 14 },
+  summaryValue: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14 },
+  summaryStrong: { color: ios.label, fontFamily: fonts.bold, fontSize: 18 },
+  saveBtn: {
+    alignItems: "center",
+    backgroundColor: ios.navy,
+    borderRadius: 14,
+    justifyContent: "center",
+    marginTop: 10,
+    minHeight: 46,
+  },
+  saveBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 15 },
 
-  filterRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
-  filterChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: 6 },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterChipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  filterChipTextActive: { color: "#ffffff" },
+  segment: { backgroundColor: ios.fill, borderRadius: 12, flexDirection: "row", padding: 3 },
+  segmentItem: { alignItems: "center", borderRadius: 9, flex: 1, justifyContent: "center", minHeight: 34 },
+  segmentItemOn: { backgroundColor: ios.card },
+  segmentText: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
+  segmentTextOn: { color: ios.label, fontFamily: fonts.semibold },
+  periodSales: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13, marginBottom: 10, marginLeft: 4, marginTop: 8 },
+  invoiceList: { gap: 8 },
+  invoiceCard: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  invoiceIcon: {
+    alignItems: "center",
+    backgroundColor: `${ios.blue}14`,
+    borderRadius: 12,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  invoiceCopy: { flex: 1, minWidth: 0 },
+  invoiceTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 15 },
+  invoiceMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  invoiceTotal: { color: ios.label, fontFamily: fonts.bold, fontSize: 15 },
+  emptyCard: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  emptyTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
+  emptyText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13, marginTop: 4 },
 
-  orderRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
-  orderTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  orderMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  orderTotal: { color: colors.primary, fontSize: 15, fontWeight: "700" },
-
-  fab: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.pill, bottom: spacing.md, flexDirection: "row", minHeight: 48, justifyContent: "center", paddingHorizontal: spacing.lg, position: "absolute", right: spacing.md, ...shadows.floating },
-  fabText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
-
-  modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
   camera: { borderRadius: radius.md, flex: 1, overflow: "hidden" },
   scanOverlay: { alignItems: "center", flex: 1, justifyContent: "center" },
   scanFrame: { borderColor: "#ffffff", borderRadius: radius.md, borderWidth: 3, height: 220, width: 220 },
   scanHint: { backgroundColor: "rgba(15, 23, 42, 0.65)", borderRadius: radius.sm, color: "#ffffff", fontWeight: "600", marginTop: spacing.md, padding: spacing.sm },
+  permissionCard: { backgroundColor: ios.card, borderRadius: 16, margin: spacing.md, padding: spacing.md },
 
-  searchPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md },
+  searchPanel: { backgroundColor: ios.card, borderRadius: 16, marginBottom: spacing.md, marginHorizontal: spacing.md, padding: spacing.md },
   searchMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-  searchMeta: { color: colors.muted, fontSize: 12, fontWeight: "500" },
-  productListContent: { paddingBottom: spacing.xl },
-  productRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs, padding: spacing.sm },
-  productRowImage: { borderRadius: radius.sm, height: 50, width: 50 },
-  productRowInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 50, justifyContent: "center", width: 50 },
-  productRowInfo: { flex: 1 },
-  productRowName: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  productRowMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  searchMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12 },
+  productListContent: { paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
+  productRow: {
+    alignItems: "center",
+    backgroundColor: ios.card,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 8,
+    padding: 12,
+  },
+  productRowImage: { borderRadius: 12, height: 48, width: 48 },
+  productRowInitial: {
+    alignItems: "center",
+    backgroundColor: `${ios.blue}14`,
+    borderRadius: 12,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  productRowInfo: { flex: 1, minWidth: 0 },
+  productRowName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 15 },
+  productRowMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  addBtn: {
+    backgroundColor: ios.navy,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
 });

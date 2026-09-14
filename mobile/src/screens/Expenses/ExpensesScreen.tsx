@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Badge, Empty, FabButton, Field, IconButton, IosFormSheet, IosScreenHeader, Screen, StatStrip } from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { fonts, spacing } from "../../constants/theme";
 import { createExpense, deleteExpense, Expense, getExpenses, updateExpense } from "../../services/api";
 
 const blank = { description: "", amount: "", category: "general", date: new Date().toISOString().slice(0, 10), notes: "" };
@@ -51,91 +52,115 @@ export default function ExpensesScreen({ navigation }: any) {
     setOpen(true);
   }
 
+  function closeForm() {
+    setOpen(false);
+    setEditing(null);
+    setForm(blank);
+  }
+
   return (
-    <Screen>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons color={colors.text} name="chevron-back" size={20} />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.eyebrow}>SHOP SPENDING</Text>
-            <Text style={styles.title}>Expenses</Text>
-          </View>
-        </View>
-        <TouchableOpacity onPress={() => openForm()} style={styles.addButton}>
-          <Ionicons color="#ffffff" name="add" size={24} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.filters}>
-        <View style={styles.filterHalf}><Text style={styles.fieldLabel}>From Date</Text><Field onChangeText={setFrom} value={from} /></View>
-        <View style={styles.filterHalf}><Text style={styles.fieldLabel}>To Date</Text><Field onChangeText={setTo} value={to} /></View>
-      </View>
-
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Selected Period Expense Total</Text>
-        <Text style={styles.totalValue}>Rs {formatMoney(expenses.data?.total || 0)}</Text>
-      </View>
+    <Screen style={styles.screen}>
+      <IosScreenHeader
+        eyebrow="Expenses"
+        left={<IconButton accessibilityLabel="Go back" icon="chevron-back" onPress={() => navigation.goBack()} />}
+        title="Expenses"
+      />
 
       <FlatList
         data={items}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Empty icon="wallet-outline" text={expenses.isLoading ? "Loading expenses..." : "No expenses recorded for this period."} />}
-        renderItem={({ item }) => (
-          <View style={styles.expenseCard}>
-            <TouchableOpacity onPress={() => openForm(item)} style={styles.expenseMain}>
-              <View style={styles.expenseInfo}>
-                <Text style={styles.expenseTitle}>{item.description}</Text>
-                <View style={styles.categoryRow}>
-                  <Badge label={item.category} tone="neutral" />
-                  <Text style={styles.expenseMeta}>{item.date.slice(0, 10)}</Text>
-                </View>
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={(
+          <View>
+            <StatStrip
+              items={[
+                { label: "Total spend", value: `₹${formatMoney(expenses.data?.total || 0)}`, icon: "wallet-outline", tone: "orange" },
+                { label: "Entries", value: String(items.length), icon: "list-outline", tone: "purple" },
+                { label: "Avg entry", value: `₹${formatMoney(items.length ? (expenses.data?.total || 0) / items.length : 0)}`, icon: "trending-up-outline", tone: "blue" },
+              ]}
+            />
+
+            <View style={styles.filters}>
+              <View style={styles.filterHalf}>
+                <Text style={styles.fieldLabel}>From</Text>
+                <Field onChangeText={setFrom} placeholder="YYYY-MM-DD" style={styles.filterField} value={from} />
               </View>
-              <Text style={styles.expenseAmount}>Rs {formatMoney(item.amount)}</Text>
-            </TouchableOpacity>
-            <View style={styles.actions}>
-              <TouchableOpacity onPress={() => openForm(item)} style={styles.actionButton}>
-                <Ionicons color={colors.primary} name="create-outline" size={15} style={{ marginRight: 4 }} />
-                <Text style={styles.actionText}>Edit</Text>
+              <View style={styles.filterHalf}>
+                <Text style={styles.fieldLabel}>To</Text>
+                <Field onChangeText={setTo} placeholder="YYYY-MM-DD" style={styles.filterField} value={to} />
+              </View>
+            </View>
+
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionLabel}>Expenses</Text>
+              <Text style={styles.listCount}>{items.length}</Text>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={(
+          <View style={styles.emptyCard}>
+            <Empty icon="wallet-outline" text={expenses.isLoading ? "Loading expenses…" : "No expenses for this period."} />
+            {!expenses.isLoading ? (
+              <TouchableOpacity onPress={() => openForm()} style={styles.emptyBtn}>
+                <Text style={styles.emptyBtnText}>Add expense</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => remove.mutate(item._id)} style={[styles.actionButton, styles.deleteButton]}>
-                <Ionicons color={colors.danger} name="trash-outline" size={15} style={{ marginRight: 4 }} />
-                <Text style={styles.deleteText}>Delete</Text>
+            ) : null}
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <View style={[styles.accent, { backgroundColor: ios.orange }]} />
+            <View style={styles.cardInner}>
+              <TouchableOpacity onPress={() => openForm(item)} style={styles.cardMain}>
+                <View style={[styles.avatar, { backgroundColor: "#FF95001F" }]}>
+                  <Ionicons color={ios.orange} name="wallet" size={18} />
+                </View>
+                <View style={styles.cardCopy}>
+                  <Text numberOfLines={1} style={styles.cardTitle}>{item.description}</Text>
+                  <View style={styles.metaRow}>
+                    <Badge label={item.category} tone="neutral" />
+                    <Text style={styles.meta}>{item.date.slice(0, 10)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.amount}>₹{formatMoney(item.amount)}</Text>
               </TouchableOpacity>
+              <View style={styles.actions}>
+                <TouchableOpacity onPress={() => openForm(item)} style={styles.actionBtn}>
+                  <Ionicons color={ios.blue} name="create-outline" size={15} />
+                  <Text style={styles.actionEdit}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => remove.mutate(item._id)} style={[styles.actionBtn, styles.actionDelete]}>
+                  <Ionicons color={ios.red} name="trash-outline" size={15} />
+                  <Text style={styles.actionDeleteText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
       />
 
-      <Modal animationType="slide" visible={open}>
-        <Screen>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.eyebrow}>{editing ? "UPDATE EXPENSE" : "NEW EXPENSE"}</Text>
-              <Text style={styles.title}>{editing ? "Edit Expense" : "Add Expense"}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeButton}>
-              <Ionicons color={colors.text} name="close" size={20} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled" style={styles.formCard}>
-            <Text style={styles.fieldLabel}>Expense Description</Text>
-            <Field onChangeText={(value) => setForm((prev) => ({ ...prev, description: value }))} placeholder="e.g. Electricity bill, Tea/Snacks" value={form.description} />
-            <Text style={styles.fieldLabel}>Amount (INR ₹)</Text>
-            <Field keyboardType="numeric" onChangeText={(value) => setForm((prev) => ({ ...prev, amount: value }))} placeholder="0.00" value={form.amount} />
-            <Text style={styles.fieldLabel}>Category</Text>
-            <Field onChangeText={(value) => setForm((prev) => ({ ...prev, category: value }))} placeholder="e.g. Utilities, Rent, Maintenance" value={form.category} />
-            <Text style={styles.fieldLabel}>Date (YYYY-MM-DD)</Text>
-            <Field onChangeText={(value) => setForm((prev) => ({ ...prev, date: value }))} value={form.date} />
-            <Text style={styles.fieldLabel}>Notes</Text>
-            <Field multiline onChangeText={(value) => setForm((prev) => ({ ...prev, notes: value }))} placeholder="Additional notes..." value={form.notes} />
-            <Button icon="checkmark-circle-outline" loading={save.isPending} onPress={() => save.mutate()} title="Save Expense" />
-          </ScrollView>
-        </Screen>
-      </Modal>
+      <FabButton accessibilityLabel="Add expense" onPress={() => openForm()} />
+
+      <IosFormSheet
+        eyebrow={editing ? "Update expense" : "New expense"}
+        footerLabel={save.isPending ? "Saving…" : "Save"}
+        footerLoading={save.isPending}
+        onClose={closeForm}
+        onFooterPress={() => save.mutate()}
+        title={editing ? "Edit Expense" : "Add Expense"}
+        visible={open}
+      >
+        <Text style={styles.fieldLabel}>Description</Text>
+        <Field onChangeText={(value) => setForm((prev) => ({ ...prev, description: value }))} placeholder="e.g. Electricity bill" value={form.description} />
+        <Text style={styles.fieldLabel}>Amount (₹)</Text>
+        <Field keyboardType="numeric" onChangeText={(value) => setForm((prev) => ({ ...prev, amount: value }))} placeholder="0.00" value={form.amount} />
+        <Text style={styles.fieldLabel}>Category</Text>
+        <Field onChangeText={(value) => setForm((prev) => ({ ...prev, category: value }))} placeholder="Utilities, Rent…" value={form.category} />
+        <Text style={styles.fieldLabel}>Date (YYYY-MM-DD)</Text>
+        <Field onChangeText={(value) => setForm((prev) => ({ ...prev, date: value }))} value={form.date} />
+        <Text style={styles.fieldLabel}>Notes</Text>
+        <Field multiline onChangeText={(value) => setForm((prev) => ({ ...prev, notes: value }))} placeholder="Additional notes…" value={form.notes} />
+      </IosFormSheet>
     </Screen>
   );
 }
@@ -145,39 +170,53 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
-  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
-  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, marginTop: 2 },
-  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card },
-
-  filters: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  screen: { backgroundColor: ios.bg },
+  content: { alignSelf: "center", maxWidth: 430, paddingBottom: 110, width: "100%" },
+  filters: { flexDirection: "row", gap: 10, marginBottom: 4, marginTop: 14 },
   filterHalf: { flex: 1 },
-  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
-
-  totalCard: { backgroundColor: colors.accent, borderRadius: radius.md, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  totalLabel: { color: "#ffffff", fontSize: 12, fontWeight: "600" },
-  totalValue: { color: "#ffffff", fontSize: 28, fontWeight: "700", marginTop: 2 },
-
-  listContent: { paddingBottom: spacing.lg },
-  expenseCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
-  expenseMain: { alignItems: "center", flexDirection: "row", padding: spacing.md },
-  expenseInfo: { flex: 1, paddingRight: spacing.sm },
-  expenseTitle: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  categoryRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 4 },
-  expenseMeta: { color: colors.muted, fontSize: 12 },
-  expenseAmount: { color: colors.accent, fontSize: 16, fontWeight: "700" },
-
-  actions: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row" },
-  actionButton: { alignItems: "center", flex: 1, flexDirection: "row", justifyContent: "center", paddingVertical: 10 },
-  actionText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
-  deleteButton: { borderLeftColor: colors.border, borderLeftWidth: 1 },
-  deleteText: { color: colors.danger, fontSize: 13, fontWeight: "600" },
-
-  modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
-  formCard: { backgroundColor: colors.surface, borderRadius: radius.md },
-  modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
+  filterField: { marginBottom: 0 },
+  fieldLabel: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13, marginBottom: 6, marginTop: 10 },
+  sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: 8, marginLeft: 4, marginTop: 14 },
+  sectionLabel: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
+  listCount: {
+    backgroundColor: ios.fill,
+    borderRadius: 999,
+    color: ios.label,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  card: {
+    backgroundColor: ios.card,
+    borderRadius: 18,
+    flexDirection: "row",
+    marginBottom: 10,
+    overflow: "hidden",
+  },
+  accent: { width: 4 },
+  cardInner: { flex: 1, minWidth: 0 },
+  cardMain: { alignItems: "center", flexDirection: "row", gap: 10, padding: 14 },
+  avatar: { alignItems: "center", borderRadius: 14, height: 40, justifyContent: "center", width: 40 },
+  cardCopy: { flex: 1, minWidth: 0 },
+  cardTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
+  metaRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  meta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12 },
+  amount: { color: ios.label, fontFamily: fonts.bold, fontSize: 17 },
+  actions: { borderTopColor: ios.separator, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row" },
+  actionBtn: { alignItems: "center", flex: 1, flexDirection: "row", gap: 4, justifyContent: "center", paddingVertical: 12 },
+  actionEdit: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 13 },
+  actionDelete: { borderLeftColor: ios.separator, borderLeftWidth: StyleSheet.hairlineWidth },
+  actionDeleteText: { color: ios.red, fontFamily: fonts.semibold, fontSize: 13 },
+  emptyCard: { alignItems: "center", backgroundColor: ios.card, borderRadius: 18, padding: 20 },
+  emptyBtn: {
+    backgroundColor: ios.dark,
+    borderRadius: 14,
+    justifyContent: "center",
+    marginTop: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: 18,
+  },
+  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 14, textAlign: "center" },
 });

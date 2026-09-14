@@ -1,12 +1,14 @@
 import "react-native-gesture-handler";
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from "@expo-google-fonts/inter";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Alert, BackHandler, Platform } from "react-native";
+import { ActivityIndicator, Alert, BackHandler, Platform, View } from "react-native";
 import { Provider } from "react-redux";
 import AppNavigator from "./src/navigation/AppNavigator";
 import Toast from "react-native-toast-message";
+import { colors } from "./src/constants/theme";
 import { toastConfig } from "./src/utils/toast";
 import { logout } from "./src/redux/authSlice";
 import { store } from "./src/redux/store";
@@ -77,6 +79,13 @@ function SocketBridge() {
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -88,6 +97,14 @@ export default function App() {
     });
     return () => subscription.remove();
   }, []);
+
+  if (!fontsLoaded && !fontError) {
+    return (
+      <View style={{ alignItems: "center", backgroundColor: colors.background, flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <Provider store={store}>

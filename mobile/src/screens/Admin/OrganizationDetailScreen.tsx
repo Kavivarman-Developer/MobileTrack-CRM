@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { Badge, Button, Empty, IosScreenHeader, Screen } from "../../components/Layout";
+import { ios } from "../../constants/ios";
+import { fonts, radius, shadows, spacing } from "../../constants/theme";
 import { blockAdminUser, getAdminOrganization, getAdminOrganizationUsers, unblockAdminUser, updateAdminOrganization } from "../../services/api";
 
 export default function OrganizationDetailScreen({ navigation, route }: any) {
@@ -44,18 +45,17 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
   const organization = detail.data?.organization;
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: ios.bg }}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons color={colors.text} name="chevron-back" size={20} />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>TENANT DETAIL</Text>
-            <Text style={styles.title}>{organization?.name || "Organization"}</Text>
-          </View>
-        </View>
+        <IosScreenHeader
+          eyebrow="Tenant detail"
+          left={(
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Ionicons color={ios.label} name="chevron-back" size={20} />
+            </TouchableOpacity>
+          )}
+          title={organization?.name || "Organization"}
+        />
 
         {detail.isLoading && <Empty icon="business-outline" text="Loading organization details..." />}
 
@@ -147,7 +147,7 @@ export default function OrganizationDetailScreen({ navigation, route }: any) {
 function Metric({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string | number }) {
   return (
     <View style={styles.metric}>
-      <Ionicons color={colors.primary} name={icon} size={20} />
+      <Ionicons color={ios.blue} name={icon} size={20} />
       <Text numberOfLines={1} style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
@@ -168,48 +168,43 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xl },
-  header: { alignItems: "center", flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  headerCopy: { flex: 1 },
-  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
-  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, marginTop: 2 },
+  backButton: { alignItems: "center", backgroundColor: ios.fill, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  metric: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, minHeight: 100, padding: spacing.md, width: "48%", ...shadows.card },
-  metricValue: { color: colors.text, fontSize: 17, fontWeight: "700", marginTop: spacing.xs },
-  metricLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  metric: { backgroundColor: ios.card, borderRadius: 16, minHeight: 100, padding: spacing.md, width: "48%" },
+  metricValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 17, fontWeight: "700", marginTop: spacing.xs },
+  metricLabel: { color: ios.secondary, fontSize: 12, marginTop: 2 },
 
-  panel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  sectionTitle: { color: colors.text, ...typography.h3, marginBottom: spacing.sm },
-  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs, marginTop: spacing.sm },
+  panel: { backgroundColor: ios.card, borderRadius: 16, marginBottom: spacing.md, padding: spacing.md },
+  sectionTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16, fontWeight: "600", marginBottom: spacing.sm },
+  fieldLabel: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600", marginBottom: spacing.xs, marginTop: spacing.sm },
 
-  subscriptionCard: { backgroundColor: colors.surfaceTint, borderRadius: radius.sm, marginBottom: spacing.md, padding: spacing.md },
-  subscriptionTitle: { color: colors.text, fontSize: 15, fontWeight: "700", marginBottom: 2, textTransform: "capitalize" },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  metaReason: { color: colors.danger, fontSize: 12, marginTop: 2 },
+  subscriptionCard: { backgroundColor: ios.fill, borderRadius: 12, marginBottom: spacing.md, padding: spacing.md },
+  subscriptionTitle: { color: ios.label, fontSize: 15, fontWeight: "700", marginBottom: 2, textTransform: "capitalize" },
+  meta: { color: ios.secondary, fontSize: 12, marginTop: 2 },
+  metaReason: { color: ios.red, fontSize: 12, marginTop: 2 },
 
   settingRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   settingCopy: { flex: 1 },
-  togglePill: { backgroundColor: colors.border, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 52 },
-  togglePillOn: { backgroundColor: colors.greenSoft },
-  toggleKnob: { backgroundColor: colors.surface, borderRadius: radius.pill, height: 24, width: 24, ...shadows.card },
-  toggleKnobOn: { alignSelf: "flex-end", backgroundColor: colors.success },
+  togglePill: { backgroundColor: ios.fill, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 52 },
+  togglePillOn: { backgroundColor: "#E8F8ED" },
+  toggleKnob: { backgroundColor: ios.card, borderRadius: radius.pill, height: 24, width: 24, ...shadows.card },
+  toggleKnobOn: { alignSelf: "flex-end", backgroundColor: ios.green },
 
   segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
-  choice: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: 6 },
-  choiceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  choiceText: { color: colors.text, fontSize: 12, fontWeight: "500" },
-  choiceTextActive: { color: colors.primary, fontWeight: "700" },
+  choice: { backgroundColor: ios.fill, borderRadius: 10, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  choiceActive: { backgroundColor: ios.blue },
+  choiceText: { color: ios.label, fontSize: 12, fontWeight: "600" },
+  choiceTextActive: { color: "#fff", fontWeight: "700" },
 
-  userRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingVertical: spacing.sm },
+  userRow: { alignItems: "center", borderTopColor: ios.separator, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingVertical: spacing.sm },
   userInfo: { flex: 1 },
   userNameLine: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
-  userName: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  userName: { color: ios.label, fontSize: 14, fontWeight: "600" },
   userActions: { alignItems: "flex-end", gap: spacing.xs },
-  userActionButton: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: 4 },
-  blockButton: { backgroundColor: colors.redSoft },
-  unblockButton: { backgroundColor: colors.greenSoft },
+  userActionButton: { borderRadius: 8, paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: 4 },
+  blockButton: { backgroundColor: "#FFEBEA" },
+  unblockButton: { backgroundColor: "#E8F8ED" },
   userActionText: { fontSize: 12, fontWeight: "600" },
-  blockText: { color: colors.danger },
+  blockText: { color: ios.red },
 });

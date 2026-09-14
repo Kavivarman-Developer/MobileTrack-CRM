@@ -232,8 +232,33 @@ export type AdminOrganizationRow = {
   };
 };
 
-export async function login(email: string, password: string) {
-  const { data } = await api.post("/auth/login", { email, password });
+export type AuthLookupResult = {
+  exists: boolean;
+  kind: "email" | "phone";
+  email?: string;
+  phone?: string;
+  nameHint?: string;
+  authProvider?: string;
+};
+
+export async function lookupAccount(identifier: string) {
+  const { data } = await api.post<AuthLookupResult>("/auth/lookup", { identifier });
+  return data;
+}
+
+export async function login(identifier: string, password: string) {
+  const { data } = await api.post("/auth/login", { identifier, email: identifier, password });
+  return data;
+}
+
+export async function registerShop(payload: {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  businessName?: string;
+}) {
+  const { data } = await api.post("/auth/register", payload);
   return data;
 }
 
@@ -259,6 +284,26 @@ export async function googleLogin(idToken: string, businessName?: string) {
 
 export async function getDashboard(params?: { dateFrom?: string; dateTo?: string }) {
   const { data } = await api.get("/dashboard", { params });
+  return data;
+}
+
+export type HomeBanner = {
+  _id?: string;
+  enabled: boolean;
+  title: string;
+  message: string;
+  ctaLabel?: string;
+  ctaAction?: string;
+  tone?: "promo" | "info" | "warning";
+};
+
+export async function getAdminHomeBanner() {
+  const { data } = await api.get<HomeBanner>("/admin/home-banner");
+  return data;
+}
+
+export async function updateAdminHomeBanner(payload: Partial<HomeBanner>) {
+  const { data } = await api.put<HomeBanner>("/admin/home-banner", payload);
   return data;
 }
 

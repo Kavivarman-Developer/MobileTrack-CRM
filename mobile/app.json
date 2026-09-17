@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Retail Manager",
+    "name": "Kadai Kanakku",
     "slug": "mobile",
     "scheme": "mobiletrackcrm",
     "version": "1.0.0",
@@ -39,7 +39,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Retail Manager to access the camera to scan product barcodes."
+          "cameraPermission": "Allow Kadai Kanakku to access the camera to scan product barcodes."
         }
       ]
     ]

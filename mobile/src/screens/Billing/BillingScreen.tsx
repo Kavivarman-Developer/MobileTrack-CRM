@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     backgroundColor: ios.fill,
     borderRadius: radius.md,
     marginRight: spacing.xs,
-    minHeight: 56,
+    minHeight: 40,
     padding: spacing.sm,
     width: 140,
   },
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   productCard: {
     backgroundColor: ios.fill,
     borderRadius: radius.md,
-    height: 110,
+    height: 88,
     marginRight: spacing.xs,
     marginTop: spacing.xs,
     padding: spacing.sm,

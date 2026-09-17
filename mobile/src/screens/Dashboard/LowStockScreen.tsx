@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Empty, IosScreenHeader, IosSearchBar, Screen } from "../../components/Layout";
 import { ios } from "../../constants/ios";
-import { fonts } from "../../constants/theme";
+import { fonts, spacing } from "../../constants/theme";
 import { getProducts, Product } from "../../services/api";
 
 export default function LowStockScreen() {
@@ -108,27 +108,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 40,
   },
-  listContent: { paddingBottom: 40 },
+  listContent: { paddingBottom: spacing.xxxl },
   countLabel: {
     color: ios.secondary,
     fontFamily: fonts.medium,
     fontSize: 13,
-    marginBottom: 12,
-    marginTop: 4,
+    marginBottom: spacing.sm,
+    marginTop: spacing.xxs,
   },
-  gridRow: { gap: 10, marginBottom: 10 },
+  gridRow: { gap: 8, marginBottom: 8 },
   card: {
     backgroundColor: ios.card,
     borderRadius: 16,
     flex: 1,
     maxWidth: "32%",
-    padding: 8,
+    padding: spacing.xs,
   },
   imageWrap: {
     backgroundColor: ios.fill,
     borderRadius: 12,
     height: 86,
-    marginBottom: 8,
+    marginBottom: spacing.xs,
     overflow: "hidden",
     position: "relative",
     width: "100%",
@@ -139,17 +139,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF9500E6",
     borderRadius: 999,
     bottom: 6,
-    paddingHorizontal: 7,
+    paddingHorizontal: spacing.xs,
     paddingVertical: 2,
     position: "absolute",
     right: 6,
   },
   qtyBadgeOut: { backgroundColor: "#EF4444E6" },
   qtyText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 11 },
-  name: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: -0.2, lineHeight: 15, minHeight: 30 },
+  name: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: -0.2, lineHeight: 15, minHeight: 24 },
   sku: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 10, marginTop: 2 },
-  barTrack: { backgroundColor: ios.fill, borderRadius: 999, height: 4, marginTop: 8, overflow: "hidden", width: "100%" },
+  barTrack: { backgroundColor: ios.fill, borderRadius: 999, height: 4, marginTop: spacing.xs, overflow: "hidden", width: "100%" },
   barFill: { backgroundColor: ios.orange, borderRadius: 999, height: 4 },
   barOut: { backgroundColor: ios.red },
-  meta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 10, marginTop: 6 },
+  meta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 10, marginTop: 5 },
 });

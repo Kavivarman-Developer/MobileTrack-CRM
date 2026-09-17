@@ -24,6 +24,7 @@ import ReportsScreen from "../screens/Reports/ReportsScreen";
 import QuickSaleScreen from "../screens/Sales/QuickSaleScreen";
 import SalesScreen from "../screens/Sales/SalesScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
+import GroceryStoreScreen from "../screens/Store/GroceryStoreScreen";
 import VendorsScreen from "../screens/Vendors/VendorsScreen";
 
 const Tab = createBottomTabNavigator();
@@ -125,6 +126,7 @@ export default function AppNavigator() {
           <Stack.Screen name="OrganizationDetail" component={OrganizationDetailScreen} />
         </>
       ) : <Stack.Screen name="Login" component={LoginScreen} />}
+      <Stack.Screen name="GroceryStore" component={GroceryStoreScreen} />
     </Stack.Navigator>
   );
 }

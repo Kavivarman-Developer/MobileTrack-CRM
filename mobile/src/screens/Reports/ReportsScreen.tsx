@@ -91,7 +91,7 @@ export default function ReportsScreen({ navigation }: any) {
   const data = report.data;
   const salesRows = data?.sales.daily || [];
   const chartRows = salesRows.length ? salesRows : [{ date: "No data", totalSales: 0, totalProfit: 0, invoiceCount: 0 }];
-  const chartWidth = Math.max(Dimensions.get("window").width - spacing.md * 4, 300);
+  const chartWidth = Math.min(Math.max(Dimensions.get("window").width - spacing.md * 4, 300), 960);
 
   async function handleDownload(format: "pdf" | "excel") {
     setDownloading(format);
@@ -440,17 +440,17 @@ const styles = StyleSheet.create({
   filters: { flexDirection: "row", gap: spacing.sm },
   filterHalf: { flex: 1 },
 
-  heroActions: { flexDirection: "row", gap: 8, marginTop: spacing.md },
+  heroActions: { flexDirection: "row", gap: spacing.xs, marginTop: spacing.md },
   heroCta: {
     alignItems: "center",
     backgroundColor: ios.fill,
     borderRadius: radius.md,
     flex: 1,
     flexDirection: "row",
-    gap: 6,
+    gap: 5,
     justifyContent: "center",
     minHeight: 44,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.sm,
   },
   heroCtaText: { color: ios.navy, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   downloadBusy: { opacity: 0.6 },
@@ -459,18 +459,18 @@ const styles = StyleSheet.create({
     backgroundColor: ios.fill,
     borderRadius: radius.md,
     marginBottom: spacing.md,
-    padding: 3,
+    padding: 2,
   },
   tabTrack: {
     flexDirection: "row",
-    gap: 4,
+    gap: spacing.xxs,
   },
   tabPill: {
     alignItems: "center",
     borderRadius: radius.sm,
     justifyContent: "center",
     minHeight: 34,
-    paddingHorizontal: 14,
+    paddingHorizontal: 11,
   },
   tabPillOn: { backgroundColor: ios.card },
   tabText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },

@@ -262,6 +262,11 @@ export async function registerShop(payload: {
   return data;
 }
 
+export async function firebaseLogin(idToken: string, name?: string, businessName?: string) {
+  const { data } = await api.post("/auth/firebase", { idToken, name, businessName });
+  return data;
+}
+
 export async function getForgotPasswordStatus(email: string) {
   const { data } = await api.get<{ enabled: boolean }>("/auth/forgot-password/status", { params: { email } });
   return data;
@@ -309,6 +314,43 @@ export async function updateAdminHomeBanner(payload: Partial<HomeBanner>) {
 
 export async function getProducts(search = "") {
   const { data } = await api.get<Product[]>("/inventory/products", { params: { search } });
+  return data;
+}
+
+export type StoreProduct = Pick<Product, "_id" | "name" | "images" | "unit" | "stockQty" | "category" | "brand"> & {
+  price: number;
+};
+
+export type StoreCatalog = {
+  store: { _id: string; name: string };
+  products: StoreProduct[];
+};
+
+export type GuestCheckoutPayload = {
+  customer: {
+    name: string;
+    phone: string;
+    email?: string;
+    address: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  items: { productId: string; qty: number }[];
+};
+
+export async function getStoreProducts(search = "") {
+  const { data } = await api.get<StoreCatalog>("/store/products", { params: { search } });
+  return data;
+}
+
+export async function createGuestStoreOrder(payload: GuestCheckoutPayload) {
+  const { data } = await api.post("/store/guest-orders", payload);
+  return data;
+}
+
+export async function verifyGuestStoreOrder(orderId: string) {
+  const { data } = await api.get(`/store/guest-orders/${encodeURIComponent(orderId)}/verify`);
   return data;
 }
 

@@ -14,7 +14,7 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
-        <Text style={styles.shop}>Retail Manager</Text>
+        <Text style={styles.shop}>Kadai Kanakku</Text>
         <Text style={styles.name}>{user?.name || "Shop owner"}</Text>
         <Text style={styles.email}>{user?.email || ""}</Text>
         {user?.role ? (

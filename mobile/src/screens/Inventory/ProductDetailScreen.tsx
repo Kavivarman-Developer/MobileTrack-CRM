@@ -97,7 +97,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
           )}
           right={(
             <TouchableOpacity onPress={() => setRestockOpen(true)} style={styles.restockButton}>
-              <Ionicons color="#ffffff" name="add-circle-outline" size={16} style={{ marginRight: 4 }} />
+              <Ionicons color="#ffffff" name="add-circle-outline" size={16} style={{ marginRight: spacing.xxs }} />
               <Text style={styles.restockText}>Restock</Text>
             </TouchableOpacity>
           )}
@@ -190,7 +190,7 @@ function AccessoryCard({ item }: { item: Product }) {
       {item.images?.[0] ? <Image source={{ uri: item.images[0] }} style={styles.accessoryImage} /> : <View style={styles.accessoryInitial}><Text style={styles.heroInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text></View>}
       <Text numberOfLines={2} style={styles.accessoryName}>{item.name}</Text>
       <Text style={styles.accessoryPrice}>₹{formatMoney(item.price)}</Text>
-      <View style={{ marginTop: 4 }}>
+      <View style={{ marginTop: spacing.xxs }}>
         <Badge label={stockLabel(item)} tone={tone} />
       </View>
     </View>
@@ -224,12 +224,12 @@ const styles = StyleSheet.create({
   barcodeWrap: { alignItems: "center" },
   barcodeBox: { backgroundColor: "#ffffff", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md },
   barcodeValue: { color: colors.text, fontSize: 14, fontWeight: "700", letterSpacing: 1 },
-  barcodeHint: { color: colors.muted, fontSize: 12, marginTop: 4, marginBottom: spacing.sm, textAlign: "center" },
+  barcodeHint: { color: colors.muted, fontSize: 12, marginTop: spacing.xxs, marginBottom: spacing.sm, textAlign: "center" },
 
   accessoryCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, padding: spacing.sm, width: 130 },
   accessoryImage: { borderRadius: radius.sm, height: 60, marginBottom: spacing.xs, width: "100%" },
   accessoryInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 60, justifyContent: "center", marginBottom: spacing.xs, width: "100%" },
-  accessoryName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  accessoryName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 27 },
   accessoryPrice: { color: colors.text, fontWeight: "700", marginTop: 2 },
 
   movementRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.sm, alignItems: "center" },

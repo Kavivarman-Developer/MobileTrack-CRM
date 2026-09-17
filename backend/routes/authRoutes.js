@@ -1,6 +1,15 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const { forgotPasswordStatus, googleLogin, lookupAccount, login, register, requestPasswordReset, resetPassword } = require("../controllers/authController");
+const {
+  forgotPasswordStatus,
+  googleLogin,
+  firebaseLogin,
+  lookupAccount,
+  login,
+  register,
+  requestPasswordReset,
+  resetPassword,
+} = require("../controllers/authController");
 
 const router = express.Router();
 
@@ -17,6 +26,7 @@ router.post("/lookup", authLimiter, lookupAccount);
 router.post("/register", authLimiter, register);
 router.post("/login", authLimiter, login);
 router.post("/google", googleLogin);
+router.post("/firebase", authLimiter, firebaseLogin);
 router.get("/forgot-password/status", forgotPasswordStatus);
 router.post("/forgot-password/request", authLimiter, requestPasswordReset);
 router.post("/forgot-password/reset", authLimiter, resetPassword);

@@ -1,4 +1,6 @@
 require("dotenv").config();
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const http = require("http");
 const cors = require("cors");
 const express = require("express");
@@ -34,6 +36,7 @@ app.use("/uploads", express.static("uploads"));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/store", require("./routes/storeRoutes"));
 app.use("/api/inventory", require("./routes/inventoryRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/manual-orders", require("./routes/manualOrders"));

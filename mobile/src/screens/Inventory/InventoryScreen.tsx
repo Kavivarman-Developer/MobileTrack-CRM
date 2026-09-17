@@ -6,10 +6,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { z } from "zod";
-import { Button, Empty, FabButton, Field, FilterChipRow, IconButton, IosFormSheet, IosScreenHeader, IosSearchBar, Screen, SelectOption, StatStrip } from "../../components/Layout";
+import { Badge, Button, Empty, FabButton, Field, FilterChipRow, IconButton, IosFormSheet, IosScreenHeader, IosSearchBar, Screen, SelectOption, StatStrip } from "../../components/Layout";
 import { ios } from "../../constants/ios";
 import { radius, spacing } from "../../constants/theme";
-import { createInventoryAdjustment, createProduct, createVendor, getProducts, getVendors, Product, updateProduct, uploadProductImage, Vendor } from "../../services/api";
+import { apiErrorMessage, createInventoryAdjustment, createProduct, createVendor, getProducts, getVendors, Product, updateProduct, uploadProductImage, Vendor } from "../../services/api";
 
 const blank = {
   itemType: "goods" as "goods" | "service",
@@ -133,7 +133,7 @@ export default function InventoryScreen() {
         reason: "Quick stock adjust",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
-    onError: (error: Error) => Alert.alert("Stock update failed", error.message),
+    onError: (error: Error) => Alert.alert("Stock update failed", apiErrorMessage(error)),
   });
 
   const viewProducts = useMemo(() => {
@@ -201,7 +201,7 @@ export default function InventoryScreen() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       closeForm();
     },
-    onError: (error: Error) => Alert.alert("Save failed", error.message),
+    onError: (error: Error) => Alert.alert("Save failed", apiErrorMessage(error)),
   });
 
   function openForm(product?: Product) {

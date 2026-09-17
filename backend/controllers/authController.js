@@ -1,4 +1,5 @@
 const { OAuth2Client } = require("google-auth-library");
+const admin = require("../config/firebase");
 const Organization = require("../models/Organization");
 const User = require("../models/User");
 const { signAccessToken, signRefreshToken, hashResetToken, createPasswordResetToken } = require("../utils/tokens");
@@ -311,4 +312,60 @@ async function googleLogin(req, res, next) {
   }
 }
 
-module.exports = { lookupAccount, register, login, googleLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };
+async function firebaseLogin(req, res, next) {
+  try {
+    const { idToken, name, businessName } = req.body;
+    if (!idToken) return res.status(400).json({ message: "Firebase ID token is required" });
+
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const { uid, email, phone_number: phoneNumber } = decoded;
+    const cleanEmail = email ? email.toLowerCase() : "";
+    const cleanPhone = phoneNumber ? normalizePhone(phoneNumber) : "";
+
+    let user = await User.findOne({ firebaseUid: uid });
+    if (!user && cleanEmail) user = await User.findOne({ email: cleanEmail });
+    if (!user && cleanPhone) user = await findUserByPhone(cleanPhone);
+
+    if (user) {
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+      }
+      user.firebaseUid = user.firebaseUid || uid;
+      user.authProvider = "firebase";
+      if (cleanEmail && !user.email) user.email = cleanEmail;
+      if (cleanPhone && !user.phone) user.phone = cleanPhone;
+      if (!user.organizationId && user.role !== "superadmin") {
+        const organization = await Organization.create({ name: businessName || `${user.name}'s Business`, ownerUserId: user._id });
+        user.organizationId = organization._id;
+      }
+      return res.json(await authPayload(user));
+    }
+
+    if (!name) return res.status(400).json({ message: "Name is required for new accounts" });
+
+    const organization = await Organization.create({ name: businessName || `${name}'s Shop` });
+    user = await User.create({
+      name: String(name).trim(),
+      email: cleanEmail || undefined,
+      phone: cleanPhone || undefined,
+      role: "admin",
+      organizationId: organization._id,
+      authProvider: "firebase",
+      firebaseUid: uid,
+    });
+    organization.ownerUserId = user._id;
+    await organization.save();
+    res.status(201).json(await authPayload(user));
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
+    next(error);
+  }
+}
+
+module.exports = { lookupAccount, register, login, googleLogin, firebaseLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };

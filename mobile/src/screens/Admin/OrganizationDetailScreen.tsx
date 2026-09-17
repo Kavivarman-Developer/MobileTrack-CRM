@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   backButton: { alignItems: "center", backgroundColor: ios.fill, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
-  metric: { backgroundColor: ios.card, borderRadius: 16, minHeight: 100, padding: spacing.md, width: "48%" },
+  metric: { backgroundColor: ios.card, borderRadius: 16, minHeight: 80, padding: spacing.md, width: "48%" },
   metricValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 17, fontWeight: "700", marginTop: spacing.xs },
   metricLabel: { color: ios.secondary, fontSize: 12, marginTop: 2 },
 
@@ -186,13 +186,13 @@ const styles = StyleSheet.create({
 
   settingRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   settingCopy: { flex: 1 },
-  togglePill: { backgroundColor: ios.fill, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 3, width: 52 },
+  togglePill: { backgroundColor: ios.fill, borderRadius: radius.pill, height: 30, justifyContent: "center", paddingHorizontal: 2, width: 52 },
   togglePillOn: { backgroundColor: "#E8F8ED" },
   toggleKnob: { backgroundColor: ios.card, borderRadius: radius.pill, height: 24, width: 24, ...shadows.card },
   toggleKnobOn: { alignSelf: "flex-end", backgroundColor: ios.green },
 
   segment: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
-  choice: { backgroundColor: ios.fill, borderRadius: 10, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  choice: { backgroundColor: ios.fill, borderRadius: 10, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   choiceActive: { backgroundColor: ios.blue },
   choiceText: { color: ios.label, fontSize: 12, fontWeight: "600" },
   choiceTextActive: { color: "#fff", fontWeight: "700" },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   userNameLine: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
   userName: { color: ios.label, fontSize: 14, fontWeight: "600" },
   userActions: { alignItems: "flex-end", gap: spacing.xs },
-  userActionButton: { borderRadius: 8, paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: 4 },
+  userActionButton: { borderRadius: 8, paddingHorizontal: spacing.sm, paddingVertical: 5, marginTop: spacing.xxs },
   blockButton: { backgroundColor: "#FFEBEA" },
   unblockButton: { backgroundColor: "#E8F8ED" },
   userActionText: { fontSize: 12, fontWeight: "600" },

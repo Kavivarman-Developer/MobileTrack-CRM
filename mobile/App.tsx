@@ -1,5 +1,12 @@
 import "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from "@expo-google-fonts/inter";
+import {
+  NunitoSans_400Regular,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+} from "@expo-google-fonts/nunito-sans";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -80,10 +87,15 @@ function SocketBridge() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    NunitoSans_400Regular,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
   });
 
   useEffect(() => {
@@ -98,7 +110,7 @@ export default function App() {
     return () => subscription.remove();
   }, []);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError && Platform.OS !== "web") {
     return (
       <View style={{ alignItems: "center", backgroundColor: colors.background, flex: 1, justifyContent: "center" }}>
         <ActivityIndicator color={colors.primary} />

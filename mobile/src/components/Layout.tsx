@@ -17,7 +17,11 @@ import { ios } from "../constants/ios";
 import { colors, fonts, radius, shadows, spacing, typography } from "../constants/theme";
 
 export function Screen({ children, style }: { children: ReactNode; style?: any }) {
-  return <SafeAreaView edges={["top", "left", "right"]} style={[styles.screen, style]}>{children}</SafeAreaView>;
+  return (
+    <SafeAreaView edges={["top", "left", "right"]} style={[styles.screen, style]}>
+      <View style={styles.screenInner}>{children}</View>
+    </SafeAreaView>
+  );
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: any }) {
@@ -313,45 +317,47 @@ export function IosFormSheet({
   return (
     <Modal animationType="slide" onRequestClose={onClose} visible={visible}>
       <SafeAreaView edges={["top", "left", "right", "bottom"]} style={styles.formSheet}>
-        <View style={styles.formSheetGrabRow}>
-          <View style={styles.sheetHandle} />
+        <View style={styles.formSheetContainer}>
+          <View style={styles.formSheetGrabRow}>
+            <View style={styles.sheetHandle} />
+          </View>
+          <View style={styles.formSheetHeader}>
+            <View style={styles.formSheetIcon}>
+              <Ionicons color={ios.blue} name={icon} size={20} />
+            </View>
+            <View style={styles.formSheetCopy}>
+              {eyebrow ? <Text style={styles.iosGreeting}>{eyebrow}</Text> : null}
+              <Text style={styles.formSheetTitle}>{title}</Text>
+            </View>
+            <Pressable accessibilityLabel="Close" onPress={onClose} style={({ pressed }) => [styles.sheetClose, pressed && styles.buttonPressed]}>
+              <Ionicons color={ios.label} name="close" size={18} />
+            </Pressable>
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.formSheetBody}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.formSheetCard}>{children}</View>
+          </ScrollView>
+          {footer ? (
+            <View style={styles.formSheetFooter}>{footer}</View>
+          ) : footerLabel && onFooterPress ? (
+            <View style={styles.formSheetFooter}>
+              <TouchableOpacity
+                disabled={footerDisabled || footerLoading}
+                onPress={onFooterPress}
+                style={[styles.formSheetSave, (footerDisabled || footerLoading) && styles.buttonDisabled]}
+              >
+                {footerLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.formSheetSaveText}>{footerLabel}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
-        <View style={styles.formSheetHeader}>
-          <View style={styles.formSheetIcon}>
-            <Ionicons color={ios.blue} name={icon} size={22} />
-          </View>
-          <View style={styles.formSheetCopy}>
-            {eyebrow ? <Text style={styles.iosGreeting}>{eyebrow}</Text> : null}
-            <Text style={styles.formSheetTitle}>{title}</Text>
-          </View>
-          <Pressable accessibilityLabel="Close" onPress={onClose} style={({ pressed }) => [styles.sheetClose, pressed && styles.buttonPressed]}>
-            <Ionicons color={ios.label} name="close" size={20} />
-          </Pressable>
-        </View>
-        <ScrollView
-          contentContainerStyle={styles.formSheetBody}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.formSheetCard}>{children}</View>
-        </ScrollView>
-        {footer ? (
-          <View style={styles.formSheetFooter}>{footer}</View>
-        ) : footerLabel && onFooterPress ? (
-          <View style={styles.formSheetFooter}>
-            <TouchableOpacity
-              disabled={footerDisabled || footerLoading}
-              onPress={onFooterPress}
-              style={[styles.formSheetSave, (footerDisabled || footerLoading) && styles.buttonDisabled]}
-            >
-              {footerLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.formSheetSaveText}>{footerLabel}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : null}
       </SafeAreaView>
     </Modal>
   );
@@ -614,7 +620,15 @@ const statTone = {
 } as const;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: ios.bg, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  screen: { flex: 1, backgroundColor: ios.bg },
+  screenInner: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
   card: {
     backgroundColor: ios.card,
     borderRadius: radius.lg,
@@ -633,94 +647,94 @@ const styles = StyleSheet.create({
   pageTitle: { color: ios.label, ...typography.h1, marginTop: 2 },
 
   iosHeader: { alignItems: "flex-start", flexDirection: "row", marginBottom: spacing.md },
-  iosHeaderSide: { marginRight: spacing.sm, marginTop: 6 },
+  iosHeaderSide: { marginRight: spacing.sm, marginTop: 4 },
   iosHeaderCopy: { flex: 1, paddingRight: spacing.sm },
   iosGreeting: { color: ios.purpleEyebrow, fontFamily: fonts.semibold, fontSize: 11, fontWeight: "600", letterSpacing: 0.8, textTransform: "uppercase" },
-  iosTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 28, fontWeight: "700", letterSpacing: -0.6, marginTop: 2 },
+  iosTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 24, fontWeight: "700", letterSpacing: -0.5, marginTop: 2 },
   iosAdd: {
     alignItems: "center",
     backgroundColor: ios.blue,
-    borderRadius: 14,
-    height: 40,
+    borderRadius: 12,
+    height: 38,
     justifyContent: "center",
-    marginTop: 4,
-    width: 40,
+    marginTop: 2,
+    width: 38,
   },
 
-  searchRow: { alignItems: "center", flexDirection: "row", gap: 10, marginBottom: spacing.sm },
+  searchRow: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: spacing.sm },
   iosSearch: {
     alignItems: "center",
     backgroundColor: ios.card,
     borderColor: ios.separator,
-    borderRadius: radius.md,
+    borderRadius: 12,
     borderWidth: 1,
     flex: 1,
     flexDirection: "row",
     gap: 8,
-    minHeight: 48,
-    paddingHorizontal: 14,
+    minHeight: 44,
+    paddingHorizontal: 12,
     ...shadows.card,
   },
-  iosSearchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 44, paddingHorizontal: 0 },
+  iosSearchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 40, paddingHorizontal: 0, fontSize: 14 },
   filterBtn: {
     alignItems: "center",
     backgroundColor: ios.card,
     borderColor: ios.separator,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    height: 48,
+    height: 44,
     justifyContent: "center",
-    width: 48,
+    width: 44,
     ...shadows.card,
   },
 
-  statStrip: { flexDirection: "row", gap: 10, marginBottom: spacing.md },
+  statStrip: { flexDirection: "row", gap: 8, marginBottom: spacing.md },
   statCard: {
     backgroundColor: ios.card,
-    borderRadius: radius.md,
+    borderRadius: 12,
     flex: 1,
     paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingVertical: 10,
     ...shadows.card,
   },
   statIcon: {
     alignItems: "center",
-    borderRadius: 10,
-    height: 28,
+    borderRadius: 8,
+    height: 26,
     justifyContent: "center",
-    marginBottom: 8,
-    width: 28,
+    marginBottom: 6,
+    width: 26,
   },
-  statValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 18, fontWeight: "700", letterSpacing: -0.3 },
+  statValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700", letterSpacing: -0.3 },
   statLabel: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
 
-  chipRow: { gap: 8, paddingBottom: spacing.sm },
+  chipRow: { gap: 6, paddingBottom: spacing.sm },
   filterChip: {
     borderRadius: radius.pill,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   statusChip: { backgroundColor: ios.card, borderColor: "#E2E4EE" },
   statusChipOn: { backgroundColor: ios.navy, borderColor: ios.navy },
-  statusChipText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  statusChipText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
   statusChipTextOn: { color: "#FFFFFF" },
   categoryChip: { backgroundColor: ios.card, borderColor: "#E2E4EE" },
   categoryChipOn: { backgroundColor: ios.purpleSoft, borderColor: ios.purple },
-  categoryChipText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  categoryChipText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
   categoryChipTextOn: { color: ios.purple },
-  filterChipText: { fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  filterChipText: { fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
 
   fab: {
     alignItems: "center",
     backgroundColor: ios.blue,
     borderRadius: 18,
     bottom: 24,
-    height: 58,
+    height: 54,
     justifyContent: "center",
     position: "absolute",
     right: 20,
-    width: 58,
+    width: 54,
     zIndex: 20,
     ...shadows.floating,
   },
@@ -729,71 +743,78 @@ const styles = StyleSheet.create({
     backgroundColor: ios.dark,
     borderRadius: radius.xl,
     marginBottom: spacing.md,
-    padding: spacing.lg,
+    padding: spacing.md,
+    width: "100%",
   },
-  iosHeroOverline: { color: "rgba(255,255,255,0.55)", fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" },
-  iosHeroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 34, fontWeight: "700", letterSpacing: -1, marginTop: 6 },
-  iosHeroSub: { color: "rgba(255,255,255,0.65)", fontFamily: fonts.medium, fontSize: 14, marginTop: 4 },
-  iosHeroPills: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  iosHeroOverline: { color: "rgba(255,255,255,0.55)", fontFamily: fonts.semibold, fontSize: 11.5, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" },
+  iosHeroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 30, fontWeight: "700", letterSpacing: -0.8, marginTop: 4 },
+  iosHeroSub: { color: "rgba(255,255,255,0.65)", fontFamily: fonts.medium, fontSize: 13, marginTop: 2 },
+  iosHeroPills: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   iosHeroPill: {
     backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: radius.pill,
     color: "#FFFFFF",
     fontFamily: fonts.semibold,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "600",
     overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   iosHeroCta: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: radius.md,
+    borderRadius: 12,
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     justifyContent: "center",
-    marginTop: 16,
-    minHeight: 48,
-    paddingHorizontal: 16,
+    marginTop: 12,
+    minHeight: 44,
+    paddingHorizontal: 14,
   },
-  iosHeroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 15, fontWeight: "600" },
+  iosHeroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600" },
 
   iosSegment: {
     backgroundColor: ios.fill,
-    borderRadius: radius.md,
+    borderRadius: 10,
     flexDirection: "row",
     marginBottom: spacing.sm,
     padding: 3,
   },
-  iosSegmentItem: { alignItems: "center", borderRadius: radius.sm, flex: 1, minHeight: 34, justifyContent: "center" },
+  iosSegmentItem: { alignItems: "center", borderRadius: 8, flex: 1, minHeight: 32, justifyContent: "center" },
   iosSegmentItemOn: { backgroundColor: ios.card, ...shadows.card },
-  iosSegmentText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  iosSegmentText: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
   iosSegmentTextOn: { color: ios.label },
 
   formSheet: { backgroundColor: ios.bg, flex: 1 },
-  formSheetGrabRow: { alignItems: "center", paddingTop: 8 },
+  formSheetContainer: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 640,
+    alignSelf: "center",
+  },
+  formSheetGrabRow: { alignItems: "center", paddingTop: 6 },
   formSheetHeader: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   formSheetIcon: {
     alignItems: "center",
     backgroundColor: colors.blueSoft,
-    borderRadius: 14,
-    height: 44,
+    borderRadius: 12,
+    height: 38,
     justifyContent: "center",
-    width: 44,
+    width: 38,
   },
   formSheetCopy: { flex: 1, paddingRight: spacing.sm },
-  formSheetTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 22, fontWeight: "700", letterSpacing: -0.4 },
+  formSheetTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 18, fontWeight: "700", letterSpacing: -0.3 },
   formSheetBody: { paddingHorizontal: spacing.md, paddingBottom: spacing.xxl },
   formSheetCard: {
     backgroundColor: ios.card,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: spacing.md,
     ...shadows.card,
   },
@@ -803,16 +824,16 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
   },
   formSheetSave: {
     alignItems: "center",
     backgroundColor: ios.blue,
-    borderRadius: 14,
+    borderRadius: 12,
     justifyContent: "center",
-    minHeight: 52,
+    minHeight: 46,
   },
-  formSheetSaveText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 16, fontWeight: "600" },
+  formSheetSaveText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 15, fontWeight: "600" },
 
   input: {
     backgroundColor: ios.fill,
@@ -821,24 +842,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     color: ios.label,
     fontFamily: fonts.medium,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "500",
     marginBottom: spacing.sm,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  inputMultiline: { minHeight: 90, paddingTop: spacing.sm, textAlignVertical: "top" },
+  inputMultiline: { minHeight: 80, paddingTop: 8, textAlignVertical: "top" },
   inputFocused: { borderColor: ios.blue, backgroundColor: "#FFFFFF" },
   inputError: { borderColor: ios.red, backgroundColor: "#FFEBEA" },
-  fieldError: { color: ios.red, fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, marginBottom: spacing.sm, marginTop: -4 },
+  fieldError: { color: ios.red, fontFamily: fonts.medium, fontSize: 11.5, lineHeight: 15, marginBottom: spacing.sm, marginTop: -4 },
 
   button: {
     alignItems: "center",
     backgroundColor: ios.blue,
-    borderRadius: 14,
+    borderRadius: 12,
     justifyContent: "center",
-    minHeight: 50,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
   },
   buttonContent: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
@@ -847,7 +868,7 @@ const styles = StyleSheet.create({
   buttonDanger: { backgroundColor: ios.red },
   buttonPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 15, fontWeight: "600", textAlign: "center" },
+  buttonText: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600", textAlign: "center" },
   buttonTextSecondary: { color: ios.label },
   buttonTextGhost: { color: ios.blue },
 
@@ -864,87 +885,90 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.blueSoft,
     borderRadius: radius.pill,
-    height: 48,
+    height: 44,
     justifyContent: "center",
     marginBottom: spacing.sm,
-    width: 48,
+    width: 44,
   },
-  empty: { color: ios.secondary, fontSize: 14, fontWeight: "500", textAlign: "center" },
+  empty: { color: ios.secondary, fontSize: 13, fontWeight: "500", textAlign: "center" },
 
   badge: {
     alignSelf: "flex-start",
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 3,
     flexDirection: "row",
     alignItems: "center",
   },
-  badgeText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  badgeText: { fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
 
   iconButton: {
     alignItems: "center",
     backgroundColor: ios.fill,
     borderRadius: radius.pill,
-    height: 40,
+    height: 38,
     justifyContent: "center",
-    width: 40,
+    width: 38,
   },
   searchFieldWrap: { justifyContent: "center", position: "relative" },
   searchFieldIcon: { left: spacing.md, position: "absolute", zIndex: 2 },
-  searchFieldInput: { marginBottom: 0, paddingLeft: 42 },
+  searchFieldInput: { marginBottom: 0, paddingLeft: 40 },
   sheetBackdrop: { backgroundColor: "rgba(0, 0, 0, 0.45)", flex: 1, justifyContent: "flex-end" },
   sheetSafe: { maxHeight: "92%" },
   sheet: {
     backgroundColor: ios.card,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     overflow: "hidden",
     paddingBottom: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    width: "100%",
+    maxWidth: 580,
+    alignSelf: "center",
     ...shadows.overlay,
   },
   sheetHandle: {
     alignSelf: "center",
     backgroundColor: "#C7C7CC",
     borderRadius: radius.pill,
-    height: 5,
-    marginBottom: spacing.md,
-    width: 40,
+    height: 4,
+    marginBottom: spacing.sm,
+    width: 36,
   },
-  sheetHeader: { alignItems: "center", flexDirection: "row", gap: 12, marginBottom: spacing.md },
+  sheetHeader: { alignItems: "center", flexDirection: "row", gap: 10, marginBottom: spacing.sm },
   sheetIconWrap: {
     alignItems: "center",
     backgroundColor: colors.blueSoft,
-    borderRadius: 14,
-    height: 44,
+    borderRadius: 12,
+    height: 38,
     justifyContent: "center",
-    width: 44,
+    width: 38,
   },
   sheetCopy: { flex: 1, paddingRight: spacing.xs },
-  sheetTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 18, fontWeight: "700", letterSpacing: -0.3 },
-  sheetHint: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13, marginTop: 2 },
+  sheetTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700", letterSpacing: -0.3 },
+  sheetHint: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 12, marginTop: 1 },
   sheetClose: {
     alignItems: "center",
     backgroundColor: ios.fill,
     borderRadius: radius.pill,
-    height: 36,
+    height: 32,
     justifyContent: "center",
-    width: 36,
+    width: 32,
   },
-  sheetBody: { paddingBottom: spacing.sm },
-  sheetFooter: { borderTopColor: ios.separator, borderTopWidth: StyleSheet.hairlineWidth, marginTop: spacing.sm, paddingTop: spacing.md },
+  sheetBody: { paddingBottom: spacing.xs },
+  sheetFooter: { borderTopColor: ios.separator, borderTopWidth: StyleSheet.hairlineWidth, marginTop: spacing.xs, paddingTop: spacing.sm },
 
   selectOption: {
     alignItems: "center",
     backgroundColor: ios.fill,
     borderRadius: 12,
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 8,
-    minHeight: 52,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 8,
+    marginBottom: 6,
+    minHeight: 46,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   selectOptionOn: {
     backgroundColor: colors.blueSoft,
@@ -952,7 +976,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   selectOptionCopy: { flex: 1 },
-  selectOptionLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 15, fontWeight: "600" },
+  selectOptionLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600" },
   selectOptionLabelOn: { color: ios.blue },
-  selectOptionMeta: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
+  selectOptionMeta: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 11.5, marginTop: 1 },
 });

@@ -1,4 +1,6 @@
 import "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from "@expo-google-fonts/inter";
 import {
@@ -119,15 +121,19 @@ export default function App() {
   }
 
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <SocketBridge />
-        <NavigationContainer ref={navigationRef}>
-          <StatusBar style="dark" />
-          <AppNavigator />
-          <Toast config={toastConfig} />
-        </NavigationContainer>
-      </QueryClientProvider>
-    </Provider>
+    <GestureHandlerRootView style={{ flex: 1, width: "100%", height: "100%" }}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <SocketBridge />
+            <NavigationContainer ref={navigationRef}>
+              <StatusBar style="dark" />
+              <AppNavigator />
+              <Toast config={toastConfig} />
+            </NavigationContainer>
+          </QueryClientProvider>
+        </Provider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

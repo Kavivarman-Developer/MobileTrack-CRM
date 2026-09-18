@@ -14,9 +14,15 @@ const firebaseConfig = {
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const firebaseAuth = getAuth(firebaseApp);
 
-if (Platform.OS === "web") {
-  const firebaseCompat = require("firebase/compat/app");
-  require("firebase/compat/auth");
-  const compat = firebaseCompat.default;
-  if (!compat.apps.length) compat.initializeApp(firebaseConfig);
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  try {
+    const firebaseCompat = require("firebase/compat/app");
+    require("firebase/compat/auth");
+    const compat = firebaseCompat.default || firebaseCompat;
+    if (compat && compat.apps && !compat.apps.length) {
+      compat.initializeApp(firebaseConfig);
+    }
+  } catch (e) {
+    console.warn("Firebase compat init warning:", e);
+  }
 }

@@ -368,4 +368,29 @@ async function firebaseLogin(req, res, next) {
   }
 }
 
-module.exports = { lookupAccount, register, login, googleLogin, firebaseLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };
+async function refreshToken(req, res, next) {
+  try {
+    const { refreshToken: token } = req.body;
+    if (!token) return res.status(400).json({ message: "Refresh token is required" });
+
+    const jwt = require("jsonwebtoken");
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user || user.isActive === false) {
+      return res.status(401).json({ message: "Account not found or blocked" });
+    }
+
+    res.json(await authPayload(user));
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
+    next(error);
+  }
+}
+
+module.exports = { lookupAccount, register, login, googleLogin, firebaseLogin, refreshToken, forgotPasswordStatus, requestPasswordReset, resetPassword };

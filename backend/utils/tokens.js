@@ -4,13 +4,19 @@ const crypto = require("crypto");
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 function signAccessToken(user) {
-  return jwt.sign({ id: user._id, role: user.role, organizationId: user.organizationId }, process.env.JWT_SECRET, { expiresIn: "15m" });
+  return jwt.sign(
+    { id: user._id, role: user.role, organizationId: user.organizationId },
+    process.env.JWT_SECRET,
+    { expiresIn: "90d" }
+  );
 }
 
 function signRefreshToken(user) {
-  return jwt.sign({ id: user._id, role: user.role, organizationId: user.organizationId }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id: user._id, role: user.role, organizationId: user.organizationId },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    { expiresIn: "365d" }
+  );
 }
 
 function hashResetToken(token) {

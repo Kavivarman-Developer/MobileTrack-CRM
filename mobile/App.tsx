@@ -19,8 +19,10 @@ import AppNavigator from "./src/navigation/AppNavigator";
 import Toast from "react-native-toast-message";
 import { colors } from "./src/constants/theme";
 import { toastConfig } from "./src/utils/toast";
-import { logout } from "./src/redux/authSlice";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logout, restoreCredentials } from "./src/redux/authSlice";
 import { store } from "./src/redux/store";
+import { useAppDispatch, useAppSelector } from "./src/hooks/redux";
 import { connectSocket, disconnectSocket } from "./src/services/socket";
 
 const queryClient = new QueryClient();
@@ -130,6 +132,41 @@ function SocketBridge() {
   return null;
 }
 
+function AuthHydrator({ children }: { children: React.ReactNode }) {
+  const dispatch = useAppDispatch();
+  const isHydrated = useAppSelector((state) => state.auth.isHydrated);
+
+  useEffect(() => {
+    async function loadStoredAuth() {
+      try {
+        const storedUser = await AsyncStorage.getItem("user");
+        const storedToken = await AsyncStorage.getItem("accessToken");
+        const storedRefresh = await AsyncStorage.getItem("refreshToken");
+
+        if (storedUser && storedToken) {
+          const user = JSON.parse(storedUser);
+          dispatch(restoreCredentials({ user, accessToken: storedToken, refreshToken: storedRefresh || undefined }));
+        } else {
+          dispatch(restoreCredentials(null));
+        }
+      } catch (e) {
+        dispatch(restoreCredentials(null));
+      }
+    }
+    loadStoredAuth();
+  }, [dispatch]);
+
+  if (!isHydrated && Platform.OS !== "web") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   const [fontsLoaded, fontError] = useFonts(
     Platform.OS === "web"
@@ -174,11 +211,13 @@ export default function App() {
           <Provider store={store}>
             <QueryClientProvider client={queryClient}>
               <SocketBridge />
-              <NavigationContainer ref={navigationRef}>
-                <StatusBar style="dark" />
-                <AppNavigator />
-                <Toast config={toastConfig} />
-              </NavigationContainer>
+              <AuthHydrator>
+                <NavigationContainer ref={navigationRef}>
+                  <StatusBar style="dark" />
+                  <AppNavigator />
+                  <Toast config={toastConfig} />
+                </NavigationContainer>
+              </AuthHydrator>
             </QueryClientProvider>
           </Provider>
         </SafeAreaProvider>

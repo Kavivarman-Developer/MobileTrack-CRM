@@ -28,7 +28,24 @@ const io = new Server(server, { cors: { origin: corsOrigin } });
 
 app.set("io", io);
 app.set("trust proxy", 1);
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'", "https:", "data:", "blob:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://apis.google.com"],
+        scriptSrcElem: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://apis.google.com"],
+        scriptSrcAttr: ["'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:", "wss:", "ws:"],
+        frameSrc: ["'self'", "https://*.cashfree.com", "https://sdk.cashfree.com"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+  })
+);
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use(morgan("dev"));

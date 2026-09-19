@@ -148,6 +148,11 @@ function renderCheckoutPage(req, res) {
   const sessionId = req.query.session_id || "";
   const isProd = process.env.CASHFREE_ENV === "production";
 
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com; script-src-elem * 'unsafe-inline' https://sdk.cashfree.com https://*.cashfree.com; script-src-attr * 'unsafe-inline'; frame-src * https://*.cashfree.com https://sdk.cashfree.com; connect-src * https://*.cashfree.com https://api.cashfree.com;"
+  );
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>

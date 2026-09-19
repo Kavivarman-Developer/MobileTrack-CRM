@@ -6,12 +6,10 @@ import { store } from "../redux/store";
 
 function resolveApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (!envUrl) {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL is not set. Set it before starting or building the app, e.g. EXPO_PUBLIC_API_URL=https://your-api.example.com/api"
-    );
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
   }
-  return envUrl;
+  return "https://kadaikanakku-775937258064.asia-south1.run.app/api";
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();

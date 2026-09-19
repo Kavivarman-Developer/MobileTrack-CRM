@@ -371,11 +371,10 @@ export default function LoginScreen() {
           <View style={styles.stepBody}>
             <View style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}>
               <View style={styles.countryPickerBox}>
-                <Text style={styles.flagEmoji}>🇮🇳</Text>
                 <Text style={[styles.countryCodeText, isDesktop && styles.desktopCountryCodeText]}>+91</Text>
-                <Ionicons color={brand.muted} name="chevron-down" size={13} style={{ marginLeft: 2 }} />
+                <Ionicons color={brand.muted} name="chevron-down" size={12} style={{ marginLeft: 2 }} />
               </View>
-              <View style={[styles.phoneInputDivider, isDesktop && { height: 28 }]} />
+              <View style={[styles.phoneInputDivider, isDesktop && { height: 22 }]} />
               <TextInput
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -1032,34 +1031,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   desktopPhoneInputContainer: {
-    minHeight: 56,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    marginBottom: 18,
+    minHeight: 48,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
   },
   desktopCountryCodeText: {
-    fontSize: 16,
+    fontSize: 15,
   },
   desktopPhoneTextInput: {
-    fontSize: 16,
-    minHeight: 52,
+    fontSize: 15,
+    minHeight: 44,
   },
   desktopInput: {
-    minHeight: 56,
-    fontSize: 16,
-    borderRadius: 16,
-    paddingLeft: 46,
+    minHeight: 48,
+    fontSize: 15,
+    borderRadius: 12,
+    paddingLeft: 44,
   },
   desktopCtaWrapper: {
-    borderRadius: 16,
-    marginTop: 6,
+    borderRadius: 12,
+    marginTop: 4,
   },
   desktopCtaGradient: {
-    minHeight: 56,
-    borderRadius: 16,
+    minHeight: 48,
+    borderRadius: 12,
   },
   desktopCtaText: {
-    fontSize: 18,
+    fontSize: 16,
   },
   desktopFeatureRow: {
     maxWidth: 580,

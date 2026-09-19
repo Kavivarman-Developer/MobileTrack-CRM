@@ -3,8 +3,18 @@ import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
+import {
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { ios } from "../../constants/ios";
 import { fonts, spacing } from "../../constants/theme";
 import { useAppSelector } from "../../hooks/redux";
@@ -24,16 +34,19 @@ export default function DashboardScreen() {
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [refreshing, setRefreshing] = useState(false);
   const dateRange = useMemo(() => getDateRange(datePreset), [datePreset]);
+
   const dashboard = useQuery({
     queryFn: () => getDashboard(dateRange),
     queryKey: ["dashboard", dateRange],
     placeholderData: (previous) => previous,
   });
+
   const monthRange = useMemo(() => getDateRange("month"), []);
   const stockSummary = useQuery({
     queryFn: () => getStockSummary({ from: monthRange.dateFrom, to: monthRange.dateTo }),
     queryKey: ["stock-summary", monthRange],
   });
+
   const data = dashboard.data;
   const movementTotals = useMemo(() => {
     const rows = stockSummary.data || [];
@@ -42,6 +55,7 @@ export default function DashboardScreen() {
       totalOut: rows.reduce((sum, row) => sum + row.totalOut, 0),
     };
   }, [stockSummary.data]);
+
   const shopName = data?.organization?.name || "Your Shop";
   const rawFirst = (user?.name || "").split(" ")[0];
   const firstName = !rawFirst || rawFirst.toLowerCase() === "admin" ? shopName.split(" ")[0] : rawFirst;
@@ -53,7 +67,9 @@ export default function DashboardScreen() {
     const drawer = navigation.getParent();
     const stack = drawer?.getParent();
     if (name === "Items" || name === "BarcodeGenerator") return drawer?.navigate(name);
-    if (name === "QuickSale" || name === "Billing" || name === "ProductDetail" || name === "LowStock") return (stack || drawer || navigation).navigate(name, params);
+    if (name === "QuickSale" || name === "Billing" || name === "ProductDetail" || name === "LowStock") {
+      return (stack || drawer || navigation).navigate(name, params);
+    }
     navigation.navigate(name, params);
   }
 
@@ -68,68 +84,141 @@ export default function DashboardScreen() {
       <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={ios.secondary} />}
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={ios.blue} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* ========================================== */}
+        {/* 1. APP HEADER & PROFILE BAR                */}
+        {/* ========================================== */}
         <View style={styles.header}>
-          <TouchableOpacity accessibilityLabel="Open menu" onPress={() => navigation.getParent()?.openDrawer?.()} style={styles.menuBtn}>
-            <Ionicons color={ios.label} name="menu" size={22} />
+          <TouchableOpacity
+            accessibilityLabel="Open menu"
+            onPress={() => navigation.getParent()?.openDrawer?.()}
+            style={styles.menuBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons color="#0F172A" name="menu-outline" size={22} />
           </TouchableOpacity>
+
           <View style={styles.headerCopy}>
-            <Text numberOfLines={1} style={styles.greeting}>{greeting()}</Text>
+            <View style={styles.greetingRow}>
+              <View style={styles.greetingDot} />
+              <Text numberOfLines={1} style={styles.greeting}>{greeting()}</Text>
+            </View>
             <Text numberOfLines={1} style={styles.ownerName}>{firstName}</Text>
-            <Text numberOfLines={1} style={styles.shopCaption}>{shopName} · {formatToday()}</Text>
+            <View style={styles.shopStatusRow}>
+              <Text numberOfLines={1} style={styles.shopCaption}>{shopName}</Text>
+              <Text style={styles.bulletSeparator}>•</Text>
+              <Text style={styles.dateCaption}>{formatToday()}</Text>
+            </View>
           </View>
-          <View style={styles.profile}>
-            <Text style={styles.profileText}>{(user?.name || shopName).slice(0, 1).toUpperCase()}</Text>
-          </View>
+
+          <TouchableOpacity
+            onPress={() => go("Settings")}
+            style={styles.profileBtn}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={["#0079F2", "#005AC2"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.profileGradient}
+            >
+              <Text style={styles.profileText}>
+                {(user?.name || shopName).slice(0, 1).toUpperCase()}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
+        {/* Error Notification Card */}
         {dashboard.error && (
-          <TouchableOpacity onPress={() => dashboard.refetch()} style={styles.errorCard}>
-            <Ionicons color={ios.red} name="cloud-offline-outline" size={22} />
-            <View style={styles.errorCopy}>
-              <Text style={styles.errorTitle}>Couldn’t load the shop</Text>
-              <Text style={styles.errorText}>Tap to try again</Text>
+          <TouchableOpacity onPress={() => dashboard.refetch()} style={styles.errorCard} activeOpacity={0.8}>
+            <View style={styles.errorIconWrap}>
+              <Ionicons color="#EF4444" name="cloud-offline-outline" size={20} />
             </View>
+            <View style={styles.errorCopy}>
+              <Text style={styles.errorTitle}>Couldn’t load shop data</Text>
+              <Text style={styles.errorText}>Tap here to retry connecting to cloud</Text>
+            </View>
+            <Ionicons color="#EF4444" name="refresh" size={16} />
           </TouchableOpacity>
         )}
 
         {data && (
           <>
+            {/* Subscription Warning */}
             {data.organization?.subscriptionStatus === "past_due" && (
               <View style={styles.alertCard}>
-                <Ionicons color={ios.red} name="alert-circle" size={20} />
-                <Text style={styles.alertText}>Subscription is overdue. Renew to keep billing open.</Text>
+                <Ionicons color="#EF4444" name="alert-circle" size={20} />
+                <Text style={styles.alertText}>Subscription is overdue. Renew to keep billing uninterrupted.</Text>
               </View>
             )}
 
-            <View style={styles.moneyCard}>
-              <Text style={styles.moneyOverline}>{periodCopy[datePreset]} collection</Text>
-              <Text style={styles.moneyAmount}>₹{formatMoney(data.selectedSales)}</Text>
-              <View style={styles.moneyPills}>
-                <Text style={styles.moneyPill}>{bills} {bills === 1 ? "bill" : "bills"}</Text>
-                <Text style={styles.moneyPill}>₹{formatMoney(data.todayProfit)} profit</Text>
-              </View>
-              <View style={styles.segment}>
-                {(["today", "week", "month"] as DatePreset[]).map((key) => (
-                  <TouchableOpacity
-                    key={key}
-                    onPress={() => setDatePreset(key)}
-                    style={[styles.segmentItem, datePreset === key && styles.segmentItemOn]}
-                  >
-                    <Text style={[styles.segmentText, datePreset === key && styles.segmentTextOn]}>
-                      {key === "today" ? "Today" : key === "week" ? "7 days" : "Month"}
+            {/* ========================================== */}
+            {/* 2. REVENUE HERO CARD                      */}
+            {/* ========================================== */}
+            <View style={styles.moneyCardContainer}>
+              <LinearGradient
+                colors={["#001C34", "#082347", "#001830"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.moneyCard}
+              >
+                {/* Top Row: Period & Segment Picker */}
+                <View style={styles.moneyHeaderRow}>
+                  <View style={styles.moneyOverlineWrap}>
+                    <Text style={styles.moneyOverline}>{periodCopy[datePreset].toUpperCase()} REVENUE</Text>
+                  </View>
+
+                  <View style={styles.segment}>
+                    {(["today", "week", "month"] as DatePreset[]).map((key) => (
+                      <TouchableOpacity
+                        key={key}
+                        onPress={() => setDatePreset(key)}
+                        style={[styles.segmentItem, datePreset === key && styles.segmentItemOn]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.segmentText, datePreset === key && styles.segmentTextOn]}>
+                          {key === "today" ? "Today" : key === "week" ? "7D" : "Month"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Main Total Amount */}
+                <View style={styles.amountContainer}>
+                  <Text style={styles.currencySymbol}>₹</Text>
+                  <Text style={styles.moneyAmount}>{formatMoney(data.selectedSales)}</Text>
+                </View>
+
+                {/* Sub-Metrics Pills (Bills & Profit) */}
+                <View style={styles.moneyPills}>
+                  <View style={styles.moneyPill}>
+                    <Ionicons color="#38BDF8" name="receipt-outline" size={13} style={{ marginRight: 4 }} />
+                    <Text style={styles.moneyPillText}>
+                      {bills} {bills === 1 ? "Bill" : "Bills"}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity onPress={() => go("Sales")} style={styles.moneyCta}>
-                <Text style={styles.moneyCtaText}>{bills ? "Open sales" : "Start a sale"}</Text>
-                <Ionicons color={ios.dark} name="arrow-forward" size={16} />
-              </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.moneyPill, styles.profitPill]}>
+                    <Ionicons color="#34D399" name="trending-up" size={13} style={{ marginRight: 4 }} />
+                    <Text style={styles.profitPillText}>
+                      ₹{formatMoney(data.todayProfit)} Profit
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Action CTA Button */}
+                <TouchableOpacity onPress={() => go("Sales")} style={styles.moneyCta} activeOpacity={0.9}>
+                  <Text style={styles.moneyCtaText}>{bills ? "Open Sales Register" : "Start New Sale"}</Text>
+                  <Ionicons color="#001C34" name="arrow-forward" size={16} />
+                </TouchableOpacity>
+              </LinearGradient>
             </View>
 
+            {/* Announcement / Promo Banner */}
             {data.homeBanner?.enabled ? (
               <HomePromoBanner
                 banner={{
@@ -146,27 +235,76 @@ export default function DashboardScreen() {
               />
             ) : null}
 
-            <Text style={styles.sectionLabel}>Do this now</Text>
-            <View style={styles.actionGrid}>
-              <ActionTile color={ios.green} ion="bag-handle" label="New sale" onPress={() => go("Sales")} />
-              <ActionTile color={ios.orange} ion="flash" label="Quick bill" onPress={() => go("QuickSale")} />
-              <ActionTile color={ios.blue} ion="add" label="Add item" onPress={() => go("Items")} />
-              <ActionTile color={ios.indigo} ion="receipt" label="Orders" onPress={() => go("Orders")} />
+            {/* ========================================== */}
+            {/* 3. QUICK ACTIONS GRID                     */}
+            {/* ========================================== */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
             </View>
 
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionLabelInline}>Low stock</Text>
-              {lowStockCount ? <Text style={styles.stockCount}>{lowStockCount}</Text> : null}
-              {lowStockCount > 5 ? (
-                <TouchableOpacity onPress={() => go("LowStock")} style={styles.viewAllBtn}>
+            <View style={styles.actionGrid}>
+              <ActionTile
+                color="#10B981"
+                bg="#ECFDF5"
+                border="#A7F3D0"
+                ion="bag-handle"
+                label="New Sale"
+                sub="Fast counter POS"
+                onPress={() => go("Sales")}
+              />
+              <ActionTile
+                color="#F59E0B"
+                bg="#FFFBEB"
+                border="#FDE68A"
+                ion="flash"
+                label="Quick Bill"
+                sub="1-Click checkout"
+                onPress={() => go("QuickSale")}
+              />
+              <ActionTile
+                color="#0079F2"
+                bg="#EFF6FF"
+                border="#BFDBFE"
+                ion="add-circle"
+                label="Add Item"
+                sub="Scan / Barcode"
+                onPress={() => go("Items")}
+              />
+              <ActionTile
+                color="#6366F1"
+                bg="#EEF2FF"
+                border="#C7D2FE"
+                ion="receipt"
+                label="Orders"
+                sub="Bills & Khata"
+                onPress={() => go("Orders")}
+              />
+            </View>
+
+            {/* ========================================== */}
+            {/* 4. LOW STOCK INVENTORY ALERTS             */}
+            {/* ========================================== */}
+            <View style={styles.sectionHeaderBetween}>
+              <View style={styles.sectionHeaderLeft}>
+                <Text style={styles.sectionTitle}>LOW STOCK ALERTS</Text>
+                {lowStockCount > 0 ? (
+                  <View style={styles.stockBadgeWrap}>
+                    <Text style={styles.stockCountText}>{lowStockCount}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {lowStockCount > 3 ? (
+                <TouchableOpacity onPress={() => go("LowStock")} style={styles.viewAllBtn} activeOpacity={0.7}>
                   <Text style={styles.viewAllText}>View all</Text>
-                  <Ionicons color={ios.blue} name="chevron-forward" size={14} />
+                  <Ionicons color="#0079F2" name="chevron-forward" size={14} />
                 </TouchableOpacity>
               ) : null}
             </View>
-            {lowStock.length ? (
+
+            {lowStock.length > 0 ? (
               <View style={styles.stockGrid}>
-                {lowStock.slice(0, 5).map((item: any) => (
+                {lowStock.slice(0, 4).map((item: any) => (
                   <LowStockCard
                     key={item._id}
                     item={item}
@@ -176,22 +314,56 @@ export default function DashboardScreen() {
               </View>
             ) : (
               <View style={styles.stockOk}>
-                <View style={[styles.stockIcon, { backgroundColor: ios.green }]}>
-                  <Ionicons color="#FFFFFF" name="checkmark" size={18} />
+                <View style={styles.stockOkIconWrap}>
+                  <Ionicons color="#10B981" name="checkmark-circle" size={24} />
                 </View>
-                <View style={styles.stockBody}>
-                  <Text style={styles.stockName}>Stock looks good</Text>
-                  <Text style={styles.stockSku}>Everything is above reorder</Text>
+                <View style={styles.stockOkBody}>
+                  <Text style={styles.stockOkTitle}>Inventory is Healthy</Text>
+                  <Text style={styles.stockOkSubtitle}>All product stock levels are above the reorder limit.</Text>
                 </View>
               </View>
             )}
 
-            <Text style={styles.sectionLabel}>This month</Text>
+            {/* ========================================== */}
+            {/* 5. MONTHLY PERFORMANCE OVERVIEW            */}
+            {/* ========================================== */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>THIS MONTH'S OVERVIEW</Text>
+            </View>
+
             <View style={styles.statGrid}>
-              <StatTile color={ios.teal} ion="trending-up" label="Sales" value={`₹${formatMoney(data.monthSales)}`} />
-              <StatTile color={ios.blue} ion="albums" label="Items" value={`${data.totalProducts}`} />
-              <StatTile color={ios.green} ion="arrow-down" label="Stock in" value={`${movementTotals.totalIn}`} />
-              <StatTile color={ios.red} ion="arrow-up" label="Stock out" value={`${movementTotals.totalOut}`} />
+              <StatTile
+                color="#0D9488"
+                bg="#F0FDFA"
+                border="#CCFBF1"
+                ion="trending-up"
+                label="Total Sales"
+                value={`₹${formatMoney(data.monthSales)}`}
+              />
+              <StatTile
+                color="#0079F2"
+                bg="#EFF6FF"
+                border="#DBEAFE"
+                ion="cube"
+                label="Total Catalog"
+                value={`${data.totalProducts} Items`}
+              />
+              <StatTile
+                color="#10B981"
+                bg="#ECFDF5"
+                border="#D1FAE5"
+                ion="arrow-down-circle"
+                label="Stock In"
+                value={`${movementTotals.totalIn} Units`}
+              />
+              <StatTile
+                color="#EF4444"
+                bg="#FEF2F2"
+                border="#FEE2E2"
+                ion="arrow-up-circle"
+                label="Stock Out"
+                value={`${movementTotals.totalOut} Units`}
+              />
             </View>
           </>
         )}
@@ -199,6 +371,10 @@ export default function DashboardScreen() {
     </SafeAreaView>
   );
 }
+
+/* ========================================== */
+/* SUB-COMPONENTS                             */
+/* ========================================== */
 
 function HomePromoBanner({
   banner,
@@ -210,10 +386,10 @@ function HomePromoBanner({
   const tone = banner.tone || "promo";
   const palette =
     tone === "warning"
-      ? { bg: "#FFF4E5", icon: ios.orange, iconBg: "#FF950033" }
+      ? { bg: "#FFFBEB", border: "#FDE68A", icon: "#D97706", iconBg: "#FEF3C7" }
       : tone === "info"
-      ? { bg: "#E8ECFE", icon: ios.blue, iconBg: "#4F6BF633" }
-      : { bg: "#F0ECFF", icon: ios.purple, iconBg: "#8B7CF633" };
+      ? { bg: "#EFF6FF", border: "#BFDBFE", icon: "#0079F2", iconBg: "#DBEAFE" }
+      : { bg: "#F5F3FF", border: "#DDD6FE", icon: "#7C3AED", iconBg: "#EDE9FE" };
   const clickable = Boolean(banner.ctaAction);
 
   return (
@@ -221,15 +397,19 @@ function HomePromoBanner({
       activeOpacity={clickable ? 0.85 : 1}
       disabled={!clickable}
       onPress={onPress}
-      style={[styles.promoBanner, { backgroundColor: palette.bg }]}
+      style={[styles.promoBanner, { backgroundColor: palette.bg, borderColor: palette.border }]}
     >
       <View style={[styles.promoIcon, { backgroundColor: palette.iconBg }]}>
-        <Ionicons color={palette.icon} name={tone === "warning" ? "warning" : tone === "info" ? "information-circle" : "megaphone"} size={20} />
+        <Ionicons
+          color={palette.icon}
+          name={tone === "warning" ? "warning" : tone === "info" ? "information-circle" : "megaphone"}
+          size={20}
+        />
       </View>
       <View style={styles.promoCopy}>
         {!!banner.title && <Text numberOfLines={1} style={styles.promoTitle}>{banner.title}</Text>}
         {!!banner.message && <Text numberOfLines={2} style={styles.promoMessage}>{banner.message}</Text>}
-        {!!banner.ctaLabel && <Text style={[styles.promoCta, { color: palette.icon }]}>{banner.ctaLabel}</Text>}
+        {!!banner.ctaLabel && <Text style={[styles.promoCta, { color: palette.icon }]}>{banner.ctaLabel} →</Text>}
       </View>
       {clickable ? <Ionicons color={palette.icon} name="chevron-forward" size={18} /> : null}
     </TouchableOpacity>
@@ -238,43 +418,58 @@ function HomePromoBanner({
 
 function ActionTile({
   color,
+  bg,
+  border,
   ion,
   label,
+  sub,
   onPress,
 }: {
   color: string;
+  bg: string;
+  border: string;
   ion: keyof typeof Ionicons.glyphMap;
   label: string;
+  sub: string;
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.actionTile}>
-      <View style={[styles.actionIcon, { backgroundColor: color }]}>
-        <Ionicons color="#FFFFFF" name={ion} size={22} />
+    <TouchableOpacity onPress={onPress} style={styles.actionTile} activeOpacity={0.75}>
+      <View style={[styles.actionIconWrap, { backgroundColor: bg, borderColor: border }]}>
+        <Ionicons color={color} name={ion} size={22} />
       </View>
-      <Text style={styles.actionLabel}>{label}</Text>
+      <View style={styles.actionTextWrap}>
+        <Text numberOfLines={1} style={styles.actionLabel}>{label}</Text>
+        <Text numberOfLines={1} style={styles.actionSub}>{sub}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
 function StatTile({
   color,
+  bg,
+  border,
   ion,
   label,
   value,
 }: {
   color: string;
+  bg: string;
+  border: string;
   ion: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
 }) {
   return (
     <View style={styles.statTile}>
-      <View style={[styles.statIcon, { backgroundColor: color }]}>
-        <Ionicons color="#FFFFFF" name={ion} size={14} />
+      <View style={styles.statTopRow}>
+        <View style={[styles.statIconWrap, { backgroundColor: bg, borderColor: border }]}>
+          <Ionicons color={color} name={ion} size={15} />
+        </View>
+        <Text numberOfLines={1} style={styles.statLabel}>{label}</Text>
       </View>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text numberOfLines={1} style={styles.statValue}>{value}</Text>
     </View>
   );
 }
@@ -287,28 +482,44 @@ function LowStockCard({ item, onPress }: { item: any; onPress: () => void }) {
   const imageUrl = Array.isArray(item.images) ? item.images[0] : item.imageUrl || item.image;
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.stockCard}>
+    <TouchableOpacity onPress={onPress} style={styles.stockCard} activeOpacity={0.8}>
       <View style={styles.stockImageWrap}>
         {imageUrl ? (
           <Image resizeMode="cover" source={{ uri: imageUrl }} style={styles.stockImage} />
         ) : (
-          <View style={[styles.stockImageFallback, { backgroundColor: out ? ios.red : ios.orange }]}>
-            <Ionicons color="#FFFFFF" name={out ? "alert" : "cube"} size={22} />
+          <View style={[styles.stockImageFallback, { backgroundColor: out ? "#FEE2E2" : "#FEF3C7" }]}>
+            <Ionicons color={out ? "#EF4444" : "#D97706"} name={out ? "alert-circle" : "cube"} size={24} />
           </View>
         )}
         <View style={[styles.stockQtyBadge, out && styles.stockQtyBadgeOut]}>
-          <Text style={[styles.stockQtyText, out && styles.stockQtyTextOut]}>{out ? "Out" : `${qty}`}</Text>
+          <Text style={styles.stockQtyText}>{out ? "Out of Stock" : `${qty} left`}</Text>
         </View>
       </View>
-      <Text numberOfLines={2} style={styles.stockName}>{item.name}</Text>
-      <Text numberOfLines={1} style={styles.stockSku}>{item.sku || "No SKU"}</Text>
+
+      <Text numberOfLines={1} style={styles.stockName}>{item.name}</Text>
+      <Text numberOfLines={1} style={styles.stockSku}>{item.sku ? `SKU: ${item.sku}` : "General Item"}</Text>
+
       <View style={styles.stockBarTrack}>
-        <View style={[styles.stockBarFill, out && styles.stockBarOut, { width: `${ratio * 100}%` }]} />
+        <View
+          style={[
+            styles.stockBarFill,
+            out ? styles.stockBarOut : { backgroundColor: "#F59E0B" },
+            { width: `${ratio * 100}%` },
+          ]}
+        />
       </View>
-      <Text style={styles.stockLink}>View</Text>
+
+      <View style={styles.stockCardFooter}>
+        <Text style={styles.stockActionText}>Restock</Text>
+        <Ionicons color="#0079F2" name="arrow-forward" size={11} />
+      </View>
     </TouchableOpacity>
   );
 }
+
+/* ========================================== */
+/* HELPER FUNCTIONS                           */
+/* ========================================== */
 
 function greeting() {
   const hour = new Date().getHours();
@@ -334,102 +545,292 @@ function formatMoney(value: number) {
   return Number(value || 0).toLocaleString("en-IN");
 }
 
+/* ========================================== */
+/* STYLESHEET                                 */
+/* ========================================== */
+
 const styles = StyleSheet.create({
-  safe: { backgroundColor: ios.bg, flex: 1 },
-  content: { alignSelf: "center", maxWidth: 960, paddingBottom: 88, paddingHorizontal: spacing.md, width: "100%" },
-
-  header: { alignItems: "flex-start", flexDirection: "row", marginBottom: spacing.md, marginTop: 4 },
-  headerCopy: { flex: 1, justifyContent: "center", marginHorizontal: spacing.sm, minHeight: 34, minWidth: 0, paddingTop: 1 },
-  greeting: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 12.5, lineHeight: 16 },
-  ownerName: { color: ios.label, fontFamily: fonts.bold, fontSize: 22, letterSpacing: -0.4, lineHeight: 26, marginTop: 2 },
-  shopCaption: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 11.5, lineHeight: 15, marginTop: 2 },
-  menuBtn: {
-    alignItems: "center",
-    backgroundColor: ios.card,
-    borderRadius: 19,
-    height: 38,
-    justifyContent: "center",
-    width: 38,
+  safe: {
+    backgroundColor: "#F8FAFC",
+    flex: 1,
   },
-  profile: {
-    alignItems: "center",
-    backgroundColor: ios.blue,
-    borderRadius: 19,
-    height: 38,
-    justifyContent: "center",
-    width: 38,
-  },
-  profileText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 15, lineHeight: 18, textAlign: "center" },
-
-  errorCard: {
-    alignItems: "center",
-    backgroundColor: "#FF3B3014",
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
-    padding: 10,
-  },
-  errorCopy: { flex: 1 },
-  errorTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 15 },
-  errorText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
-  alertCard: {
-    alignItems: "center",
-    backgroundColor: "#FF3B3014",
-    borderRadius: 12,
-    flexDirection: "row",
-    gap: spacing.xs,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    paddingVertical: spacing.xs,
-  },
-  alertText: { color: ios.label, flex: 1, fontFamily: fonts.medium, fontSize: 13 },
-
-  moneyCard: {
-    backgroundColor: ios.dark,
-    borderRadius: 18,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+  content: {
+    alignSelf: "center",
+    maxWidth: 960,
+    paddingBottom: 96,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     width: "100%",
   },
-  moneyOverline: { color: "rgba(255,255,255,0.62)", fontFamily: fonts.medium, fontSize: 12 },
-  moneyAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 32, letterSpacing: -0.8, lineHeight: 38, marginTop: 2 },
-  moneyPills: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
-  moneyPill: {
-    backgroundColor: "rgba(255,255,255,0.12)",
+
+  /* 1. Header */
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    marginBottom: 16,
+    paddingVertical: 4,
+  },
+  menuBtn: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 2 },
+      web: { boxShadow: "0 2px 8px rgba(0, 28, 52, 0.04)" } as any,
+    }),
+  },
+  headerCopy: {
+    flex: 1,
+    justifyContent: "center",
+    marginHorizontal: 12,
+    minWidth: 0,
+  },
+  greetingRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  greetingDot: {
+    backgroundColor: "#10B981",
     borderRadius: 999,
-    color: "#FFFFFF",
+    height: 6,
+    width: 6,
+  },
+  greeting: {
+    color: "#64748B",
     fontFamily: fonts.medium,
     fontSize: 12,
-    overflow: "hidden",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
   },
-  segment: { backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, flexDirection: "row", marginTop: spacing.sm, padding: 2 },
-  segmentItem: { alignItems: "center", borderRadius: 8, flex: 1, justifyContent: "center", minHeight: 30 },
-  segmentItemOn: { backgroundColor: "#FFFFFF" },
-  segmentText: { color: "rgba(255,255,255,0.82)", fontFamily: fonts.medium, fontSize: 12 },
-  segmentTextOn: { color: ios.label, fontFamily: fonts.semibold },
+  ownerName: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    letterSpacing: -0.4,
+    lineHeight: 24,
+    marginTop: 1,
+  },
+  shopStatusRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 1,
+  },
+  shopCaption: {
+    color: "#0079F2",
+    fontFamily: fonts.semibold,
+    fontSize: 11.5,
+  },
+  bulletSeparator: {
+    color: "#CBD5E1",
+    fontSize: 10,
+  },
+  dateCaption: {
+    color: "#94A3B8",
+    fontFamily: fonts.regular,
+    fontSize: 11.5,
+  },
+  profileBtn: {
+    borderRadius: 14,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { shadowColor: "#0079F2", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6 },
+      android: { elevation: 3 },
+      web: { boxShadow: "0 4px 12px rgba(0, 121, 242, 0.25)" } as any,
+    }),
+  },
+  profileGradient: {
+    alignItems: "center",
+    borderRadius: 14,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  profileText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    textAlign: "center",
+  },
+
+  /* Alerts & Error */
+  errorCard: {
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FEE2E2",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+    padding: 12,
+  },
+  errorIconWrap: {
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    borderRadius: 10,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  errorCopy: { flex: 1 },
+  errorTitle: { color: "#991B1B", fontFamily: fonts.semibold, fontSize: 13.5 },
+  errorText: { color: "#B91C1C", fontFamily: fonts.regular, fontSize: 11.5, marginTop: 1 },
+  alertCard: {
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    padding: 12,
+  },
+  alertText: { color: "#991B1B", flex: 1, fontFamily: fonts.medium, fontSize: 12.5 },
+
+  /* 2. Revenue Hero Card */
+  moneyCardContainer: {
+    borderRadius: 22,
+    marginBottom: 18,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { shadowColor: "#001C34", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+      android: { elevation: 6 },
+      web: { boxShadow: "0 10px 30px -5px rgba(0, 28, 52, 0.25)" } as any,
+    }),
+  },
+  moneyCard: {
+    borderRadius: 22,
+    padding: 20,
+    width: "100%",
+  },
+  moneyHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  moneyOverlineWrap: {
+    flex: 1,
+  },
+  moneyOverline: {
+    color: "#93C5FD",
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  segment: {
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    padding: 2,
+  },
+  segmentItem: {
+    alignItems: "center",
+    borderRadius: 8,
+    justifyContent: "center",
+    minWidth: 46,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  segmentItemOn: {
+    backgroundColor: "#FFFFFF",
+  },
+  segmentText: {
+    color: "rgba(255,255,255,0.75)",
+    fontFamily: fonts.medium,
+    fontSize: 11.5,
+  },
+  segmentTextOn: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+  },
+  amountContainer: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    marginTop: 8,
+  },
+  currencySymbol: {
+    color: "#38BDF8",
+    fontFamily: fonts.bold,
+    fontSize: 24,
+    marginRight: 2,
+  },
+  moneyAmount: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 34,
+    letterSpacing: -1,
+    lineHeight: 40,
+  },
+  moneyPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  moneyPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  moneyPillText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.semibold,
+    fontSize: 11.5,
+  },
+  profitPill: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(52, 211, 153, 0.3)",
+  },
+  profitPillText: {
+    color: "#86EFAC",
+    fontFamily: fonts.bold,
+    fontSize: 11.5,
+  },
   moneyCta: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 14,
     flexDirection: "row",
-    gap: 5,
+    gap: 6,
     justifyContent: "center",
-    marginTop: spacing.sm,
-    minHeight: 42,
-    paddingHorizontal: spacing.md,
+    marginTop: 16,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 2 },
+      web: { boxShadow: "0 2px 8px rgba(0,0,0,0.15)" } as any,
+    }),
   },
-  moneyCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 14 },
+  moneyCtaText: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 14,
+  },
 
+  /* Promo Banner */
   promoBanner: {
     alignItems: "center",
     borderRadius: 16,
+    borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    padding: 10,
+    gap: 12,
+    marginBottom: 18,
+    padding: 12,
     width: "100%",
   },
   promoIcon: {
@@ -440,71 +841,147 @@ const styles = StyleSheet.create({
     width: 38,
   },
   promoCopy: { flex: 1, minWidth: 0 },
-  promoTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, letterSpacing: -0.2 },
-  promoMessage: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 2 },
-  promoCta: { fontFamily: fonts.semibold, fontSize: 12, marginTop: 4 },
+  promoTitle: { color: "#001C34", fontFamily: fonts.bold, fontSize: 13.5, letterSpacing: -0.2 },
+  promoMessage: { color: "#475569", fontFamily: fonts.regular, fontSize: 11.5, lineHeight: 15, marginTop: 2 },
+  promoCta: { fontFamily: fonts.bold, fontSize: 11.5, marginTop: 3 },
 
-  sectionLabel: {
-    color: ios.secondary,
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    letterSpacing: 0.2,
-    marginBottom: spacing.xs,
-    marginLeft: 2,
-    marginTop: 14,
+  /* Section Headers */
+  sectionHeader: {
+    marginBottom: 10,
+    marginTop: 4,
+    paddingHorizontal: 2,
+  },
+  sectionHeaderBetween: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    marginTop: 16,
+    paddingHorizontal: 2,
+  },
+  sectionHeaderLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  sectionTitle: {
+    color: "#64748B",
+    fontFamily: fonts.bold,
+    fontSize: 11.5,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
-  sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs, marginLeft: 2, marginTop: 14 },
-  sectionLabelInline: { color: ios.secondary, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.2, textTransform: "uppercase" },
-  viewAllBtn: { alignItems: "center", flexDirection: "row", gap: 2, marginLeft: "auto" },
-  viewAllText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 12 },
-  stockCount: {
-    backgroundColor: "#FF95001F",
-    borderRadius: 999,
-    color: ios.orange,
+  viewAllBtn: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 2,
+  },
+  viewAllText: {
+    color: "#0079F2",
     fontFamily: fonts.semibold,
-    fontSize: 11,
-    marginLeft: spacing.xs,
-    overflow: "hidden",
+    fontSize: 12,
+  },
+  stockBadgeWrap: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+    borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
-  stockList: { gap: 8 },
+  stockCountText: {
+    color: "#B45309",
+    fontFamily: fonts.bold,
+    fontSize: 10.5,
+  },
+
+  /* 3. Action Grid */
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    width: "100%",
+  },
+  actionTile: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexBasis: "48%",
+    flexDirection: "row",
+    flexGrow: 1,
+    gap: 12,
+    minHeight: 68,
+    minWidth: 140,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...Platform.select({
+      ios: { shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+      android: { elevation: 2 },
+      web: { boxShadow: "0 2px 10px rgba(0, 28, 52, 0.03)" } as any,
+    }),
+  },
+  actionIconWrap: {
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  actionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionLabel: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 13.5,
+  },
+  actionSub: {
+    color: "#64748B",
+    fontFamily: fonts.regular,
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+
+  /* 4. Low Stock Grid */
   stockGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
     width: "100%",
   },
   stockCard: {
-    backgroundColor: ios.card,
-    borderRadius: 14,
-    flexBasis: "31%",
-    flexGrow: 1,
-    minWidth: 100,
-    maxWidth: 220,
-    padding: spacing.xs,
-  },
-  stockOk: {
-    alignItems: "center",
-    backgroundColor: ios.card,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
     borderRadius: 16,
-    flexDirection: "row",
+    borderWidth: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
+    maxWidth: "50%",
+    minWidth: 140,
     padding: 10,
-    width: "100%",
+    ...Platform.select({
+      ios: { shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+      android: { elevation: 2 },
+      web: { boxShadow: "0 2px 10px rgba(0, 28, 52, 0.03)" } as any,
+    }),
   },
-  stockIcon: { alignItems: "center", borderRadius: 12, height: 36, justifyContent: "center", width: 36 },
-  stockBody: { flex: 1, marginLeft: spacing.sm, minWidth: 0 },
   stockImageWrap: {
-    backgroundColor: ios.fill,
-    borderRadius: 10,
-    height: 78,
-    marginBottom: spacing.xs,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 12,
+    height: 84,
+    marginBottom: 8,
     overflow: "hidden",
     position: "relative",
     width: "100%",
   },
-  stockImage: { height: "100%", width: "100%" },
+  stockImage: {
+    height: "100%",
+    width: "100%",
+  },
   stockImageFallback: {
     alignItems: "center",
     height: "100%",
@@ -512,49 +989,142 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   stockQtyBadge: {
-    backgroundColor: "#FF9500E6",
+    backgroundColor: "rgba(217, 119, 6, 0.92)",
     borderRadius: 999,
-    bottom: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    bottom: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     position: "absolute",
-    right: 4,
+    right: 5,
   },
-  stockQtyBadgeOut: { backgroundColor: "#EF4444E6" },
-  stockQtyText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 10.5 },
-  stockQtyTextOut: { color: "#FFFFFF" },
-  stockName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 11.5, letterSpacing: -0.2, lineHeight: 14, minHeight: 22 },
-  stockSku: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 9.5, marginTop: 1 },
-  stockBarTrack: { backgroundColor: ios.fill, borderRadius: 999, height: 3, marginTop: spacing.xs, overflow: "hidden", width: "100%" },
-  stockBarFill: { backgroundColor: ios.orange, borderRadius: 999, height: 3 },
-  stockBarOut: { backgroundColor: ios.red },
-  stockLink: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 10.5, marginTop: 4 },
-
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%" },
-  actionTile: {
+  stockQtyBadgeOut: {
+    backgroundColor: "rgba(239, 68, 68, 0.92)",
+  },
+  stockQtyText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 9.5,
+  },
+  stockName: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 12.5,
+    letterSpacing: -0.2,
+    lineHeight: 16,
+  },
+  stockSku: {
+    color: "#64748B",
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  stockBarTrack: {
+    backgroundColor: "#F1F5F9",
+    borderRadius: 999,
+    height: 4,
+    marginTop: 8,
+    overflow: "hidden",
+    width: "100%",
+  },
+  stockBarFill: {
+    borderRadius: 999,
+    height: 4,
+  },
+  stockBarOut: {
+    backgroundColor: "#EF4444",
+  },
+  stockCardFooter: {
     alignItems: "center",
-    backgroundColor: ios.card,
+    flexDirection: "row",
+    gap: 3,
+    justifyContent: "flex-end",
+    marginTop: 6,
+  },
+  stockActionText: {
+    color: "#0079F2",
+    fontFamily: fonts.bold,
+    fontSize: 10.5,
+  },
+  stockOk: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
     borderRadius: 16,
-    flexBasis: "22%",
-    flexGrow: 1,
-    minWidth: 120,
-    minHeight: 76,
-    paddingVertical: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    width: "100%",
   },
-  actionIcon: { alignItems: "center", borderRadius: 14, height: 38, justifyContent: "center", width: 38 },
-  actionLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, marginTop: 6 },
+  stockOkIconWrap: {
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  stockOkBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  stockOkTitle: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 13.5,
+  },
+  stockOkSubtitle: {
+    color: "#64748B",
+    fontFamily: fonts.regular,
+    fontSize: 11.5,
+    marginTop: 1,
+  },
 
-  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%" },
-  statTile: {
-    backgroundColor: ios.card,
-    borderRadius: 14,
-    flexBasis: "22%",
-    flexGrow: 1,
-    minWidth: 120,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+  /* 5. Monthly Performance Grid */
+  statGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    width: "100%",
   },
-  statIcon: { alignItems: "center", borderRadius: 8, height: 22, justifyContent: "center", width: 22 },
-  statLabel: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 6 },
-  statValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 17, letterSpacing: -0.3, marginTop: 2 },
+  statTile: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
+    minWidth: 140,
+    padding: 12,
+    ...Platform.select({
+      ios: { shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+      android: { elevation: 2 },
+      web: { boxShadow: "0 2px 10px rgba(0, 28, 52, 0.03)" } as any,
+    }),
+  },
+  statTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  statIconWrap: {
+    alignItems: "center",
+    borderRadius: 9,
+    borderWidth: 1,
+    height: 26,
+    justifyContent: "center",
+    width: 26,
+  },
+  statLabel: {
+    color: "#64748B",
+    fontFamily: fonts.semibold,
+    fontSize: 11.5,
+  },
+  statValue: {
+    color: "#001C34",
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    letterSpacing: -0.4,
+    marginTop: 8,
+  },
 });

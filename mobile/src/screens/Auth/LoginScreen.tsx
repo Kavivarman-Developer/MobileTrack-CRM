@@ -195,6 +195,7 @@ export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const confirmationRef = useRef<any>(null);
   const pendingIdTokenRef = useRef<string | null>(null);
+  const phoneInputRef = useRef<TextInput>(null);
 
   const [step, setStep] = useState<AuthStep>("identifier");
   const [identifier, setIdentifier] = useState("");
@@ -370,25 +371,33 @@ export default function LoginScreen() {
         {/* STEP 1: Phone / Email Entry */}
         {step === "identifier" && (
           <View style={styles.stepBody}>
-            <View style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}>
-              <View style={styles.countryPickerBox}>
+            <Pressable
+              onPress={() => phoneInputRef.current?.focus()}
+              style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}
+            >
+              <View pointerEvents="none" style={styles.countryPickerBox}>
                 <Text style={[styles.countryCodeText, isDesktop && styles.desktopCountryCodeText]}>+91</Text>
                 <Ionicons color={brand.muted} name="chevron-down" size={12} style={{ marginLeft: 2 }} />
               </View>
-              <View style={[styles.phoneInputDivider, isDesktop && { height: 22 }]} />
+              <View pointerEvents="none" style={[styles.phoneInputDivider, isDesktop && { height: 22 }]} />
               <TextInput
+                ref={phoneInputRef}
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="email-address"
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
                 onChangeText={setIdentifier}
                 onSubmitEditing={submitIdentifier}
                 placeholder="Mobile number"
                 placeholderTextColor="#94A3B8"
-                returnKeyType="next"
+                returnKeyType="done"
+                selectionColor={brand.navy}
+                cursorColor={brand.navy}
                 style={[styles.phoneTextInput, isDesktop && styles.desktopPhoneTextInput]}
                 value={identifier}
               />
-            </View>
+            </Pressable>
 
             <PrimaryCTA
               icon="arrow-forward"
@@ -1228,10 +1237,10 @@ const styles = StyleSheet.create({
     backgroundColor: brand.inputBg,
     borderColor: brand.inputBorder,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     flexDirection: "row",
-    minHeight: 46,
-    paddingHorizontal: 10,
+    minHeight: 50,
+    paddingHorizontal: 12,
     marginBottom: 12,
   },
   countryPickerBox: {
@@ -1243,17 +1252,19 @@ const styles = StyleSheet.create({
   countryCodeText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
   phoneInputDivider: {
     backgroundColor: brand.border,
-    height: 20,
+    height: 22,
     marginHorizontal: 8,
     width: 1,
   },
   phoneTextInput: {
     color: brand.navy,
     flex: 1,
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    minHeight: 42,
-    paddingVertical: 0,
+    fontSize: 15,
+    fontWeight: "600",
+    minHeight: 46,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    includeFontPadding: false,
   },
 
   inputWrap: {

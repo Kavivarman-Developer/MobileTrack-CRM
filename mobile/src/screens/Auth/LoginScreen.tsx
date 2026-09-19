@@ -116,13 +116,6 @@ function firebaseErrorMessage(error: unknown) {
   return (error as Error)?.message?.replace(/^Firebase:\s*/, "") || "Something went wrong";
 }
 
-function StepBadge({ n, isDesktop }: { n: number; isDesktop?: boolean }) {
-  return (
-    <View style={[styles.stepBadge, isDesktop && styles.desktopStepBadge]}>
-      <Text style={[styles.stepBadgeText, isDesktop && styles.desktopStepBadgeText]}>{n}</Text>
-    </View>
-  );
-}
 
 function PrimaryCTA({
   title,
@@ -721,7 +714,6 @@ export default function LoginScreen() {
 
               <View style={styles.desktopCard}>
                 <View style={[styles.stepHeaderRow, styles.desktopStepHeaderRow]}>
-                  <StepBadge isDesktop={isDesktop} n={stepCopy.n} />
                   <Text style={styles.desktopCardTitle}>{stepCopy.title}</Text>
                   <Text style={styles.desktopCardHint}>{stepCopy.hint}</Text>
                 </View>
@@ -788,7 +780,6 @@ export default function LoginScreen() {
             {/* Primary Form Card */}
             <View style={styles.card}>
               <View style={styles.stepHeaderRow}>
-                <StepBadge n={stepCopy.n} />
                 <Text style={styles.cardTitle}>{stepCopy.title}</Text>
                 <Text style={styles.cardHint}>{stepCopy.hint}</Text>
               </View>

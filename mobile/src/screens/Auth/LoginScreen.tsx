@@ -117,10 +117,10 @@ function firebaseErrorMessage(error: unknown) {
   return (error as Error)?.message?.replace(/^Firebase:\s*/, "") || "Something went wrong";
 }
 
-function StepBadge({ n }: { n: number }) {
+function StepBadge({ n, isDesktop }: { n: number; isDesktop?: boolean }) {
   return (
-    <View style={styles.stepBadge}>
-      <Text style={styles.stepBadgeText}>{n}</Text>
+    <View style={[styles.stepBadge, isDesktop && styles.desktopStepBadge]}>
+      <Text style={[styles.stepBadgeText, isDesktop && styles.desktopStepBadgeText]}>{n}</Text>
     </View>
   );
 }
@@ -130,11 +130,13 @@ function PrimaryCTA({
   onPress,
   loading,
   icon,
+  isDesktop,
 }: {
   title: string;
   onPress: () => void;
   loading?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
+  isDesktop?: boolean;
 }) {
   return (
     <Pressable
@@ -142,20 +144,24 @@ function PrimaryCTA({
       accessibilityState={{ busy: Boolean(loading), disabled: Boolean(loading) }}
       disabled={loading}
       onPress={onPress}
-      style={({ pressed }) => [styles.ctaWrapper, pressed && styles.ctaPressed]}
+      style={({ pressed }) => [
+        styles.ctaWrapper,
+        isDesktop && styles.desktopCtaWrapper,
+        pressed && styles.ctaPressed,
+      ]}
     >
       <LinearGradient
         colors={["#134A85", brand.navy]}
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
-        style={styles.ctaGradient}
+        style={[styles.ctaGradient, isDesktop && styles.desktopCtaGradient]}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" size="small" />
         ) : (
           <>
-            <Text style={styles.ctaText}>{title}</Text>
-            <Ionicons color="#FFFFFF" name={icon} size={19} />
+            <Text style={[styles.ctaText, isDesktop && styles.desktopCtaText]}>{title}</Text>
+            <Ionicons color="#FFFFFF" name={icon} size={isDesktop ? 22 : 19} />
           </>
         )}
       </LinearGradient>
@@ -363,13 +369,13 @@ export default function LoginScreen() {
         {/* STEP 1: Phone / Email Entry */}
         {step === "identifier" && (
           <View style={styles.stepBody}>
-            <View style={styles.phoneInputContainer}>
+            <View style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}>
               <View style={styles.countryPickerBox}>
                 <Text style={styles.flagEmoji}>🇮🇳</Text>
-                <Text style={styles.countryCodeText}>+91</Text>
+                <Text style={[styles.countryCodeText, isDesktop && styles.desktopCountryCodeText]}>+91</Text>
                 <Ionicons color={brand.muted} name="chevron-down" size={13} style={{ marginLeft: 2 }} />
               </View>
-              <View style={styles.phoneInputDivider} />
+              <View style={[styles.phoneInputDivider, isDesktop && { height: 28 }]} />
               <TextInput
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -379,13 +385,14 @@ export default function LoginScreen() {
                 placeholder="Mobile number"
                 placeholderTextColor="#94A3B8"
                 returnKeyType="next"
-                style={styles.phoneTextInput}
+                style={[styles.phoneTextInput, isDesktop && styles.desktopPhoneTextInput]}
                 value={identifier}
               />
             </View>
 
             <PrimaryCTA
               icon="arrow-forward"
+              isDesktop={isDesktop}
               loading={checkAccount.isPending || sendOtp.isPending}
               onPress={submitIdentifier}
               title="Get OTP"
@@ -396,10 +403,10 @@ export default function LoginScreen() {
         {/* STEP 2: Password Step (Existing Email Users) */}
         {step === "email-password" && (
           <View style={styles.stepBody}>
-            <View style={styles.selectedIdentifierBox}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
               <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="phone-portrait-outline" size={18} />
-                <Text style={styles.selectedIdentifierText}>{formatDisplayPhone(identifier)}</Text>
+                <Ionicons color={brand.navy} name="phone-portrait-outline" size={isDesktop ? 20 : 18} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{formatDisplayPhone(identifier)}</Text>
               </View>
               <Pressable onPress={goBack} style={styles.changeLink}>
                 <Text style={styles.changeLinkText}>Change</Text>
@@ -407,25 +414,25 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
               <Field
                 autoComplete="password"
                 onChangeText={setPassword}
                 onSubmitEditing={submitEmailPassword}
                 placeholder="Enter your password"
                 secureTextEntry={!showPassword}
-                style={styles.inputWithIconRight}
+                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
                 value={password}
               />
               <Pressable
                 accessibilityLabel={showPassword ? "Hide password" : "Show password"}
                 onPress={() => setShowPassword((v) => !v)}
-                style={styles.eyeButton}
+                style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}
               >
                 <Ionicons
                   color={brand.muted}
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
+                  size={isDesktop ? 20 : 18}
                 />
               </Pressable>
             </View>
@@ -450,6 +457,7 @@ export default function LoginScreen() {
 
             <PrimaryCTA
               icon="log-in-outline"
+              isDesktop={isDesktop}
               loading={emailSignIn.isPending}
               onPress={submitEmailPassword}
               title="Login"
@@ -465,34 +473,34 @@ export default function LoginScreen() {
         {/* STEP 3: Email Register */}
         {step === "email-register" && (
           <View style={styles.stepBody}>
-            <View style={styles.selectedIdentifierBox}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
               <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="person-add-outline" size={16} />
-                <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
+                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
               </View>
             </View>
 
             <Text style={styles.label}>Your name</Text>
-            <Field onChangeText={setName} placeholder="Owner name" value={name} />
+            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
 
             <Text style={styles.label}>Shop name</Text>
-            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
 
             <Text style={styles.label}>Create password</Text>
             <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
               <Field
                 onChangeText={setPassword}
                 placeholder="Min 6 characters"
                 secureTextEntry={!showPassword}
-                style={styles.inputWithIconRight}
+                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
                 value={password}
               />
-              <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
+              <Pressable onPress={() => setShowPassword((v) => !v)} style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}>
                 <Ionicons
                   color={brand.muted}
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
+                  size={isDesktop ? 20 : 18}
                 />
               </Pressable>
             </View>
@@ -502,11 +510,13 @@ export default function LoginScreen() {
               onChangeText={setConfirmPassword}
               placeholder="Re-enter password"
               secureTextEntry={!showPassword}
+              style={isDesktop ? styles.desktopInput : undefined}
               value={confirmPassword}
             />
 
             <PrimaryCTA
               icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
               loading={emailRegister.isPending}
               onPress={submitEmailRegister}
               title="Create account & enter"
@@ -517,10 +527,10 @@ export default function LoginScreen() {
         {/* STEP 4: OTP Verification */}
         {step === "otp" && (
           <View style={styles.stepBody}>
-            <View style={styles.selectedIdentifierBox}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
               <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="call-outline" size={16} />
-                <Text style={styles.selectedIdentifierText}>{identifier.trim()}</Text>
+                <Ionicons color={brand.navy} name="call-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{identifier.trim()}</Text>
               </View>
               <Pressable onPress={goBack} style={styles.changeLink}>
                 <Text style={styles.changeLinkText}>Change</Text>
@@ -528,20 +538,21 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="keypad-outline" size={18} style={styles.inputIcon} />
+              <Ionicons color={brand.muted} name="keypad-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
               <Field
                 keyboardType="number-pad"
                 maxLength={6}
                 onChangeText={setOtpCode}
                 onSubmitEditing={submitOtp}
                 placeholder="Enter 6-digit OTP"
-                style={styles.inputWithIcon}
+                style={[styles.inputWithIcon, isDesktop && styles.desktopInput]}
                 value={otpCode}
               />
             </View>
 
             <PrimaryCTA
               icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
               loading={confirmOtp.isPending}
               onPress={submitOtp}
               title="Verify & continue"
@@ -558,21 +569,22 @@ export default function LoginScreen() {
         {/* STEP 5: Phone Onboarding / Shop Details */}
         {step === "phone-register" && (
           <View style={styles.stepBody}>
-            <View style={styles.selectedIdentifierBox}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
               <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="person-add-outline" size={16} />
-                <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
+                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
               </View>
             </View>
 
             <Text style={styles.label}>Your name</Text>
-            <Field onChangeText={setName} placeholder="Owner name" value={name} />
+            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
 
             <Text style={styles.label}>Shop name</Text>
-            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
 
             <PrimaryCTA
               icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
               loading={phoneRegister.isPending}
               onPress={submitPhoneRegister}
               title="Create account & enter"
@@ -585,29 +597,29 @@ export default function LoginScreen() {
 
   function renderTrustBar() {
     return (
-      <View style={styles.featureRow}>
+      <View style={[styles.featureRow, isDesktop && styles.desktopFeatureRow]}>
         <View style={styles.featureItem}>
-          <View style={styles.featureIconBadge}>
-            <Ionicons color={brand.orange} name="shield-checkmark" size={16} />
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="shield-checkmark" size={isDesktop ? 18 : 16} />
           </View>
-          <Text style={styles.featureTitle}>Safe & Secure</Text>
-          <Text style={styles.featureSubtitle}>Bank-grade privacy</Text>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Safe & Secure</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Bank-grade privacy</Text>
         </View>
-        <View style={styles.featureDivider} />
+        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
         <View style={styles.featureItem}>
-          <View style={styles.featureIconBadge}>
-            <Ionicons color={brand.orange} name="flash" size={16} />
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="flash" size={isDesktop ? 18 : 16} />
           </View>
-          <Text style={styles.featureTitle}>Fast Access</Text>
-          <Text style={styles.featureSubtitle}>Instant OTP login</Text>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Fast Access</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Instant OTP login</Text>
         </View>
-        <View style={styles.featureDivider} />
+        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
         <View style={styles.featureItem}>
-          <View style={styles.featureIconBadge}>
-            <Ionicons color={brand.orange} name="cube" size={16} />
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="cube" size={isDesktop ? 18 : 16} />
           </View>
-          <Text style={styles.featureTitle}>Manage Stock</Text>
-          <Text style={styles.featureSubtitle}>Live inventory</Text>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Manage Stock</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Live inventory</Text>
         </View>
       </View>
     );
@@ -701,10 +713,10 @@ export default function LoginScreen() {
               )}
 
               <View style={styles.desktopCard}>
-                <View style={styles.stepHeaderRow}>
-                  <StepBadge n={stepCopy.n} />
-                  <Text style={styles.cardTitle}>{stepCopy.title}</Text>
-                  <Text style={styles.cardHint}>{stepCopy.hint}</Text>
+                <View style={[styles.stepHeaderRow, styles.desktopStepHeaderRow]}>
+                  <StepBadge isDesktop={isDesktop} n={stepCopy.n} />
+                  <Text style={styles.desktopCardTitle}>{stepCopy.title}</Text>
+                  <Text style={styles.desktopCardHint}>{stepCopy.hint}</Text>
                 </View>
 
                 {renderFormSteps()}
@@ -980,16 +992,97 @@ const styles = StyleSheet.create({
   },
   desktopCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 28,
+    borderRadius: 28,
+    paddingHorizontal: 44,
+    paddingVertical: 44,
     width: "100%",
-    maxWidth: 500,
+    maxWidth: 580,
     shadowColor: "#0D3666",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.12,
+    shadowRadius: 32,
+    elevation: 8,
+  },
+  desktopStepHeaderRow: {
+    marginBottom: 24,
+  },
+  desktopStepBadge: {
+    height: 38,
+    width: 38,
+    marginBottom: 10,
+    borderRadius: 19,
+  },
+  desktopStepBadgeText: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+  },
+  desktopCardTitle: {
+    color: brand.navy,
+    fontFamily: fonts.extraBold,
+    fontSize: 24,
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  desktopCardHint: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  desktopPhoneInputContainer: {
+    minHeight: 56,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  },
+  desktopCountryCodeText: {
+    fontSize: 16,
+  },
+  desktopPhoneTextInput: {
+    fontSize: 16,
+    minHeight: 52,
+  },
+  desktopInput: {
+    minHeight: 56,
+    fontSize: 16,
+    borderRadius: 16,
+    paddingLeft: 46,
+  },
+  desktopCtaWrapper: {
+    borderRadius: 16,
+    marginTop: 6,
+  },
+  desktopCtaGradient: {
+    minHeight: 56,
+    borderRadius: 16,
+  },
+  desktopCtaText: {
+    fontSize: 18,
+  },
+  desktopFeatureRow: {
+    maxWidth: 580,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 18,
+    borderRadius: 18,
+  },
+  desktopFeatureIconBadge: {
+    height: 34,
+    width: 34,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  desktopFeatureTitle: {
+    fontSize: 13,
+  },
+  desktopFeatureSubtitle: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  desktopFeatureDivider: {
+    height: 32,
   },
 
   /* ================= MOBILE STYLES ================= */

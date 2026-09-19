@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Retail Manager",
+    "name": "Kadai Kanakku",
     "slug": "mobile",
     "scheme": "mobiletrackcrm",
     "version": "1.0.0",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#4F46E5",
+        "backgroundColor": "#0D3666",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -39,7 +39,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Retail Manager to access the camera to scan product barcodes."
+          "cameraPermission": "Allow Kadai Kanakku to access the camera to scan product barcodes."
         }
       ]
     ]

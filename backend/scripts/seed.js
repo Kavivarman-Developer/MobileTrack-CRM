@@ -80,6 +80,69 @@ async function seed() {
     { upsert: true, returnDocument: "after" }
   );
 
+  const groceryOrg = await Organization.findOneAndUpdate(
+    { name: "Fresh Basket Grocery" },
+    { name: "Fresh Basket Grocery", plan: "free", isActive: true },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  let groceryAdmin = await User.findOne({ email: "freshbasket@example.com" });
+  if (!groceryAdmin) {
+    groceryAdmin = new User({ email: "freshbasket@example.com", password: "fresh@123" });
+  } else {
+    groceryAdmin.password = "fresh@123";
+  }
+  groceryAdmin.name = "Fresh Basket Admin";
+  groceryAdmin.role = "admin";
+  groceryAdmin.organizationId = groceryOrg._id;
+  groceryAdmin.phone = "9000011111";
+  await groceryAdmin.save();
+  groceryOrg.ownerUserId = groceryAdmin._id;
+  await groceryOrg.save();
+
+  const groceryCategories = {};
+  for (const name of ["Fruits", "Vegetables", "Dairy", "Staples", "Snacks", "Beverages"]) {
+    groceryCategories[name] = await Category.findOneAndUpdate({ name }, { name }, { upsert: true, returnDocument: "after" });
+  }
+  const groceryBrand = await Brand.findOneAndUpdate({ name: "Fresh Basket" }, { name: "Fresh Basket" }, { upsert: true, returnDocument: "after" });
+  const amul = await Brand.findOneAndUpdate({ name: "Amul" }, { name: "Amul" }, { upsert: true, returnDocument: "after" });
+  const tata = await Brand.findOneAndUpdate({ name: "Tata" }, { name: "Tata" }, { upsert: true, returnDocument: "after" });
+
+  const groceryProducts = [
+    { name: "Banana Robusta", sku: "GRO-BANANA-1KG", category: "Fruits", brand: "Fresh Basket", price: 58, costPrice: 42, stockQty: 80, unit: "1 kg" },
+    { name: "Apple Shimla", sku: "GRO-APPLE-1KG", category: "Fruits", brand: "Fresh Basket", price: 190, costPrice: 150, stockQty: 45, unit: "1 kg" },
+    { name: "Tomato Local", sku: "GRO-TOMATO-1KG", category: "Vegetables", brand: "Fresh Basket", price: 36, costPrice: 24, stockQty: 70, unit: "1 kg" },
+    { name: "Potato", sku: "GRO-POTATO-1KG", category: "Vegetables", brand: "Fresh Basket", price: 42, costPrice: 30, stockQty: 90, unit: "1 kg" },
+    { name: "Amul Taaza Milk", sku: "GRO-MILK-500ML", category: "Dairy", brand: "Amul", price: 28, costPrice: 24, stockQty: 120, unit: "500 ml" },
+    { name: "Curd Cup", sku: "GRO-CURD-400G", category: "Dairy", brand: "Amul", price: 35, costPrice: 29, stockQty: 60, unit: "400 g" },
+    { name: "Tata Salt", sku: "GRO-SALT-1KG", category: "Staples", brand: "Tata", price: 28, costPrice: 22, stockQty: 110, unit: "1 kg" },
+    { name: "Sona Masoori Rice", sku: "GRO-RICE-5KG", category: "Staples", brand: "Fresh Basket", price: 365, costPrice: 318, stockQty: 35, unit: "5 kg" },
+    { name: "Masala Chips", sku: "GRO-CHIPS-90G", category: "Snacks", brand: "Fresh Basket", price: 30, costPrice: 21, stockQty: 95, unit: "90 g" },
+    { name: "Tender Coconut Water", sku: "GRO-COCONUT-200ML", category: "Beverages", brand: "Fresh Basket", price: 45, costPrice: 32, stockQty: 55, unit: "200 ml" },
+  ];
+
+  const brandByName = { "Fresh Basket": groceryBrand, Amul: amul, Tata: tata };
+  for (const item of groceryProducts) {
+    await Product.findOneAndUpdate(
+      { organizationId: groceryOrg._id, sku: item.sku },
+      {
+        organizationId: groceryOrg._id,
+        name: item.name,
+        sku: item.sku,
+        category: groceryCategories[item.category]._id,
+        brand: brandByName[item.brand]._id,
+        price: item.price,
+        sellingPrice: item.price,
+        costPrice: item.costPrice,
+        stockQty: item.stockQty,
+        lowStockThreshold: 10,
+        reorderPoint: 10,
+        unit: item.unit,
+      },
+      { upsert: true, returnDocument: "after" }
+    );
+  }
+
   console.log("Seed complete: kavin@gmail.com / kavin@123");
   process.exit(0);
 }

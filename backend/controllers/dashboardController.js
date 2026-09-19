@@ -2,6 +2,7 @@ const Order = require("../models/Order");
 const OrderItem = require("../models/OrderItem");
 const Product = require("../models/Product");
 const Expense = require("../models/Expense");
+const { getOrCreateHomeBanner } = require("../services/homeBannerService");
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -47,7 +48,20 @@ async function getDashboard(req, res, next) {
       ]),
     ]);
 
-    const lowStockProducts = await Product.find({ ...orgMatch, $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } }).limit(8);
+    const lowStockProducts = await Product.find({ ...orgMatch, $expr: { $lte: ["$stockQty", "$lowStockThreshold"] } })
+      .sort({ stockQty: 1 })
+      .limit(5);
+    const homeBanner = await getOrCreateHomeBanner();
+    const bannerPayload = homeBanner.enabled
+      ? {
+          enabled: true,
+          title: homeBanner.title || "Shop update",
+          message: homeBanner.message || "Check the latest announcement from your admin.",
+          ctaLabel: homeBanner.ctaLabel || "",
+          ctaAction: homeBanner.ctaAction || "",
+          tone: homeBanner.tone || "promo",
+        }
+      : null;
     res.json({
       totalProducts,
       todaySales: todaySalesAgg[0]?.total || 0,
@@ -58,6 +72,7 @@ async function getDashboard(req, res, next) {
       selectedExpenses: expenseAgg[0]?.total || 0,
       lowStockProductCount,
       lowStockProducts,
+      homeBanner: bannerPayload,
       monthlySales: monthlySales.map((row) => ({ month: `${row._id.m}/${row._id.y}`, total: row.total })),
       organization: req.organization ? {
         _id: req.organization._id,

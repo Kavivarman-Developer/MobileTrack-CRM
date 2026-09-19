@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
+import { Badge, Button, Empty, Field, PageHeader, Screen, Sheet } from "../../components/Layout";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { getCompatibleAccessories, getProduct, getStockMovements, Product, restockProduct } from "../../services/api";
 
@@ -88,16 +88,20 @@ export default function ProductDetailScreen({ route, navigation }: any) {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons color={colors.text} name="chevron-back" size={20} />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setRestockOpen(true)} style={styles.restockButton}>
-            <Ionicons color="#ffffff" name="add-circle-outline" size={16} style={{ marginRight: 4 }} />
-            <Text style={styles.restockText}>Restock</Text>
-          </TouchableOpacity>
-        </View>
+        <PageHeader
+          left={(
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Ionicons color={colors.text} name="chevron-back" size={20} />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          right={(
+            <TouchableOpacity onPress={() => setRestockOpen(true)} style={styles.restockButton}>
+              <Ionicons color="#ffffff" name="add-circle-outline" size={16} style={{ marginRight: spacing.xxs }} />
+              <Text style={styles.restockText}>Restock</Text>
+            </TouchableOpacity>
+          )}
+        />
 
         {/* Product Hero */}
         <View style={styles.hero}>
@@ -114,7 +118,7 @@ export default function ProductDetailScreen({ route, navigation }: any) {
             <View style={{ marginTop: spacing.xs }}>
               <Badge label={`${stockLabel(product.data)} (${product.data.stockQty} left)`} tone={tone} />
             </View>
-            <Text style={styles.price}>Rs {formatMoney(product.data.price)}</Text>
+            <Text style={styles.price}>₹{formatMoney(product.data.price)}</Text>
           </View>
         </View>
 
@@ -170,22 +174,11 @@ export default function ProductDetailScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      {/* Restock Modal */}
-      <Modal transparent animationType="slide" visible={restockOpen}>
-        <View style={styles.sheetBackdrop}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sectionTitle}>Restock Product Quantity</Text>
-              <TouchableOpacity onPress={() => setRestockOpen(false)}>
-                <Ionicons color={colors.text} name="close" size={20} />
-              </TouchableOpacity>
-            </View>
-            <Field keyboardType="numeric" onChangeText={setQuantity} placeholder="Quantity to add (e.g. 10)" value={quantity} />
-            <Field onChangeText={setNote} placeholder="Restock note / supplier reference" value={note} />
-            <Button icon="checkmark-circle-outline" loading={restock.isPending} onPress={() => restock.mutate()} title="Confirm Add Stock" />
-          </View>
-        </View>
-      </Modal>
+      <Sheet hint="Add incoming stock to this SKU" onClose={() => setRestockOpen(false)} title="Restock quantity" visible={restockOpen}>
+        <Field keyboardType="numeric" onChangeText={setQuantity} placeholder="Quantity to add (e.g. 10)" value={quantity} />
+        <Field onChangeText={setNote} placeholder="Restock note / supplier reference" value={note} />
+        <Button icon="checkmark-circle-outline" loading={restock.isPending} onPress={() => restock.mutate()} title="Confirm Add Stock" />
+      </Sheet>
     </Screen>
   );
 }
@@ -196,8 +189,8 @@ function AccessoryCard({ item }: { item: Product }) {
     <View style={styles.accessoryCard}>
       {item.images?.[0] ? <Image source={{ uri: item.images[0] }} style={styles.accessoryImage} /> : <View style={styles.accessoryInitial}><Text style={styles.heroInitialText}>{item.name.slice(0, 2).toUpperCase()}</Text></View>}
       <Text numberOfLines={2} style={styles.accessoryName}>{item.name}</Text>
-      <Text style={styles.accessoryPrice}>Rs {formatMoney(item.price)}</Text>
-      <View style={{ marginTop: 4 }}>
+      <Text style={styles.accessoryPrice}>₹{formatMoney(item.price)}</Text>
+      <View style={{ marginTop: spacing.xxs }}>
         <Badge label={stockLabel(item)} tone={tone} />
       </View>
     </View>
@@ -231,12 +224,12 @@ const styles = StyleSheet.create({
   barcodeWrap: { alignItems: "center" },
   barcodeBox: { backgroundColor: "#ffffff", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.md },
   barcodeValue: { color: colors.text, fontSize: 14, fontWeight: "700", letterSpacing: 1 },
-  barcodeHint: { color: colors.muted, fontSize: 12, marginTop: 4, marginBottom: spacing.sm, textAlign: "center" },
+  barcodeHint: { color: colors.muted, fontSize: 12, marginTop: spacing.xxs, marginBottom: spacing.sm, textAlign: "center" },
 
   accessoryCard: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginRight: spacing.xs, padding: spacing.sm, width: 130 },
   accessoryImage: { borderRadius: radius.sm, height: 60, marginBottom: spacing.xs, width: "100%" },
   accessoryInitial: { alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.sm, height: 60, justifyContent: "center", marginBottom: spacing.xs, width: "100%" },
-  accessoryName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  accessoryName: { color: colors.text, fontSize: 13, fontWeight: "600", minHeight: 27 },
   accessoryPrice: { color: colors.text, fontWeight: "700", marginTop: 2 },
 
   movementRow: { borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.sm, alignItems: "center" },

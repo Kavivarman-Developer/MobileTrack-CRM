@@ -1,251 +1,1453 @@
 import { Ionicons } from "@expo/vector-icons";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMutation } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import Toast from "react-native-toast-message";
-import { z } from "zod";
-import { Button, Field } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import Svg, { Path } from "react-native-svg";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+  sendPasswordResetEmail,
+  ConfirmationResult,
+} from "firebase/auth";
+import { LinearGradient } from "expo-linear-gradient";
+import { Button, Field, Sheet } from "../../components/Layout";
+import { spacing } from "../../constants/theme";
+import { firebaseApp, firebaseAuth } from "../../config/firebase";
 import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
-import { confirmPasswordReset, getForgotPasswordStatus, login, requestPasswordReset } from "../../services/api";
+import { FirebasePhoneAuthBridge, FirebasePhoneAuthBridgeRef } from "../../components/FirebasePhoneAuthBridge";
+import { apiErrorMessage, AuthLookupResult, firebaseLogin, lookupAccount } from "../../services/api";
 import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast";
 
-const schema = z.object({ email: z.string().email(), password: z.string().min(6) });
-type FormValues = z.infer<typeof schema>;
-type ResetStep = "request" | "confirm";
+type AuthStep = "identifier" | "email-password" | "email-register" | "otp" | "phone-register";
+
+const brand = {
+  navy: "#0D3666",
+  orange: "#F59926",
+  cream: "#FEF5E9",
+  muted: "#5E748B",
+  border: "#D2DCE7",
+  inputBorder: "#C5D3E1",
+  inputBg: "#F3F7FC",
+  featureIconBg: "#FFEBC8",
+  blueLink: "#0066CC",
+};
+
+const fonts = {
+  regular: Platform.select({
+    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    default: "NunitoSans_400Regular",
+  }),
+  semibold: Platform.select({
+    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    default: "NunitoSans_600SemiBold",
+  }),
+  bold: Platform.select({
+    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    default: "NunitoSans_700Bold",
+  }),
+  extraBold: Platform.select({
+    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    default: "NunitoSans_800ExtraBold",
+  }),
+  medium: Platform.select({
+    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    default: "NunitoSans_600SemiBold",
+  }),
+};
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function toE164(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (value.trim().startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
+}
+
+function formatDisplayPhone(value: string) {
+  const trimmed = value.trim();
+  if (isEmail(trimmed)) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (trimmed.startsWith("+")) return trimmed;
+  return `+91 ${digits}`;
+}
+
+function firebaseErrorMessage(error: unknown) {
+  const code = (error as any)?.code as string | undefined;
+  const map: Record<string, string> = {
+    "auth/wrong-password": "Incorrect password.",
+    "auth/invalid-credential": "Incorrect email or password.",
+    "auth/user-not-found": "No account found.",
+    "auth/email-already-in-use": "Email already registered.",
+    "auth/weak-password": "Password must be at least 6 characters.",
+    "auth/invalid-verification-code": "Incorrect OTP. Try again.",
+    "auth/code-expired": "OTP expired. Request a new one.",
+    "auth/too-many-requests": "Too many attempts. Try again later.",
+    "auth/invalid-phone-number": "Enter a valid mobile number.",
+  };
+  if (code && map[code]) return map[code];
+  return (error as Error)?.message?.replace(/^Firebase:\s*/, "") || "Something went wrong";
+}
+
+
+function PrimaryCTA({
+  title,
+  onPress,
+  loading,
+  icon,
+  isDesktop,
+}: {
+  title: string;
+  onPress: () => void;
+  loading?: boolean;
+  icon: keyof typeof Ionicons.glyphMap;
+  isDesktop?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy: Boolean(loading), disabled: Boolean(loading) }}
+      disabled={loading}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.ctaWrapper,
+        isDesktop && styles.desktopCtaWrapper,
+        pressed && styles.ctaPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={["#134A85", brand.navy]}
+        end={{ x: 1, y: 1 }}
+        start={{ x: 0, y: 0 }}
+        style={[styles.ctaGradient, isDesktop && styles.desktopCtaGradient]}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" size="small" />
+        ) : (
+          <>
+            <Text style={[styles.ctaText, isDesktop && styles.desktopCtaText]}>{title}</Text>
+            <Ionicons color="#FFFFFF" name={icon} size={isDesktop ? 22 : 19} />
+          </>
+        )}
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+async function sendPhoneOtpWeb(phone: string): Promise<any> {
+  const formattedPhone = toE164(phone);
+  const fb = require("firebase/compat/app").default || require("firebase/compat/app");
+  require("firebase/compat/auth");
+
+  let container = document.getElementById("recaptcha-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "recaptcha-container";
+    document.body.appendChild(container);
+  }
+
+  if ((window as any).recaptchaVerifier) {
+    try {
+      (window as any).recaptchaVerifier.clear();
+    } catch (e) {}
+  }
+
+  const verifier = new fb.auth.RecaptchaVerifier("recaptcha-container", {
+    size: "invisible",
+  });
+  (window as any).recaptchaVerifier = verifier;
+
+  return await fb.auth().signInWithPhoneNumber(formattedPhone, verifier);
+}
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
+  const confirmationRef = useRef<any>(null);
+  const pendingIdTokenRef = useRef<string | null>(null);
+  const phoneInputRef = useRef<TextInput>(null);
+  const phoneAuthBridgeRef = useRef<FirebasePhoneAuthBridgeRef>(null);
+
+  const [step, setStep] = useState<AuthStep>("identifier");
+  const [identifier, setIdentifier] = useState("");
+  const [lookup, setLookup] = useState<AuthLookupResult | null>(null);
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetStep, setResetStep] = useState<ResetStep>("request");
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetCode, setResetCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
+  const [name, setName] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const { control, handleSubmit, watch } = useForm<FormValues>({
-    defaultValues: { email: "", password: "" },
-    resolver: zodResolver(schema),
+  const [otpCode, setOtpCode] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+
+  const accountEmail = lookup?.kind === "email" ? identifier.trim().toLowerCase() : "";
+
+  const stepCopy = useMemo(() => {
+    if (step === "identifier") return { n: 1, title: "Enter Mobile Number", hint: "We’ll send you a secure OTP to continue." };
+    if (step === "email-password")
+      return { n: 2, title: lookup?.nameHint ? `Welcome back, ${lookup.nameHint}` : "Enter Password", hint: "Login to your account" };
+    if (step === "email-register") return { n: 2, title: "Create shop account", hint: "Soft signup — just a few details to get started." };
+    if (step === "otp") return { n: 2, title: "Enter OTP", hint: `We’ve sent a code to ${identifier.trim()}` };
+    return { n: 2, title: "Almost there", hint: "Tell us a bit about your shop." };
+  }, [identifier, lookup?.nameHint, step]);
+
+  function goBack() {
+    if (step === "identifier") return;
+    setStep("identifier");
+    setLookup(null);
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setOtpCode("");
+    confirmationRef.current = null;
+    pendingIdTokenRef.current = null;
+  }
+
+  async function finalizeLogin(idToken: string, nameValue?: string, businessNameValue?: string) {
+    const data = await firebaseLogin(idToken, nameValue, businessNameValue);
+    dispatch(setCredentials(data));
+  }
+
+  const checkAccount = useMutation({
+    mutationFn: () => lookupAccount(identifier.trim()),
+    onSuccess: (data) => {
+      setLookup(data);
+      setPassword("");
+      setConfirmPassword("");
+      if (data.kind === "email") {
+        setStep(data.exists ? "email-password" : "email-register");
+      } else {
+        sendOtp.mutate();
+      }
+    },
+    onError: (error: Error) => showErrorToast(apiErrorMessage(error), "Check failed"),
   });
-  const email = watch("email").trim().toLowerCase();
-  const canResetPassword = z.string().email().safeParse(resetEmail.trim().toLowerCase()).success;
-  const forgotStatus = useQuery({
-    queryFn: () => getForgotPasswordStatus(""),
-    queryKey: ["forgot-password-status-global"],
-    staleTime: 30_000,
+
+  const sendOtp = useMutation({
+    mutationFn: async () => {
+      const formattedPhone = toE164(identifier);
+      if (Platform.OS === "web") {
+        const confirmation = await sendPhoneOtpWeb(identifier);
+        confirmationRef.current = confirmation;
+      } else {
+        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
+        const verificationId = await phoneAuthBridgeRef.current.sendOtp(formattedPhone);
+        confirmationRef.current = verificationId;
+      }
+    },
+    onSuccess: () => {
+      setOtpCode("");
+      setStep("otp");
+    },
+    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Could not send OTP"),
   });
-  const mutation = useMutation({
-    mutationFn: (values: FormValues) => login(values.email, values.password),
-    onSuccess: (data) => dispatch(setCredentials(data)),
-    onError: (error: Error) => showErrorToast(error.message, "Login failed"),
+
+  const confirmOtp = useMutation({
+    mutationFn: async () => {
+      if (Platform.OS === "web") {
+        if (!confirmationRef.current) throw new Error("Request a new OTP.");
+        const credential = await confirmationRef.current.confirm(otpCode.trim());
+        return credential.user.getIdToken();
+      } else {
+        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
+        return await phoneAuthBridgeRef.current.confirmOtp(otpCode.trim());
+      }
+    },
+    onSuccess: async (idToken) => {
+      if (lookup?.exists) {
+        try {
+          await finalizeLogin(idToken);
+        } catch (error) {
+          showErrorToast(apiErrorMessage(error), "Login failed");
+        }
+      } else {
+        pendingIdTokenRef.current = idToken;
+        setStep("phone-register");
+      }
+    },
+    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Verification failed"),
   });
+
+  const emailSignIn = useMutation({
+    mutationFn: async () => {
+      const credential = await signInWithEmailAndPassword(firebaseAuth, identifier.trim().toLowerCase(), password);
+      const idToken = await credential.user.getIdToken();
+      await finalizeLogin(idToken);
+    },
+    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Login failed"),
+  });
+
+  const emailRegister = useMutation({
+    mutationFn: async () => {
+      const credential = await createUserWithEmailAndPassword(firebaseAuth, identifier.trim().toLowerCase(), password);
+      const idToken = await credential.user.getIdToken();
+      await finalizeLogin(idToken, name.trim(), businessName.trim() || undefined);
+    },
+    onSuccess: () => showSuccessToast("Shop ready", "Welcome aboard"),
+    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Signup failed"),
+  });
+
+  const phoneRegister = useMutation({
+    mutationFn: async () => {
+      if (!pendingIdTokenRef.current) throw new Error("Session expired. Verify your mobile again.");
+      await finalizeLogin(pendingIdTokenRef.current, name.trim(), businessName.trim() || undefined);
+    },
+    onSuccess: () => showSuccessToast("Shop ready", "Welcome aboard"),
+    onError: (error: Error) => showErrorToast(apiErrorMessage(error), "Signup failed"),
+  });
+
+  function submitIdentifier() {
+    const value = identifier.trim();
+    if (!value) return Alert.alert("Required", "Enter your email or mobile number.");
+    if (!isEmail(value) && !isPhone(value)) {
+      return Alert.alert("Invalid", "Use a valid email or 10-digit mobile number.");
+    }
+    checkAccount.mutate();
+  }
+
+  function submitEmailPassword() {
+    if (password.length < 6) return Alert.alert("Password", "Enter your password.");
+    emailSignIn.mutate();
+  }
+
+  function submitEmailRegister() {
+    if (!name.trim()) return Alert.alert("Name required", "Enter your name.");
+    if (password.length < 6) return Alert.alert("Weak password", "Password must be at least 6 characters.");
+    if (password !== confirmPassword) return Alert.alert("Mismatch", "Passwords do not match.");
+    emailRegister.mutate();
+  }
+
+  function submitOtp() {
+    if (otpCode.trim().length < 6) return Alert.alert("OTP", "Enter the 6-digit code.");
+    confirmOtp.mutate();
+  }
+
+  function submitPhoneRegister() {
+    if (!name.trim()) return Alert.alert("Name required", "Enter your name.");
+    phoneRegister.mutate();
+  }
 
   function closeReset() {
     setResetOpen(false);
-    setResetStep("request");
-    setResetCode("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setResetSent(false);
+    setResetEmail("");
   }
 
   const requestReset = useMutation({
-    mutationFn: () => requestPasswordReset(resetEmail.trim().toLowerCase()),
-    onSuccess: (data) => {
-      setResetStep("confirm");
-      showSuccessToast(data.message, "Check your email");
+    mutationFn: () => sendPasswordResetEmail(firebaseAuth, resetEmail.trim().toLowerCase()),
+    onSuccess: () => {
+      setResetSent(true);
+      showSuccessToast("Check your email", "We sent a password reset link.");
     },
-    onError: (error: Error) => showErrorToast(error.message, "Request failed"),
+    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Request failed"),
   });
 
-  const confirmReset = useMutation({
-    mutationFn: () => confirmPasswordReset(resetEmail.trim().toLowerCase(), resetCode.trim(), newPassword),
-    onSuccess: (data) => {
-      closeReset();
-      showSuccessToast(data.message, "Password updated");
-    },
-    onError: (error: Error) => showErrorToast(error.message, "Reset failed"),
-  });
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 860;
 
-  function submitRequest() {
-    if (!canResetPassword) {
-      Alert.alert("Enter email", "Enter your shop owner email first.");
-      return;
-    }
-    requestReset.mutate();
+  function renderFormSteps() {
+    return (
+      <>
+        {/* STEP 1: Phone / Email Entry */}
+        {step === "identifier" && (
+          <View style={styles.stepBody}>
+            <Pressable
+              onPress={() => phoneInputRef.current?.focus()}
+              style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}
+            >
+              <View pointerEvents="none" style={styles.countryPickerBox}>
+                <Text style={[styles.countryCodeText, isDesktop && styles.desktopCountryCodeText]}>+91</Text>
+                <Ionicons color={brand.muted} name="chevron-down" size={12} style={{ marginLeft: 2 }} />
+              </View>
+              <View pointerEvents="none" style={[styles.phoneInputDivider, isDesktop && { height: 22 }]} />
+              <TextInput
+                ref={phoneInputRef}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+                onChangeText={setIdentifier}
+                onSubmitEditing={submitIdentifier}
+                placeholder="Mobile number"
+                placeholderTextColor="#94A3B8"
+                returnKeyType="done"
+                selectionColor={brand.navy}
+                cursorColor={brand.navy}
+                style={[styles.phoneTextInput, isDesktop && styles.desktopPhoneTextInput]}
+                value={identifier}
+              />
+            </Pressable>
+
+            <PrimaryCTA
+              icon="arrow-forward"
+              isDesktop={isDesktop}
+              loading={checkAccount.isPending || sendOtp.isPending}
+              onPress={submitIdentifier}
+              title="Get OTP"
+            />
+          </View>
+        )}
+
+        {/* STEP 2: Password Step (Existing Email Users) */}
+        {step === "email-password" && (
+          <View style={styles.stepBody}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="phone-portrait-outline" size={isDesktop ? 20 : 18} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{formatDisplayPhone(identifier)}</Text>
+              </View>
+              <Pressable onPress={goBack} style={styles.changeLink}>
+                <Text style={styles.changeLinkText}>Change</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
+              <Field
+                autoComplete="password"
+                onChangeText={setPassword}
+                onSubmitEditing={submitEmailPassword}
+                placeholder="Enter your password"
+                secureTextEntry={!showPassword}
+                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
+                value={password}
+              />
+              <Pressable
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                onPress={() => setShowPassword((v) => !v)}
+                style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}
+              >
+                <Ionicons
+                  color={brand.muted}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={isDesktop ? 20 : 18}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.rememberRow}>
+              <Pressable onPress={() => setRememberMe((v) => !v)} style={styles.rememberLeft}>
+                <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+                  {rememberMe && <Ionicons color="#FFFFFF" name="checkmark" size={11} />}
+                </View>
+                <Text style={styles.rememberText}>Remember me</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setResetEmail(accountEmail || identifier);
+                  setResetSent(false);
+                  setResetOpen(true);
+                }}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+
+            <PrimaryCTA
+              icon="log-in-outline"
+              isDesktop={isDesktop}
+              loading={emailSignIn.isPending}
+              onPress={submitEmailPassword}
+              title="Login"
+            />
+
+            <Pressable onPress={goBack} style={styles.createPanel}>
+              <Text style={styles.createPanelText}>Don’t have an account?</Text>
+              <Text style={styles.createPanelLink}>Create one →</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* STEP 3: Email Register */}
+        {step === "email-register" && (
+          <View style={styles.stepBody}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Your name</Text>
+            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
+
+            <Text style={styles.label}>Shop name</Text>
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
+
+            <Text style={styles.label}>Create password</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
+              <Field
+                onChangeText={setPassword}
+                placeholder="Min 6 characters"
+                secureTextEntry={!showPassword}
+                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
+                value={password}
+              />
+              <Pressable onPress={() => setShowPassword((v) => !v)} style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}>
+                <Ionicons
+                  color={brand.muted}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={isDesktop ? 20 : 18}
+                />
+              </Pressable>
+            </View>
+
+            <Text style={styles.label}>Confirm password</Text>
+            <Field
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter password"
+              secureTextEntry={!showPassword}
+              style={isDesktop ? styles.desktopInput : undefined}
+              value={confirmPassword}
+            />
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
+              loading={emailRegister.isPending}
+              onPress={submitEmailRegister}
+              title="Create account & enter"
+            />
+          </View>
+        )}
+
+        {/* STEP 4: OTP Verification */}
+        {step === "otp" && (
+          <View style={styles.stepBody}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="call-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{identifier.trim()}</Text>
+              </View>
+              <Pressable onPress={goBack} style={styles.changeLink}>
+                <Text style={styles.changeLinkText}>Change</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="keypad-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
+              <Field
+                keyboardType="number-pad"
+                maxLength={6}
+                onChangeText={setOtpCode}
+                onSubmitEditing={submitOtp}
+                placeholder="Enter 6-digit OTP"
+                style={[styles.inputWithIcon, isDesktop && styles.desktopInput]}
+                value={otpCode}
+              />
+            </View>
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
+              loading={confirmOtp.isPending}
+              onPress={submitOtp}
+              title="Verify & continue"
+            />
+
+            <Pressable onPress={() => sendOtp.mutate()} style={styles.forgotButton}>
+              <Text style={styles.forgotText}>
+                {sendOtp.isPending ? "Sending..." : "Resend code"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* STEP 5: Phone Onboarding / Shop Details */}
+        {step === "phone-register" && (
+          <View style={styles.stepBody}>
+            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
+                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Your name</Text>
+            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
+
+            <Text style={styles.label}>Shop name</Text>
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              isDesktop={isDesktop}
+              loading={phoneRegister.isPending}
+              onPress={submitPhoneRegister}
+              title="Create account & enter"
+            />
+          </View>
+        )}
+      </>
+    );
   }
 
-  function submitConfirm() {
-    if (!resetCode.trim()) {
-      Alert.alert("Enter code", "Enter the reset code from your email.");
-      return;
-    }
-    if (newPassword.length < 6) {
-      Alert.alert("Weak password", "Password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      Alert.alert("Password mismatch", "New password and confirmation must match.");
-      return;
-    }
-    confirmReset.mutate();
+  function renderTrustBar() {
+    return (
+      <View style={[styles.featureRow, isDesktop && styles.desktopFeatureRow]}>
+        <View style={styles.featureItem}>
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="shield-checkmark" size={isDesktop ? 18 : 16} />
+          </View>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Safe & Secure</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Bank-grade privacy</Text>
+        </View>
+        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
+        <View style={styles.featureItem}>
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="flash" size={isDesktop ? 18 : 16} />
+          </View>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Fast Access</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Instant OTP login</Text>
+        </View>
+        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
+        <View style={styles.featureItem}>
+          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
+            <Ionicons color={brand.orange} name="cube" size={isDesktop ? 18 : 16} />
+          </View>
+          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Manage Stock</Text>
+          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Live inventory</Text>
+        </View>
+      </View>
+    );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.brandBlock}>
-            <View style={styles.logoBadge}>
-              <Ionicons color="#ffffff" name="storefront" size={32} />
+      <StatusBar style="dark" />
+
+      {isDesktop ? (
+        /* ================= DESKTOP SPLIT VIEW (100% Full Viewport) ================= */
+        <View style={styles.desktopContainer}>
+          {/* Left Column: Full-Height Hero Showcase */}
+          <View style={styles.desktopHeroColumn}>
+            <Image
+              resizeMode="cover"
+              source={require("../../../assets/hero.jpeg")}
+              style={StyleSheet.absoluteFill}
+            />
+            <LinearGradient
+              colors={["rgba(6, 24, 48, 0.90)", "rgba(10, 37, 71, 0.82)", "rgba(5, 18, 36, 0.95)"]}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.desktopHeroContent}>
+              {/* Brand Header */}
+              <View style={styles.desktopBrandHeader}>
+                <View style={styles.desktopLogoBadge}>
+                  <Ionicons color="#FFFFFF" name="storefront" size={26} />
+                </View>
+                <View>
+                  <Text style={styles.desktopBrandTitle}>Kadai Kanakku</Text>
+                  <Text style={styles.desktopBrandTagline}>Smart Retail POS & Billing</Text>
+                </View>
+              </View>
+
+              {/* Value Proposition */}
+              <View style={styles.desktopHeroCenter}>
+                <Text style={styles.desktopHeroSlogan}>
+                  Smart Retail POS & Billing Platform
+                </Text>
+                <Svg height="10" width="130" viewBox="0 0 130 10" style={{ marginTop: 8, marginBottom: 14 }}>
+                  <Path d="M 4 3 Q 65 9 126 3" fill="none" stroke={brand.orange} strokeWidth="3.5" strokeLinecap="round" />
+                </Svg>
+                <Text style={styles.desktopHeroDescription}>
+                  Manage billing, barcode scanner, live stock alerts, customer khata, and daily profit totals seamlessly from your phone or desktop.
+                </Text>
+              </View>
+
+              {/* Bottom Trust Cards on Left Showcase */}
+              <View style={styles.desktopTrustRow}>
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="shield-checkmark" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Safe & Secure</Text>
+                  <Text style={styles.desktopTrustSubtitle}>Encrypted cloud store</Text>
+                </View>
+
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="flash" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Fast Access</Text>
+                  <Text style={styles.desktopTrustSubtitle}>1-Click instant login</Text>
+                </View>
+
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="cube" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Manage Stock</Text>
+                  <Text style={styles.desktopTrustSubtitle}>Realtime inventory</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.brand}>Retail Manager</Text>
-            <Text style={styles.subtitle}>Inventory, billing, customers and daily shop totals — all in one place.</Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Welcome back</Text>
-            <Text style={styles.cardHint}>Sign in to continue to your shop dashboard</Text>
-
-            <Text style={styles.label}>Email address</Text>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputWrap}>
-                  <Ionicons color={colors.muted} name="mail-outline" size={20} style={styles.inputIcon} />
-                  <Field
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    onChangeText={onChange}
-                    placeholder="you@shop.com"
-                    style={styles.inputWithIcon}
-                    value={value}
-                  />
-                </View>
+          {/* Right Column: Centered Form Card */}
+          <View style={styles.desktopFormColumn}>
+            <ScrollView
+              contentContainerStyle={styles.desktopFormScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {step !== "identifier" && (
+                <Pressable onPress={goBack} style={styles.desktopBackRow}>
+                  <Ionicons color={brand.navy} name="arrow-back" size={16} />
+                  <Text style={styles.desktopBackText}>Back to Mobile / Email</Text>
+                </Pressable>
               )}
-            />
 
-            <Text style={styles.label}>Password</Text>
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.inputWrap}>
-                  <Ionicons color={colors.muted} name="lock-closed-outline" size={20} style={styles.inputIcon} />
-                  <Field
-                    onChangeText={onChange}
-                    placeholder="Enter password"
-                    secureTextEntry={!showPassword}
-                    style={styles.inputWithIconRight}
-                    value={value}
-                  />
-                  <Pressable hitSlop={12} onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
-                    <Ionicons color={colors.muted} name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} />
+              <View style={styles.desktopCard}>
+                <View style={[styles.stepHeaderRow, styles.desktopStepHeaderRow]}>
+                  <Text style={styles.desktopCardTitle}>{stepCopy.title}</Text>
+                  <Text style={styles.desktopCardHint}>{stepCopy.hint}</Text>
+                </View>
+
+                {renderFormSteps()}
+              </View>
+
+              {/* Trust Bar below form */}
+              {renderTrustBar()}
+
+              <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
+            </ScrollView>
+          </View>
+        </View>
+      ) : (
+        /* ================= MOBILE VIEW (Full Height Scrollable) ================= */
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.container}
+        >
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero Storefront Banner */}
+            <View style={styles.heroWrapper}>
+              <Image
+                resizeMode="cover"
+                source={require("../../../assets/hero.jpeg")}
+                style={styles.heroImage}
+              />
+              <LinearGradient
+                colors={["rgba(13,54,102,0.35)", "rgba(13,54,102,0.02)", "rgba(254,245,233,0.85)", brand.cream]}
+                locations={[0, 0.45, 0.88, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+              {step !== "identifier" && (
+                <View style={styles.floatingTopBar}>
+                  <Pressable onPress={goBack} style={styles.topBackPill}>
+                    <Ionicons color="#FFFFFF" name="arrow-back" size={16} />
+                    <Text style={styles.topBackPillText}>Back</Text>
                   </Pressable>
                 </View>
               )}
-            />
-
-            <Button icon="log-in-outline" loading={mutation.isPending} onPress={handleSubmit((values) => mutation.mutate(values))} title="Sign in" />
-            {forgotStatus.data?.enabled && (
-              <Pressable onPress={() => { setResetEmail(email); setResetStep("request"); setResetOpen(true); }} style={styles.forgotButton}>
-                <Text style={styles.forgotText}>Forgot password?</Text>
-              </Pressable>
-            )}
-          </View>
-
-          <Text style={styles.footer}>Secured with encrypted session tokens</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      <Modal animationType="slide" transparent visible={resetOpen}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.resetCard}>
-            <View style={styles.resetHeader}>
-              <View>
-                <Text style={styles.cardTitle}>Reset password</Text>
-                <Text style={styles.cardHint}>
-                  {resetStep === "request" ? "Use your shop owner email" : "Enter the code we emailed you"}
-                </Text>
-              </View>
-              <Pressable onPress={closeReset} style={styles.closeButton}>
-                <Ionicons color={colors.text} name="close" size={22} />
-              </Pressable>
+              <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
+                <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 4 L400 24 Z" fill={brand.cream} />
+              </Svg>
             </View>
-            {resetStep === "request" ? (
-              <>
-                <Text style={styles.label}>Email address</Text>
-                <Field autoCapitalize="none" keyboardType="email-address" onChangeText={setResetEmail} placeholder="you@shop.com" value={resetEmail} />
-                <Button loading={requestReset.isPending} onPress={submitRequest} title="Send reset code" />
-              </>
-            ) : (
-              <>
-                <Text style={styles.cardHint}>Code sent to {resetEmail}</Text>
-                <Text style={styles.label}>Reset code</Text>
-                <Field autoCapitalize="none" onChangeText={setResetCode} placeholder="Paste the code from your email" value={resetCode} />
-                <Text style={styles.label}>New password</Text>
-                <Field onChangeText={setNewPassword} placeholder="New password" secureTextEntry value={newPassword} />
-                <Text style={styles.label}>Confirm password</Text>
-                <Field onChangeText={setConfirmPassword} placeholder="Confirm password" secureTextEntry value={confirmPassword} />
-                <Button loading={confirmReset.isPending} onPress={submitConfirm} title="Update password" />
-                <Pressable onPress={() => setResetStep("request")} style={styles.forgotButton}>
-                  <Text style={styles.forgotText}>Use a different email</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-        <Toast config={toastConfig} />
-      </Modal>
+
+            {/* Brand Identity Block */}
+            <View style={styles.brandBlock}>
+              <View style={styles.logoBadgeGlow}>
+                <View style={styles.logoBadge}>
+                  <Ionicons color="#FFFFFF" name="storefront" size={24} />
+                </View>
+              </View>
+              <Text style={styles.brand}>Kadai Kanakku</Text>
+              <Text style={styles.subtitle}>
+                Smart Retail POS & Store Management
+              </Text>
+            </View>
+
+            {/* Primary Form Card */}
+            <View style={styles.card}>
+              <View style={styles.stepHeaderRow}>
+                <Text style={styles.cardTitle}>{stepCopy.title}</Text>
+                <Text style={styles.cardHint}>{stepCopy.hint}</Text>
+              </View>
+
+              {renderFormSteps()}
+            </View>
+
+            {/* Trust Bar */}
+            {renderTrustBar()}
+
+            <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* Reset Password Sheet */}
+      <Sheet
+        hint={resetSent ? "Check your inbox for the reset link" : "We’ll email a reset link to your inbox"}
+        icon="key-outline"
+        onClose={closeReset}
+        title="Reset password"
+        visible={resetOpen}
+        footer={
+          resetSent ? (
+            <Button onPress={closeReset} title="Done" />
+          ) : (
+            <Button
+              loading={requestReset.isPending}
+              onPress={() => {
+                if (!isEmail(resetEmail)) return Alert.alert("Email", "Enter a valid email.");
+                requestReset.mutate();
+              }}
+              title="Send reset link"
+            />
+          )
+        }
+      >
+        {!resetSent ? (
+          <>
+            <Text style={styles.label}>Email</Text>
+            <Field
+              autoCapitalize="none"
+              keyboardType="email-address"
+              onChangeText={setResetEmail}
+              placeholder="you@shop.com"
+              value={resetEmail}
+            />
+          </>
+        ) : null}
+      </Sheet>
+      <FirebasePhoneAuthBridge ref={phoneAuthBridgeRef} />
+      <Toast config={toastConfig} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.secondary },
+  safeArea: { flex: 1, backgroundColor: brand.cream },
   container: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
-  brandBlock: { alignItems: "center", marginBottom: spacing.xl },
+  content: {
+    flexGrow: 1,
+    paddingBottom: 8,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  /* ================= DESKTOP STYLES ================= */
+  desktopContainer: {
+    flex: 1,
+    flexDirection: "row",
+    height: "100%",
+    minHeight: "100vh" as any,
+    width: "100%",
+    backgroundColor: brand.cream,
+  },
+  desktopHeroColumn: {
+    flex: 1.15,
+    height: "100%",
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: brand.navy,
+  },
+  desktopHeroContent: {
+    flex: 1,
+    padding: 36,
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
+  desktopBrandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  desktopLogoBadge: {
+    alignItems: "center",
+    backgroundColor: brand.navy,
+    borderRadius: 14,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+    borderWidth: 2,
+    borderColor: brand.orange,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  desktopBrandTitle: {
+    color: "#FFFFFF",
+    fontFamily: fonts.extraBold,
+    fontSize: 25,
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  desktopBrandTagline: {
+    color: "#FED7AA",
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: "600",
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  desktopHeroCenter: {
+    marginVertical: 18,
+    maxWidth: 500,
+  },
+  desktopHeroSlogan: {
+    color: "#FFFFFF",
+    fontFamily: fonts.extraBold,
+    fontSize: 32,
+    lineHeight: 40,
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  desktopHeroDescription: {
+    color: "#F8FAFC",
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: "500",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  desktopTrustRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  desktopTrustCard: {
+    flex: 1,
+    backgroundColor: "rgba(6, 24, 48, 0.85)",
+    borderColor: "rgba(245, 153, 38, 0.45)",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  desktopTrustTitle: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 4,
+    marginBottom: 2,
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  desktopTrustSubtitle: {
+    color: "#CBD5E1",
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  desktopFormColumn: {
+    flex: 1,
+    height: "100%",
+    backgroundColor: brand.cream,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  desktopFormScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    paddingVertical: 16,
+  },
+  desktopBackRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    marginBottom: 10,
+    width: "100%",
+    maxWidth: 440,
+  },
+  desktopBackText: {
+    color: brand.navy,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  desktopCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    paddingHorizontal: 44,
+    paddingVertical: 44,
+    width: "100%",
+    maxWidth: 580,
+    shadowColor: "#0D3666",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.12,
+    shadowRadius: 32,
+    elevation: 8,
+  },
+  desktopStepHeaderRow: {
+    marginBottom: 24,
+  },
+  desktopStepBadge: {
+    height: 38,
+    width: 38,
+    marginBottom: 10,
+    borderRadius: 19,
+  },
+  desktopStepBadgeText: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+  },
+  desktopCardTitle: {
+    color: brand.navy,
+    fontFamily: fonts.extraBold,
+    fontSize: 24,
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  desktopCardHint: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  desktopPhoneInputContainer: {
+    minHeight: 48,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  desktopCountryCodeText: {
+    fontSize: 15,
+  },
+  desktopPhoneTextInput: {
+    fontSize: 15,
+    minHeight: 44,
+  },
+  desktopInput: {
+    minHeight: 48,
+    fontSize: 15,
+    borderRadius: 12,
+    paddingLeft: 44,
+  },
+  desktopCtaWrapper: {
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  desktopCtaGradient: {
+    minHeight: 48,
+    borderRadius: 12,
+  },
+  desktopCtaText: {
+    fontSize: 16,
+  },
+  desktopFeatureRow: {
+    maxWidth: 580,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 18,
+    borderRadius: 18,
+  },
+  desktopFeatureIconBadge: {
+    height: 34,
+    width: 34,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  desktopFeatureTitle: {
+    fontSize: 13,
+  },
+  desktopFeatureSubtitle: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  desktopFeatureDivider: {
+    height: 32,
+  },
+
+  /* ================= MOBILE STYLES ================= */
+
+  heroWrapper: {
+    height: 145,
+    width: "100%",
+    position: "relative",
+    overflow: "hidden",
+  },
+  heroImage: { height: "100%", width: "100%" },
+  floatingTopBar: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 12 : 8,
+    left: 12,
+    zIndex: 20,
+  },
+  topBackPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(13, 54, 102, 0.78)",
+    borderRadius: 20,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  topBackPillText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 12, fontWeight: "700" },
+  heroWave: {
+    bottom: -1,
+    position: "absolute",
+  },
+
+  brandBlock: {
+    alignItems: "center",
+    marginTop: -22,
+    marginBottom: 4,
+    paddingHorizontal: spacing.md,
+    zIndex: 5,
+  },
+  logoBadgeGlow: {
+    alignItems: "center",
+    backgroundColor: "rgba(245, 153, 38, 0.16)",
+    borderRadius: 22,
+    height: 44,
+    justifyContent: "center",
+    marginBottom: 2,
+    width: 44,
+  },
   logoBadge: {
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    height: 64,
+    backgroundColor: brand.navy,
+    borderRadius: 10,
+    height: 36,
     justifyContent: "center",
-    marginBottom: spacing.md,
-    width: 64,
-    ...shadows.floating,
+    width: 36,
+    borderWidth: 2,
+    borderColor: brand.cream,
+    shadowColor: brand.navy,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  brand: { color: "#ffffff", ...typography.h1, fontSize: 28, textAlign: "center" },
-  subtitle: { color: "#94A3B8", fontSize: 14, fontWeight: "500", marginTop: spacing.xs, paddingHorizontal: spacing.md, textAlign: "center", lineHeight: 20 },
+  brand: {
+    color: brand.navy,
+    fontFamily: fonts.extraBold,
+    fontSize: 20,
+    letterSpacing: -0.3,
+    textAlign: "center",
+  },
+  subtitle: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    marginTop: 2,
+    marginBottom: 4,
+    textAlign: "center",
+    lineHeight: 14,
+  },
 
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderColor: colors.border,
-    borderWidth: 1,
-    ...shadows.floating,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginTop: 6,
+    width: "92%",
+    maxWidth: 440,
+    shadowColor: "#0D3666",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  cardTitle: { color: colors.text, ...typography.h2 },
-  cardHint: { color: colors.muted, fontSize: 14, fontWeight: "500", marginBottom: spacing.md, marginTop: 2 },
 
-  label: { color: colors.text, ...typography.label, marginBottom: spacing.xs },
-  inputWrap: { justifyContent: "center", marginBottom: spacing.sm, position: "relative" },
-  inputIcon: { left: spacing.md, position: "absolute", zIndex: 2 },
-  inputWithIcon: { paddingLeft: 46 },
-  inputWithIconRight: { paddingLeft: 46, paddingRight: 48 },
-  eyeButton: { alignItems: "center", height: 48, justifyContent: "center", position: "absolute", right: 4, width: 44, zIndex: 2 },
-  forgotButton: { alignItems: "center", minHeight: 44, justifyContent: "center", marginTop: spacing.sm },
-  forgotText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
-  modalOverlay: { backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "flex-end" },
-  resetCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg },
-  resetHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
+  stepHeaderRow: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  stepBadge: {
+    alignItems: "center",
+    backgroundColor: brand.orange,
+    borderRadius: 999,
+    height: 26,
+    justifyContent: "center",
+    marginBottom: 6,
+    width: 26,
+    shadowColor: brand.orange,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stepBadgeText: { color: "#FDFCF9", fontFamily: fonts.bold, fontSize: 12 },
+  cardTitle: {
+    color: brand.navy,
+    fontFamily: fonts.extraBold,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    textAlign: "center",
+  },
+  cardHint: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+    textAlign: "center",
+  },
 
-  footer: { color: "#64748B", fontSize: 12, fontWeight: "500", marginTop: spacing.xl, textAlign: "center" },
+  stepBody: { marginTop: 2 },
+
+  label: {
+    color: brand.muted,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 4,
+    marginTop: 4,
+  },
+
+  phoneInputContainer: {
+    alignItems: "center",
+    backgroundColor: brand.inputBg,
+    borderColor: brand.inputBorder,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    minHeight: 50,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  countryPickerBox: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 3,
+  },
+  flagEmoji: { fontSize: 16, marginRight: 2 },
+  countryCodeText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
+  phoneInputDivider: {
+    backgroundColor: brand.border,
+    height: 22,
+    marginHorizontal: 8,
+    width: 1,
+  },
+  phoneTextInput: {
+    color: brand.navy,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    minHeight: 46,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    includeFontPadding: false,
+  },
+
+  inputWrap: {
+    justifyContent: "center",
+    position: "relative",
+    marginBottom: 10,
+  },
+  inputIcon: { left: 12, position: "absolute", zIndex: 2 },
+  inputWithIcon: {
+    paddingLeft: 40,
+    backgroundColor: brand.inputBg,
+    borderRadius: 12,
+    borderColor: brand.inputBorder,
+    minHeight: 46,
+    fontSize: 14,
+  },
+  inputWithIconRight: {
+    paddingLeft: 40,
+    paddingRight: 42,
+    backgroundColor: brand.inputBg,
+    borderRadius: 12,
+    borderColor: brand.inputBorder,
+    minHeight: 46,
+    fontSize: 14,
+  },
+  eyeButton: {
+    alignItems: "center",
+    height: 46,
+    justifyContent: "center",
+    position: "absolute",
+    right: 4,
+    width: 38,
+    zIndex: 2,
+  },
+
+  ctaWrapper: {
+    borderRadius: 12,
+    shadowColor: brand.navy,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+    marginTop: 2,
+  },
+  ctaPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  ctaGradient: {
+    alignItems: "center",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 46,
+  },
+  ctaText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  selectedIdentifierBox: {
+    alignItems: "center",
+    backgroundColor: brand.inputBg,
+    borderColor: brand.inputBorder,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  selectedIdentifierLeft: { alignItems: "center", flexDirection: "row", gap: 8 },
+  selectedIdentifierText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 12.5, fontWeight: "700" },
+  changeLink: { paddingHorizontal: 4, paddingVertical: 2 },
+  changeLinkText: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
+
+  createPanel: {
+    alignItems: "center",
+    backgroundColor: brand.inputBg,
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+    marginTop: spacing.xs,
+    paddingVertical: 7,
+  },
+  createPanelText: { color: brand.muted, fontFamily: fonts.medium, fontSize: 11.5 },
+  createPanelLink: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 11.5, fontWeight: "600" },
+
+  rememberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
+  },
+  rememberLeft: { alignItems: "center", flexDirection: "row", gap: 6 },
+  checkbox: {
+    alignItems: "center",
+    borderColor: brand.navy,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    height: 16,
+    justifyContent: "center",
+    width: 16,
+  },
+  checkboxOn: { backgroundColor: brand.navy },
+  rememberText: { color: brand.navy, fontFamily: fonts.medium, fontSize: 11.5 },
+
+  forgotButton: {
+    alignItems: "center",
+    minHeight: 28,
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  forgotText: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 11.5, fontWeight: "600" },
+
+  featureRow: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: brand.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    width: "92%",
+    maxWidth: 500,
+    shadowColor: brand.navy,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featureItem: { alignItems: "center", flex: 1, paddingHorizontal: 2 },
+  featureIconBadge: {
+    alignItems: "center",
+    backgroundColor: brand.featureIconBg,
+    borderRadius: 8,
+    height: 26,
+    justifyContent: "center",
+    marginBottom: 2,
+    width: 26,
+  },
+  featureTitle: {
+    color: brand.navy,
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  featureSubtitle: {
+    color: brand.muted,
+    fontFamily: fonts.regular,
+    fontSize: 9,
+    textAlign: "center",
+    marginTop: 1,
+    lineHeight: 11,
+  },
+  featureDivider: {
+    backgroundColor: brand.border,
+    height: 22,
+    width: 1,
+  },
+  footerNote: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 10,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: "center",
+  },
 });

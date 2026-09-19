@@ -1,13 +1,53 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Badge, Button, Empty, Field, Screen } from "../../components/Layout";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { Product, PurchaseOrder, createPurchaseOrder, getProducts, getPurchaseOrders, getVendors, receivePurchaseOrder } from "../../services/api";
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  Badge,
+  Empty,
+  FabButton,
+  Field,
+  IconButton,
+  IosScreenHeader,
+  IosSearchBar,
+  PageHeader,
+  Screen,
+  SelectOption,
+} from "../../components/Layout";
+import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
+import {
+  apiErrorMessage,
+  createPurchaseOrder,
+  getProducts,
+  getPurchaseOrders,
+  getVendors,
+  Product,
+  PurchaseOrder,
+  receivePurchaseOrder,
+} from "../../services/api";
 
 const blankLine = { product: "", quantity: "1", costPrice: "" };
 type DatePreset = "today" | "week" | "month" | "custom";
+
+const statusColor: Record<string, { bg: string; text: string; dot: string }> = {
+  ordered: { bg: "#FFFBEB", text: "#F59E0B", dot: "#F59E0B" },
+  received: { bg: "#ECFDF5", text: "#10B981", dot: "#10B981" },
+  cancelled: { bg: "#FEF2F2", text: "#EF4444", dot: "#EF4444" },
+  draft: { bg: "#EFF6FF", text: "#0079F2", dot: "#0079F2" },
+};
 
 export default function PurchasesScreen({ navigation }: any) {
   const [open, setOpen] = useState(false);
@@ -19,167 +59,376 @@ export default function PurchasesScreen({ navigation }: any) {
   const [customDate, setCustomDate] = useState(todayKey());
   const [pickerMonth, setPickerMonth] = useState(todayKey().slice(0, 7));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
-  const filterParams = useMemo(() => ({ ...getDateParams(datePreset, customDate), search: search.trim() || undefined }), [customDate, datePreset, search]);
-  const purchaseOrders = useQuery({ queryKey: ["purchase-orders", filterParams], queryFn: () => getPurchaseOrders(filterParams) });
+  const filterParams = useMemo(
+    () => ({ ...getDateParams(datePreset, customDate), search: search.trim() || undefined }),
+    [customDate, datePreset, search]
+  );
+  const purchaseOrders = useQuery({
+    queryKey: ["purchase-orders", filterParams],
+    queryFn: () => getPurchaseOrders(filterParams),
+  });
   const queryClient = useQueryClient();
-  const total = useMemo(() => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0), [lines]);
+
+  const total = useMemo(
+    () => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0),
+    [lines]
+  );
   const orderItems = purchaseOrders.data?.items || [];
   const summary = purchaseOrders.data?.summary;
+  const pendingCount = useMemo(
+    () => orderItems.filter((item) => item.status !== "received" && item.status !== "cancelled").length,
+    [orderItems]
+  );
+
   const save = useMutation({
-    mutationFn: () => createPurchaseOrder({ vendor, notes, status: "ordered", items: lines.map((line) => ({ product: line.product, quantity: Number(line.quantity), costPrice: Number(line.costPrice) })) as any }),
+    mutationFn: () =>
+      createPurchaseOrder({
+        vendor,
+        notes,
+        status: "ordered",
+        items: lines.map((line) => ({
+          product: line.product,
+          quantity: Number(line.quantity),
+          costPrice: Number(line.costPrice),
+        })) as any,
+      }),
     onSuccess: () => {
       setOpen(false);
       setVendor("");
       setNotes("");
       setLines([blankLine]);
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      Alert.alert("Purchase order saved", "Use Receive stock when the vendor delivers the items.");
+      Alert.alert("Purchase Order Saved", "Use 'Receive Stock' once the vendor delivers the products.");
     },
-    onError: (error: Error) => Alert.alert("Purchase order failed", error.message),
+    onError: (error: Error) => Alert.alert("Order Failed", apiErrorMessage(error)),
   });
+
   const receive = useMutation({
     mutationFn: receivePurchaseOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
-      Alert.alert("Stock received", "Inventory stock has been updated.");
+      Alert.alert("Stock Received", "Inventory stocks have been updated successfully.");
     },
-    onError: (error: Error) => Alert.alert("Receive failed", error.message),
+    onError: (error: Error) => Alert.alert("Receive Failed", apiErrorMessage(error)),
   });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await purchaseOrders.refetch();
+    setRefreshing(false);
+  };
 
   function vendorName(po: PurchaseOrder) {
     return typeof po.vendor === "string" ? "Vendor" : po.vendor.name;
   }
 
   return (
-    <Screen>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons color={colors.text} name="chevron-back" size={20} />
-            <Text style={styles.backText}>Back</Text>
+    <Screen style={styles.screen}>
+      <IosScreenHeader
+        eyebrow="Supplier Orders"
+        right={
+          <TouchableOpacity onPress={() => setOpen(true)} style={styles.addHeaderBtn}>
+            <Ionicons color="#FFFFFF" name="add" size={18} />
+            <Text style={styles.addHeaderBtnText}>New PO</Text>
           </TouchableOpacity>
-          <View>
-            <Text style={styles.eyebrow}>STOCK BUYING</Text>
-            <Text style={styles.title}>Purchases</Text>
-          </View>
-        </View>
-        <TouchableOpacity onPress={() => setOpen(true)} style={styles.addButton}>
-          <Ionicons color="#ffffff" name="add" size={24} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.filterPanel}>
-        <Field onChangeText={setSearch} placeholder="Search vendor name..." value={search} />
-        <View style={styles.filterRow}>
-          <FilterChip active={datePreset === "today"} label="Today" onPress={() => setDatePreset("today")} />
-          <FilterChip active={datePreset === "week"} label="7 Days" onPress={() => setDatePreset("week")} />
-          <FilterChip active={datePreset === "month"} label="Month" onPress={() => setDatePreset("month")} />
-          <FilterChip active={datePreset === "custom"} label="Select Date" onPress={() => { setDatePreset("custom"); setShowDatePicker(true); }} />
-        </View>
-        <DateSelectModal
-          month={pickerMonth}
-          onChangeMonth={setPickerMonth}
-          onClose={() => setShowDatePicker(false)}
-          onSelect={(date) => {
-            setCustomDate(date);
-            setDatePreset("custom");
-            setShowDatePicker(false);
-          }}
-          selectedDate={customDate}
-          visible={showDatePicker}
-        />
-        <View style={styles.summaryRow}>
-          <SummaryCard label="Total PO Orders" value={summary?.orderCount || 0} />
-          <SummaryCard label="Total PO Spend" value={`Rs ${formatMoney(summary?.totalAmount || 0)}`} />
-        </View>
-        {!!summary?.monthly?.length && (
-          <View style={styles.monthBox}>
-            <Text style={styles.monthTitle}>Monthly Purchase Breakdown</Text>
-            {summary.monthly.slice(0, 3).map((month) => (
-              <View key={month.month} style={styles.monthRow}>
-                <Text style={styles.monthText}>{month.month}</Text>
-                <Text style={styles.monthAmount}>Rs {formatMoney(month.totalAmount)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
+        }
+        title="Purchases"
+      />
 
       <FlatList
         data={orderItems}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Empty icon="cart-outline" text={purchaseOrders.isLoading ? "Loading purchase orders..." : "No purchases found for this filter."} />}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.main}>
-              <View style={styles.info}>
-                <Text style={styles.name}>{vendorName(item)}</Text>
-                <Text style={styles.meta}>{item.items.length} line items • Rs {formatMoney(item.totalAmount)}</Text>
-                <Text style={styles.meta}>Ordered date: {item.orderDate.slice(0, 10)}</Text>
-                <View style={styles.lines}>
-                  {item.items.slice(0, 3).map((line, index) => {
-                    const product = typeof line.product === "string" ? null : line.product as Product;
-                    return <Text key={`${item._id}-${index}`} numberOfLines={1} style={styles.lineText}>• {product?.name || "Product"} × {line.quantity}</Text>;
-                  })}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={colors.primary} />}
+        ListHeaderComponent={
+          <View>
+            {/* Top Metric Cards */}
+            <View style={styles.metricsRow}>
+              {/* Total Spend */}
+              <View style={[styles.metricCard, { borderLeftColor: "#6366F1" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EEF2FF" }]}>
+                    <Ionicons color="#6366F1" name="cart" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Spend</Text>
                 </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  ₹{formatMoney(summary?.totalAmount || 0)}
+                </Text>
+                <Text style={styles.metricSub}>{summary?.orderCount || 0} Orders</Text>
               </View>
-              <Badge label={item.status.toUpperCase()} tone={item.status === "received" ? "success" : item.status === "cancelled" ? "danger" : "warning"} />
+
+              {/* Total Orders */}
+              <View style={[styles.metricCard, { borderLeftColor: "#0079F2" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                    <Ionicons color="#0079F2" name="document-text" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Orders</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {orderItems.length}
+                </Text>
+                <Text style={styles.metricSub}>In this period</Text>
+              </View>
+
+              {/* Pending Delivery */}
+              <View style={[styles.metricCard, { borderLeftColor: "#F59E0B" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#FFFBEB" }]}>
+                    <Ionicons color="#F59E0B" name="time" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Pending</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {pendingCount}
+                </Text>
+                <Text style={styles.metricSub}>Awaiting stock</Text>
+              </View>
             </View>
-            {item.status !== "received" && (
-              <TouchableOpacity disabled={receive.isPending} onPress={() => receive.mutate(item._id)} style={styles.receiveButton}>
-                <Ionicons color={colors.success} name="checkbox-outline" size={16} style={{ marginRight: 4 }} />
-                <Text style={styles.receiveText}>Receive Stock into Inventory</Text>
+
+            {/* Search Bar */}
+            <IosSearchBar
+              onChangeText={setSearch}
+              placeholder="Search vendor or order number..."
+              style={styles.searchBar}
+              value={search}
+            />
+
+            {/* Date Preset Segment */}
+            <View style={styles.segmentContainer}>
+              {(
+                [
+                  ["week", "7 Days"],
+                  ["month", "Month"],
+                  ["today", "Today"],
+                  ["custom", "Custom"],
+                ] as [DatePreset, string][]
+              ).map(([key, label]) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => {
+                    setDatePreset(key);
+                    if (key === "custom") setShowDatePicker(true);
+                  }}
+                  style={[styles.segmentBtn, datePreset === key && styles.segmentBtnActive]}
+                >
+                  <Text style={[styles.segmentBtnText, datePreset === key && styles.segmentBtnTextActive]}>
+                    {key === "custom" && datePreset === "custom" ? formatDateShort(customDate) : label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionLabel}>Purchase Orders</Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{orderItems.length}</Text>
+              </View>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <Ionicons color={colors.textMuted} name="cart-outline" size={44} />
+            <Text style={styles.emptyTitle}>
+              {purchaseOrders.isLoading ? "Loading purchase orders…" : "No purchase orders found"}
+            </Text>
+            <Text style={styles.emptySub}>
+              {purchaseOrders.isLoading
+                ? "Fetching data..."
+                : "Create a purchase order when ordering stock from vendors."}
+            </Text>
+            {!purchaseOrders.isLoading && (
+              <TouchableOpacity onPress={() => setOpen(true)} style={styles.emptyBtn}>
+                <Ionicons color="#FFFFFF" name="add" size={18} />
+                <Text style={styles.emptyBtnText}>New Purchase Order</Text>
               </TouchableOpacity>
             )}
           </View>
-        )}
+        }
+        renderItem={({ item }) => {
+          const cfg = statusColor[item.status] || { bg: "#EFF6FF", text: "#0079F2", dot: "#0079F2" };
+          const canReceive = item.status !== "received" && item.status !== "cancelled";
+
+          return (
+            <View style={styles.poCard}>
+              <View style={[styles.cardAccent, { backgroundColor: cfg.dot }]} />
+              <View style={styles.poContent}>
+                {/* Header Row */}
+                <View style={styles.poHeaderRow}>
+                  <View style={styles.poVendorInfo}>
+                    <Text numberOfLines={1} style={styles.poVendorName}>
+                      {vendorName(item)}
+                    </Text>
+                    <Text style={styles.poDate}>
+                      Ordered on{" "}
+                      {new Date(item.orderDate).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
+                    <Text style={[styles.statusText, { color: cfg.text }]}>
+                      {item.status.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Items & Amount */}
+                <View style={styles.poBody}>
+                  <View style={styles.linesList}>
+                    {item.items.slice(0, 3).map((line, idx) => {
+                      const product = typeof line.product === "string" ? null : (line.product as Product);
+                      return (
+                        <Text key={idx} numberOfLines={1} style={styles.lineItemText}>
+                          • {product?.name || "Product"} × {line.quantity}
+                        </Text>
+                      );
+                    })}
+                    {item.items.length > 3 && (
+                      <Text style={styles.moreLinesText}>+{item.items.length - 3} more items</Text>
+                    )}
+                  </View>
+                  <View style={styles.amountWrap}>
+                    <Text style={styles.amountLabel}>Total Value</Text>
+                    <Text style={styles.amountNum}>₹{formatMoney(item.totalAmount)}</Text>
+                  </View>
+                </View>
+
+                {/* Action Bar */}
+                {canReceive && (
+                  <View style={styles.poActionRow}>
+                    <TouchableOpacity
+                      disabled={receive.isPending}
+                      onPress={() => receive.mutate(item._id)}
+                      style={styles.receiveBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons color="#FFFFFF" name="checkmark-done" size={16} />
+                      <Text style={styles.receiveBtnText}>
+                        {receive.isPending ? "Receiving Stock…" : "Receive Stock into Inventory"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          );
+        }}
       />
 
-      {/* New PO Modal */}
+      <FabButton accessibilityLabel="New purchase order" onPress={() => setOpen(true)} />
+
+      <DateSelectModal
+        month={pickerMonth}
+        onChangeMonth={setPickerMonth}
+        onClose={() => setShowDatePicker(false)}
+        onSelect={(date) => {
+          setCustomDate(date);
+          setDatePreset("custom");
+          setShowDatePicker(false);
+        }}
+        selectedDate={customDate}
+        visible={showDatePicker}
+      />
+
+      {/* CREATE PURCHASE ORDER MODAL */}
       <Modal animationType="slide" visible={open}>
-        <Screen>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.eyebrow}>NEW PURCHASE</Text>
-              <Text style={styles.title}>Purchase Order</Text>
-            </View>
-            <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeButton}>
-              <Ionicons color={colors.text} name="close" size={20} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled" style={styles.formCard}>
-            <Text style={styles.fieldLabel}>Select Vendor</Text>
+        <Screen style={styles.screen}>
+          <PageHeader
+            eyebrow="Create Purchase Order"
+            right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setOpen(false)} />}
+            title="New Order"
+          />
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Select Supplier / Vendor</Text>
             {(vendors.data || []).map((item) => (
-              <TouchableOpacity key={item._id} onPress={() => setVendor(item._id)} style={[styles.option, vendor === item._id && styles.optionActive]}>
-                <Text style={[styles.optionText, vendor === item._id && styles.optionTextActive]}>{item.name}</Text>
-              </TouchableOpacity>
+              <SelectOption
+                key={item._id}
+                label={item.name}
+                meta={item.phone || item.email || "Vendor"}
+                onPress={() => setVendor(item._id)}
+                selected={vendor === item._id}
+              />
             ))}
-            <Text style={styles.fieldLabel}>Product Lines</Text>
+
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Product Lines</Text>
             {lines.map((line, index) => (
               <View key={index} style={styles.lineBox}>
-                <ProductSelect products={products.data || []} value={line.product} onChange={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, product: value, costPrice: String((products.data || []).find((p) => p._id === value)?.costPrice || row.costPrice) } : row))} />
+                <ProductSelect
+                  products={products.data || []}
+                  value={line.product}
+                  onChange={(value) =>
+                    setLines((prev) =>
+                      prev.map((row, i) =>
+                        i === index
+                          ? {
+                              ...row,
+                              product: value,
+                              costPrice: String(
+                                (products.data || []).find((p) => p._id === value)?.costPrice || row.costPrice
+                              ),
+                            }
+                          : row
+                      )
+                    )
+                  }
+                />
                 <View style={styles.row}>
-                  <View style={styles.half}><Text style={styles.fieldLabel}>Qty</Text><Field keyboardType="numeric" onChangeText={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, quantity: value } : row))} value={line.quantity} /></View>
-                  <View style={styles.half}><Text style={styles.fieldLabel}>Cost Price (Rs)</Text><Field keyboardType="numeric" onChangeText={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, costPrice: value } : row))} value={line.costPrice} /></View>
+                  <View style={styles.half}>
+                    <Text style={styles.miniLabel}>Qty</Text>
+                    <Field
+                      keyboardType="numeric"
+                      onChangeText={(value) =>
+                        setLines((prev) => prev.map((row, i) => (i === index ? { ...row, quantity: value } : row)))
+                      }
+                      value={line.quantity}
+                    />
+                  </View>
+                  <View style={styles.half}>
+                    <Text style={styles.miniLabel}>Cost Price (₹)</Text>
+                    <Field
+                      keyboardType="numeric"
+                      onChangeText={(value) =>
+                        setLines((prev) => prev.map((row, i) => (i === index ? { ...row, costPrice: value } : row)))
+                      }
+                      value={line.costPrice}
+                    />
+                  </View>
                 </View>
               </View>
             ))}
+
             <TouchableOpacity onPress={() => setLines((prev) => [...prev, blankLine])} style={styles.linkButton}>
-              <Ionicons color={colors.primary} name="add-circle-outline" size={16} style={{ marginRight: 4 }} />
-              <Text style={styles.linkText}>+ Add Product Line</Text>
+              <Ionicons color={colors.primary} name="add-circle-outline" size={18} />
+              <Text style={styles.linkText}>Add Another Product Line</Text>
             </TouchableOpacity>
+
             <View style={styles.totalBox}>
-              <Text style={styles.totalLabel}>PO Total</Text>
-              <Text style={styles.totalValue}>Rs {formatMoney(total)}</Text>
+              <Text style={styles.totalLabel}>Total PO Amount</Text>
+              <Text style={styles.totalValue}>₹{formatMoney(total)}</Text>
             </View>
-            <Text style={styles.fieldLabel}>Notes</Text>
-            <Field onChangeText={setNotes} placeholder="Delivery or purchase notes" value={notes} />
-            <Button icon="checkmark-circle-outline" loading={save.isPending} onPress={() => save.mutate()} title="Save Purchase Order" />
+
+            <Text style={styles.fieldLabel}>Order Notes / Instructions</Text>
+            <Field onChangeText={setNotes} placeholder="Delivery expectations, invoice notes..." value={notes} />
+
+            <TouchableOpacity
+              disabled={save.isPending || !vendor}
+              onPress={() => save.mutate()}
+              style={[styles.saveBtn, (!vendor || save.isPending) && styles.saveBtnDisabled]}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.saveBtnText}>{save.isPending ? "Saving PO…" : "Create Purchase Order"}</Text>
+            </TouchableOpacity>
           </ScrollView>
         </Screen>
       </Modal>
@@ -187,37 +436,53 @@ export default function PurchasesScreen({ navigation }: any) {
   );
 }
 
-function ProductSelect({ onChange, products, value }: { onChange: (value: string) => void; products: Product[]; value: string }) {
+function ProductSelect({
+  onChange,
+  products,
+  value,
+}: {
+  onChange: (value: string) => void;
+  products: Product[];
+  value: string;
+}) {
   return (
-    <View>
-      <Text style={styles.fieldLabel}>Select Product</Text>
-      {products.slice(0, 8).map((item) => (
-        <TouchableOpacity key={item._id} onPress={() => onChange(item._id)} style={[styles.option, value === item._id && styles.optionActive]}>
-          <Text numberOfLines={1} style={[styles.optionText, value === item._id && styles.optionTextActive]}>{item.name}</Text>
-        </TouchableOpacity>
-      ))}
+    <View style={{ marginBottom: 6 }}>
+      <Text style={styles.miniLabel}>Item</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        {products.slice(0, 10).map((item) => {
+          const isSelected = value === item._id;
+          return (
+            <TouchableOpacity
+              key={item._id}
+              onPress={() => onChange(item._id)}
+              style={[styles.itemPickChip, isSelected && styles.itemPickChipActive]}
+            >
+              <Text style={[styles.itemPickChipText, isSelected && styles.itemPickChipTextActive]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
-function FilterChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
-      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <View style={styles.summaryCard}>
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate, visible }: { month: string; onChangeMonth: (month: string) => void; onClose: () => void; onSelect: (date: string) => void; selectedDate: string; visible: boolean }) {
+function DateSelectModal({
+  month,
+  onChangeMonth,
+  onClose,
+  onSelect,
+  selectedDate,
+  visible,
+}: {
+  month: string;
+  onChangeMonth: (month: string) => void;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+  selectedDate: string;
+  visible: boolean;
+}) {
   const days = daysInMonth(month);
   return (
     <Modal animationType="fade" transparent visible={visible}>
@@ -225,17 +490,23 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
         <View style={styles.dateModal}>
           <View style={styles.dateHeader}>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, -1))} style={styles.dateNav}>
-              <Ionicons color={colors.primary} name="chevron-back" size={18} />
+              <Ionicons color={colors.textPrimary} name="chevron-back" size={18} />
             </TouchableOpacity>
             <Text style={styles.dateMonth}>{formatMonth(month)}</Text>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, 1))} style={styles.dateNav}>
-              <Ionicons color={colors.primary} name="chevron-forward" size={18} />
+              <Ionicons color={colors.textPrimary} name="chevron-forward" size={18} />
             </TouchableOpacity>
           </View>
           <View style={styles.dateGrid}>
             {days.map((date) => (
-              <TouchableOpacity key={date} onPress={() => onSelect(date)} style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}>
-                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>{Number(date.slice(-2))}</Text>
+              <TouchableOpacity
+                key={date}
+                onPress={() => onSelect(date)}
+                style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}
+              >
+                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>
+                  {Number(date.slice(-2))}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -250,6 +521,10 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
 
 function formatMoney(value: number) {
   return Number(value || 0).toLocaleString("en-IN");
+}
+
+function formatDateShort(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
 function toDateKey(date: Date) {
@@ -290,75 +565,212 @@ function formatMonth(monthKey: string) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  headerLeft: { alignItems: "center", flexDirection: "row", flex: 1, gap: spacing.sm },
-  backButton: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 38, justifyContent: "center", paddingHorizontal: spacing.sm },
-  backText: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  eyebrow: { color: colors.primary, ...typography.eyebrow },
-  title: { color: colors.text, ...typography.h1, marginTop: 2 },
-  addButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, height: 44, justifyContent: "center", width: 44, ...shadows.card },
+  screen: { backgroundColor: "#F8FAFC" },
+  content: { alignSelf: "center", maxWidth: 500, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
 
-  filterPanel: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.md, padding: spacing.md, ...shadows.card },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xs },
-  filterChip: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: 6 },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterChipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  filterChipTextActive: { color: "#ffffff" },
+  addHeaderBtn: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...shadows.sm,
+  },
+  addHeaderBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
 
-  summaryRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
-  summaryCard: { backgroundColor: colors.surfaceTint, borderRadius: radius.sm, flex: 1, padding: spacing.sm },
-  summaryValue: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  summaryLabel: { color: colors.muted, fontSize: 11, fontWeight: "500", marginTop: 2 },
+  // Metric Cards
+  metricsRow: { flexDirection: "row", gap: 8, marginTop: spacing.xs, marginBottom: spacing.md },
+  metricCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    flex: 1,
+    padding: 12,
+    ...shadows.sm,
+  },
+  metricHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  metricIconWrap: { alignItems: "center", borderRadius: 8, height: 26, justifyContent: "center", width: 26 },
+  metricLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11 },
+  metricValue: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.3 },
+  metricSub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10, marginTop: 2 },
 
-  monthBox: { borderTopColor: colors.border, borderTopWidth: 1, marginTop: spacing.sm, paddingTop: spacing.sm },
-  monthTitle: { color: colors.text, fontSize: 13, fontWeight: "600", marginBottom: spacing.xs },
-  monthRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  monthText: { color: colors.muted, fontSize: 12 },
-  monthAmount: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  searchBar: { marginBottom: 10 },
 
-  listContent: { paddingBottom: spacing.xl },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.sm, overflow: "hidden", ...shadows.card },
-  main: { alignItems: "center", flexDirection: "row", padding: spacing.md },
-  info: { flex: 1, paddingRight: spacing.sm },
-  name: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  lines: { marginTop: spacing.xs },
-  lineText: { color: colors.text, fontSize: 12, marginTop: 2 },
+  // Date Preset Segment
+  segmentContainer: {
+    backgroundColor: "#E2E8F0",
+    borderRadius: 12,
+    flexDirection: "row",
+    marginBottom: spacing.md,
+    padding: 3,
+  },
+  segmentBtn: { alignItems: "center", borderRadius: 9, flex: 1, paddingVertical: 7 },
+  segmentBtnActive: { backgroundColor: colors.card, ...shadows.sm },
+  segmentBtnText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
+  segmentBtnTextActive: { color: colors.textPrimary, fontFamily: fonts.semibold },
 
-  receiveButton: { alignItems: "center", backgroundColor: colors.greenSoft, borderTopColor: colors.border, borderTopWidth: 1, flexDirection: "row", minHeight: 44, justifyContent: "center" },
-  receiveText: { color: colors.success, fontWeight: "600", fontSize: 13 },
+  sectionHead: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  sectionLabel: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16 },
+  countBadge: {
+    backgroundColor: colors.backgroundDark,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countBadgeText: { color: colors.textSecondary, fontFamily: fonts.semibold, fontSize: 11 },
 
-  modalHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  closeButton: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 40, justifyContent: "center", width: 40 },
-  formCard: { backgroundColor: colors.surface, borderRadius: radius.md },
-  modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
-  fieldLabel: { color: colors.text, ...typography.label, marginBottom: spacing.xs, marginTop: spacing.xs },
+  // PO Card
+  poCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 10,
+    overflow: "hidden",
+    ...shadows.sm,
+  },
+  cardAccent: { width: 4 },
+  poContent: { flex: 1, minWidth: 0, padding: 12 },
+  poHeaderRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  poVendorInfo: { flex: 1, minWidth: 0, paddingRight: 8 },
+  poVendorName: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 15 },
+  poDate: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11, marginTop: 1 },
+  statusPill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  statusText: { fontFamily: fonts.bold, fontSize: 10 },
 
-  option: { backgroundColor: colors.surfaceTint, borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.xs, padding: spacing.sm },
-  optionActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  optionText: { color: colors.text, fontSize: 13, fontWeight: "500" },
-  optionTextActive: { color: colors.primary, fontWeight: "700" },
+  poBody: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopColor: "#F1F5F9",
+    borderTopWidth: 1,
+  },
+  linesList: { flex: 1, minWidth: 0 },
+  lineItemText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12, marginTop: 1 },
+  moreLinesText: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
+  amountWrap: { alignItems: "flex-end" },
+  amountLabel: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10 },
+  amountNum: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16, marginTop: 1 },
 
-  lineBox: { borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.sm },
-  row: { flexDirection: "row", gap: spacing.sm },
+  poActionRow: {
+    borderTopColor: "#F1F5F9",
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  receiveBtn: {
+    alignItems: "center",
+    backgroundColor: "#10B981",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    paddingVertical: 9,
+  },
+  receiveBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
+
+  // Empty Card
+  emptyCard: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: spacing.xl,
+    marginTop: 10,
+  },
+  emptyTitle: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 15, marginTop: 10 },
+  emptySub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2, textAlign: "center" },
+  emptyBtn: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 6,
+    marginTop: spacing.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    ...shadows.sm,
+  },
+  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
+
+  // Modal
+  modalContent: { padding: spacing.md, paddingBottom: 40 },
+  fieldLabel: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 14, marginBottom: 8 },
+  miniLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11, marginBottom: 4 },
+  lineBox: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    padding: 10,
+  },
+  row: { flexDirection: "row", gap: 8, marginTop: 6 },
   half: { flex: 1 },
-  linkButton: { alignItems: "center", borderColor: colors.primary, borderRadius: radius.sm, borderWidth: 1, flexDirection: "row", height: 44, justifyContent: "center", marginBottom: spacing.sm },
-  linkText: { color: colors.primary, fontWeight: "600" },
+  linkButton: {
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginBottom: 12,
+    paddingVertical: 10,
+  },
+  linkText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 13 },
+  totalBox: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    padding: 14,
+  },
+  totalLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 13 },
+  totalValue: { color: colors.primary, fontFamily: fonts.bold, fontSize: 20 },
+  saveBtn: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    justifyContent: "center",
+    marginTop: 10,
+    paddingVertical: 14,
+    ...shadows.sm,
+  },
+  saveBtnDisabled: { backgroundColor: "#CBD5E1" },
+  saveBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 15 },
 
-  totalBox: { backgroundColor: colors.surfaceTint, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
-  totalLabel: { color: colors.muted, fontSize: 12, fontWeight: "500" },
-  totalValue: { color: colors.primary, fontSize: 22, fontWeight: "700", marginTop: 2 },
+  itemPickChip: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  itemPickChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  itemPickChipText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
+  itemPickChipTextActive: { color: "#FFFFFF", fontFamily: fonts.semibold },
 
-  dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "center", padding: spacing.md },
-  dateModal: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, width: "100%" },
-  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  dateNav: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 36, justifyContent: "center", width: 36 },
-  dateMonth: { color: colors.text, fontSize: 15, fontWeight: "700" },
-  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  dateCell: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 36, justifyContent: "center", width: "13%" },
+  // Date Modal
+  dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.5)", flex: 1, justifyContent: "center", padding: spacing.md },
+  dateModal: { backgroundColor: colors.card, borderRadius: 20, padding: 16, width: "100%", maxWidth: 360 },
+  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  dateNav: { alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 10, height: 34, justifyContent: "center", width: 34 },
+  dateMonth: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 15 },
+  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  dateCell: { alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 8, height: 38, justifyContent: "center", width: "12.8%" },
   dateCellActive: { backgroundColor: colors.primary },
-  dateCellText: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  dateCellTextActive: { color: "#ffffff" },
-  dateClose: { alignItems: "center", borderColor: colors.border, borderRadius: radius.sm, borderWidth: 1, marginTop: spacing.md, minHeight: 40, justifyContent: "center" },
-  dateCloseText: { color: colors.text, fontWeight: "600" },
+  dateCellText: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 12 },
+  dateCellTextActive: { color: "#FFFFFF" },
+  dateClose: { alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 12, marginTop: 14, paddingVertical: 10 },
+  dateCloseText: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 13 },
 });
+

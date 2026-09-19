@@ -644,10 +644,10 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {/* Slogan & Description */}
+              {/* Value Proposition */}
               <View style={styles.desktopHeroCenter}>
                 <Text style={styles.desktopHeroSlogan}>
-                  Unnaalum Unnoda{"\n"}Kadaiyum Nalla Nadakkattum
+                  Smart Retail POS & Billing Platform
                 </Text>
                 <Svg height="10" width="130" viewBox="0 0 130 10" style={{ marginTop: 8, marginBottom: 14 }}>
                   <Path d="M 4 3 Q 65 9 126 3" fill="none" stroke={brand.orange} strokeWidth="3.5" strokeLinecap="round" />
@@ -764,11 +764,8 @@ export default function LoginScreen() {
               </View>
               <Text style={styles.brand}>Kadai Kanakku</Text>
               <Text style={styles.subtitle}>
-                Unnaalum Unnoda Kadaiyum Nalla Nadakkattum
+                Smart Retail POS & Store Management
               </Text>
-              <Svg height="8" width="90" viewBox="0 0 90 8" style={{ marginTop: 4 }}>
-                <Path d="M 3 2 Q 45 7 87 2" fill="none" stroke={brand.orange} strokeWidth="2.5" strokeLinecap="round" />
-              </Svg>
             </View>
 
             {/* Primary Form Card */}

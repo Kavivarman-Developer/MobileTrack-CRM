@@ -32,6 +32,8 @@ import {
   SearchField,
   SelectOption,
 } from "../../components/Layout";
+import { SubscriptionModal } from "../../components/SubscriptionModal";
+import { useAppSelector } from "../../hooks/redux";
 import { ios } from "../../constants/ios";
 import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import {
@@ -51,6 +53,10 @@ type DatePreset = "today" | "week" | "month";
 type PaymentMode = "cash" | "upi" | "card" | "pending";
 
 export default function SalesScreen() {
+  const user = useAppSelector((state) => state.auth.user);
+  const [subModalOpen, setSubModalOpen] = useState(false);
+  const isActivated = user?.subscriptionStatus === "active";
+
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState("0");
   const [gst, setGst] = useState("0");
@@ -256,6 +262,29 @@ export default function SalesScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={colors.primary} />}
       >
+        {/* Top Activation Reminder Banner (When not activated) */}
+        {!isActivated && (
+          <TouchableOpacity
+            style={styles.activationBanner}
+            onPress={() => setSubModalOpen(true)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.activationBannerLeft}>
+              <View style={styles.activationBannerIconWrap}>
+                <Ionicons color="#D97706" name="flash" size={15} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activationBannerTitle}>Activate Shop · ₹1 Launch Offer</Text>
+                <Text style={styles.activationBannerSub}>Unlock live billing, cloud sync & reports</Text>
+              </View>
+            </View>
+            <View style={styles.activationBannerBtn}>
+              <Text style={styles.activationBannerBtnText}>Pay ₹1</Text>
+              <Ionicons color="#FFFFFF" name="arrow-forward" size={11} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Metric Summary Cards */}
         <View style={styles.metricsRow}>
           {/* Revenue */}
@@ -493,7 +522,14 @@ export default function SalesScreen() {
               {/* Save & Complete Bill CTA */}
               <TouchableOpacity
                 disabled={saveMutation.isPending}
-                onPress={() => saveMutation.mutate()}
+                onPress={() => {
+                  if (!isActivated) {
+                    setSubModalOpen(true);
+                    return;
+                  }
+                  if (!cart.length) return Alert.alert("Empty Cart", "Add at least one item.");
+                  saveMutation.mutate();
+                }}
                 style={styles.completeBillBtn}
                 activeOpacity={0.8}
               >
@@ -1033,6 +1069,15 @@ export default function SalesScreen() {
           )}
         </Screen>
       </Modal>
+
+      <SubscriptionModal
+        visible={subModalOpen}
+        onClose={() => setSubModalOpen(false)}
+        onActivated={() => {
+          queryClient.invalidateQueries({ queryKey: ["orders"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        }}
+      />
     </Screen>
   );
 }
@@ -1601,4 +1646,56 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   receiptDoneText: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 14 },
+
+  /* Activation Banner */
+  activationBanner: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FDE68A",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    padding: 10,
+    ...shadows.sm,
+  },
+  activationBannerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  activationBannerIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activationBannerTitle: {
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+    color: "#0D3666",
+  },
+  activationBannerSub: {
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    color: "#64748B",
+  },
+  activationBannerBtn: {
+    backgroundColor: "#F59926",
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activationBannerBtnText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 11.5,
+  },
 });

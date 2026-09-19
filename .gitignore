@@ -4,3 +4,6 @@ node_modules/
 .expo/
 dist/
 build/
+
+backend/.env.yaml
+*.env.yaml

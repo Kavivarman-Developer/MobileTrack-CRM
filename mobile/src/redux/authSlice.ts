@@ -11,6 +11,8 @@ export type User = {
   organizationId?: string;
   avatarUrl?: string;
   authProvider?: string;
+  subscriptionStatus?: string;
+  isActive?: boolean;
 };
 
 type AuthState = {

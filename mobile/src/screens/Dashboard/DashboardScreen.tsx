@@ -65,7 +65,13 @@ export default function DashboardScreen() {
   const lowStock = data?.lowStockProducts || [];
   const lowStockCount = data?.lowStockProductCount ?? lowStock.length;
 
+  const isActivated = data?.organization?.subscriptionStatus === "active" || user?.subscriptionStatus === "active";
+
   function go(name: string, params?: object) {
+    if (!isActivated && (name === "QuickSale" || name === "Billing" || name === "Sales" || name === "Items")) {
+      setSubModalOpen(true);
+      return;
+    }
     const drawer = navigation.getParent();
     const stack = drawer?.getParent();
     if (name === "Items" || name === "BarcodeGenerator") return drawer?.navigate(name);
@@ -147,42 +153,31 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Top Activation Reminder Banner (When not activated) */}
+        {!isActivated && (
+          <TouchableOpacity
+            style={styles.trialActivationBanner}
+            onPress={() => setSubModalOpen(true)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.trialBannerLeft}>
+              <View style={styles.trialBannerIconWrap}>
+                <Ionicons color="#D97706" name="flash" size={16} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trialBannerTitle}>Activate Shop · ₹1 Launch Offer</Text>
+                <Text style={styles.trialBannerSub}>Unlock full POS billing, cloud sync & customer khata</Text>
+              </View>
+            </View>
+            <View style={styles.trialBannerBtn}>
+              <Text style={styles.trialBannerBtnText}>Pay ₹1</Text>
+              <Ionicons color="#FFFFFF" name="arrow-forward" size={12} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {data && (
           <>
-            {/* Subscription & Activation Banner */}
-            {data.organization?.subscriptionStatus === "trial" && (
-              <TouchableOpacity
-                style={styles.trialActivationBanner}
-                onPress={() => setSubModalOpen(true)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.trialBannerLeft}>
-                  <View style={styles.trialBannerIconWrap}>
-                    <Ionicons color="#F59926" name="flash" size={16} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.trialBannerTitle}>Activate Shop • ₹1 Special Launch Offer</Text>
-                    <Text style={styles.trialBannerSub}>Unlock full POS, multi-device sync & GST bills</Text>
-                  </View>
-                </View>
-                <View style={styles.trialBannerBtn}>
-                  <Text style={styles.trialBannerBtnText}>Pay ₹1</Text>
-                  <Ionicons color="#0D1B2A" name="arrow-forward" size={13} />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {data.organization?.subscriptionStatus === "past_due" && (
-              <TouchableOpacity
-                style={styles.pastDueBanner}
-                onPress={() => setSubModalOpen(true)}
-                activeOpacity={0.85}
-              >
-                <Ionicons color="#EF4444" name="alert-circle" size={20} />
-                <Text style={styles.pastDueBannerText}>Subscription overdue. Tap to renew shop for ₹1.</Text>
-                <Ionicons color="#EF4444" name="chevron-forward" size={16} />
-              </TouchableOpacity>
-            )}
 
             {/* ========================================== */}
             {/* 2. REVENUE HERO CARD                      */}
@@ -729,54 +724,57 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   trialActivationBanner: {
-    alignItems: "center",
-    backgroundColor: "#0D1B2A",
-    borderColor: "rgba(245, 153, 38, 0.4)",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FDE68A",
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    padding: 12,
+    ...Platform.select({
+      ios: { shadowColor: "#F59926", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6 },
+      android: { elevation: 3 },
+      web: { boxShadow: "0 2px 8px rgba(245, 153, 38, 0.15)" } as any,
+    }),
   },
   trialBannerLeft: {
-    alignItems: "center",
     flex: 1,
     flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    marginRight: 10,
   },
   trialBannerIconWrap: {
-    alignItems: "center",
-    backgroundColor: "rgba(245, 153, 38, 0.15)",
-    borderRadius: 10,
-    height: 34,
-    justifyContent: "center",
     width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   trialBannerTitle: {
-    color: "#F59926",
-    fontFamily: fonts.bold,
     fontSize: 13,
+    fontFamily: fonts.bold,
+    color: "#0D3666",
   },
   trialBannerSub: {
-    color: "#94A3B8",
-    fontFamily: fonts.regular,
     fontSize: 11,
-    marginTop: 1,
+    fontFamily: fonts.regular,
+    color: "#64748B",
+    marginTop: 2,
   },
   trialBannerBtn: {
-    alignItems: "center",
     backgroundColor: "#F59926",
-    borderRadius: 8,
+    borderRadius: 10,
     flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   trialBannerBtnText: {
-    color: "#0D1B2A",
+    color: "#FFFFFF",
     fontFamily: fonts.bold,
     fontSize: 12,
   },

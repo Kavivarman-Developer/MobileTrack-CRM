@@ -7,8 +7,10 @@ import { useMemo, useState } from "react";
 import { Alert, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { z } from "zod";
 import { Badge, Button, Empty, FabButton, Field, FilterChipRow, IconButton, IosFormSheet, IosScreenHeader, IosSearchBar, Screen, SelectOption, StatStrip } from "../../components/Layout";
+import { SubscriptionModal } from "../../components/SubscriptionModal";
+import { useAppSelector } from "../../hooks/redux";
 import { ios } from "../../constants/ios";
-import { radius, spacing } from "../../constants/theme";
+import { radius, shadows, spacing } from "../../constants/theme";
 import { apiErrorMessage, createInventoryAdjustment, createProduct, createVendor, getProducts, getVendors, Product, updateProduct, uploadProductImage, Vendor } from "../../services/api";
 
 const blank = {
@@ -63,6 +65,10 @@ type FormState = typeof blank;
 type ScanField = "sku" | "upc" | "mpn" | "ean" | "isbn";
 
 export default function InventoryScreen() {
+  const user = useAppSelector((state) => state.auth.user);
+  const [subModalOpen, setSubModalOpen] = useState(false);
+  const isActivated = user?.subscriptionStatus === "active";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -205,6 +211,10 @@ export default function InventoryScreen() {
   });
 
   function openForm(product?: Product) {
+    if (!product && !isActivated) {
+      setSubModalOpen(true);
+      return;
+    }
     setEditing(product || null);
     setOpen(true);
     setForm(product ? {
@@ -308,6 +318,27 @@ export default function InventoryScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={(
           <View>
+            {!isActivated && (
+              <TouchableOpacity
+                style={styles.activationBanner}
+                onPress={() => setSubModalOpen(true)}
+                activeOpacity={0.88}
+              >
+                <View style={styles.activationBannerLeft}>
+                  <View style={styles.activationBannerIconWrap}>
+                    <Ionicons color="#D97706" name="flash" size={15} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.activationBannerTitle}>Activate Shop · ₹1 Launch Offer</Text>
+                    <Text style={styles.activationBannerSub}>Unlock full inventory & unlimited products</Text>
+                  </View>
+                </View>
+                <View style={styles.activationBannerBtn}>
+                  <Text style={styles.activationBannerBtnText}>Pay ₹1</Text>
+                  <Ionicons color="#FFFFFF" name="arrow-forward" size={11} />
+                </View>
+              </TouchableOpacity>
+            )}
             <StatStrip
               items={[
                 { label: "Total items", value: String(inventoryStats.total), icon: "cube-outline", tone: "purple" },
@@ -503,6 +534,12 @@ export default function InventoryScreen() {
           )}
         </Screen>
       </Modal>
+
+      <SubscriptionModal
+        visible={subModalOpen}
+        onClose={() => setSubModalOpen(false)}
+        onActivated={() => queryClient.invalidateQueries({ queryKey: ["products"] })}
+      />
     </Screen>
   );
 }
@@ -876,5 +913,56 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     overflow: "hidden",
     padding: spacing.sm,
+  },
+
+  /* Activation Banner */
+  activationBanner: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#FDE68A",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    padding: 10,
+    ...shadows.sm,
+  },
+  activationBannerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  activationBannerIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activationBannerTitle: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0D3666",
+  },
+  activationBannerSub: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  activationBannerBtn: {
+    backgroundColor: "#F59926",
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activationBannerBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 11.5,
   },
 });

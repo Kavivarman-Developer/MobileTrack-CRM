@@ -703,10 +703,8 @@ export default function LoginScreen() {
               <View style={styles.desktopCard}>
                 <View style={styles.stepHeaderRow}>
                   <StepBadge n={stepCopy.n} />
-                  <View style={styles.stepHeaderText}>
-                    <Text style={styles.cardTitle}>{stepCopy.title}</Text>
-                    <Text style={styles.cardHint}>{stepCopy.hint}</Text>
-                  </View>
+                  <Text style={styles.cardTitle}>{stepCopy.title}</Text>
+                  <Text style={styles.cardHint}>{stepCopy.hint}</Text>
                 </View>
 
                 {renderFormSteps()}
@@ -772,10 +770,8 @@ export default function LoginScreen() {
             <View style={styles.card}>
               <View style={styles.stepHeaderRow}>
                 <StepBadge n={stepCopy.n} />
-                <View style={styles.stepHeaderText}>
-                  <Text style={styles.cardTitle}>{stepCopy.title}</Text>
-                  <Text style={styles.cardHint}>{stepCopy.hint}</Text>
-                </View>
+                <Text style={styles.cardTitle}>{stepCopy.title}</Text>
+                <Text style={styles.cardHint}>{stepCopy.hint}</Text>
               </View>
 
               {renderFormSteps()}
@@ -967,7 +963,8 @@ const styles = StyleSheet.create({
   desktopCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 26,
-    padding: 36,
+    paddingHorizontal: 36,
+    paddingVertical: 36,
     width: "100%",
     maxWidth: 520,
     shadowColor: "#0D3666",
@@ -1057,8 +1054,9 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: spacing.md,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingVertical: 26,
     marginTop: 14,
     width: "92%",
     maxWidth: 440,
@@ -1070,9 +1068,9 @@ const styles = StyleSheet.create({
   },
 
   stepHeaderRow: {
-    flexDirection: "row",
-    marginBottom: spacing.sm,
     alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
   stepBadge: {
     alignItems: "center",
@@ -1080,7 +1078,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 30,
     justifyContent: "center",
-    marginRight: 10,
+    marginBottom: 8,
     width: 30,
     shadowColor: brand.orange,
     shadowOffset: { width: 0, height: 2 },
@@ -1089,19 +1087,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   stepBadgeText: { color: "#FDFCF9", fontFamily: fonts.bold, fontSize: 14 },
-  stepHeaderText: { flex: 1 },
   cardTitle: {
     color: brand.navy,
     fontFamily: fonts.extraBold,
     fontSize: 18,
     letterSpacing: -0.2,
+    textAlign: "center",
   },
   cardHint: {
     color: brand.muted,
     fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
-    marginTop: 2,
+    marginTop: 4,
+    textAlign: "center",
   },
 
   stepBody: { marginTop: 4 },

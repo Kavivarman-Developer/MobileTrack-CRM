@@ -628,7 +628,7 @@ export default function LoginScreen() {
               style={StyleSheet.absoluteFill}
             />
             <LinearGradient
-              colors={["rgba(13, 54, 102, 0.82)", "rgba(13, 54, 102, 0.45)", "rgba(13, 54, 102, 0.94)"]}
+              colors={["rgba(6, 24, 48, 0.90)", "rgba(10, 37, 71, 0.82)", "rgba(5, 18, 36, 0.95)"]}
               locations={[0, 0.45, 1]}
               style={StyleSheet.absoluteFill}
             />
@@ -879,14 +879,21 @@ const styles = StyleSheet.create({
   desktopBrandTitle: {
     color: "#FFFFFF",
     fontFamily: fonts.extraBold,
-    fontSize: 24,
+    fontSize: 25,
     letterSpacing: -0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   desktopBrandTagline: {
-    color: "#E2E8F0",
-    fontFamily: fonts.medium,
-    fontSize: 12,
+    color: "#FED7AA",
+    fontFamily: fonts.semibold,
+    fontSize: 13,
     marginTop: 2,
+    fontWeight: "600",
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   desktopHeroCenter: {
     marginVertical: 18,
@@ -895,15 +902,22 @@ const styles = StyleSheet.create({
   desktopHeroSlogan: {
     color: "#FFFFFF",
     fontFamily: fonts.extraBold,
-    fontSize: 30,
-    lineHeight: 38,
+    fontSize: 32,
+    lineHeight: 40,
     letterSpacing: -0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   desktopHeroDescription: {
-    color: "#CBD5E1",
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 22,
+    color: "#F8FAFC",
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: "500",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   desktopTrustRow: {
     flexDirection: "row",
@@ -911,8 +925,8 @@ const styles = StyleSheet.create({
   },
   desktopTrustCard: {
     flex: 1,
-    backgroundColor: "rgba(13, 54, 102, 0.75)",
-    borderColor: "rgba(245, 153, 38, 0.35)",
+    backgroundColor: "rgba(6, 24, 48, 0.85)",
+    borderColor: "rgba(245, 153, 38, 0.45)",
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
@@ -920,16 +934,19 @@ const styles = StyleSheet.create({
   desktopTrustTitle: {
     color: "#FFFFFF",
     fontFamily: fonts.bold,
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: "700",
     marginTop: 4,
     marginBottom: 2,
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   desktopTrustSubtitle: {
-    color: "#94A3B8",
-    fontFamily: fonts.regular,
-    fontSize: 10.5,
-    lineHeight: 13,
+    color: "#CBD5E1",
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14,
   },
   desktopFormColumn: {
     flex: 1,

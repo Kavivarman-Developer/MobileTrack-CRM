@@ -138,17 +138,54 @@ export default function BillingScreen() {
   }
 
   return (
-    <Screen>
+    <Screen style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <IosScreenHeader eyebrow="Billing" title="Billing" />
+        <IosScreenHeader eyebrow="POS & Invoicing" title="Billing" />
 
-        <StatStrip
-          items={[
-            { label: "Due total", value: `₹${formatMoney(dueTotal)}`, icon: "alert-circle-outline", tone: "orange" },
-            { label: "Cart", value: `₹${formatMoney(total)}`, icon: "cart-outline", tone: "purple" },
-            { label: "Balance", value: `₹${formatMoney(balancePreview)}`, icon: "wallet-outline", tone: "green" },
-          ]}
-        />
+        {/* Top Metric Cards */}
+        <View style={styles.metricsRow}>
+          {/* Due Total */}
+          <View style={[styles.metricCard, { borderLeftColor: "#EF4444" }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.metricIconWrap, { backgroundColor: "#FEF2F2" }]}>
+                <Ionicons color="#EF4444" name="alert-circle" size={16} />
+              </View>
+              <Text style={styles.metricLabel}>Due Total</Text>
+            </View>
+            <Text numberOfLines={1} style={styles.metricValue}>
+              ₹{formatMoney(dueTotal)}
+            </Text>
+            <Text style={styles.metricSub}>Receivable</Text>
+          </View>
+
+          {/* Current Cart */}
+          <View style={[styles.metricCard, { borderLeftColor: "#6366F1" }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.metricIconWrap, { backgroundColor: "#EEF2FF" }]}>
+                <Ionicons color="#6366F1" name="cart" size={16} />
+              </View>
+              <Text style={styles.metricLabel}>Cart Value</Text>
+            </View>
+            <Text numberOfLines={1} style={styles.metricValue}>
+              ₹{formatMoney(total)}
+            </Text>
+            <Text style={styles.metricSub}>{cart.length} item{cart.length === 1 ? "" : "s"}</Text>
+          </View>
+
+          {/* Balance Pending */}
+          <View style={[styles.metricCard, { borderLeftColor: "#10B981" }]}>
+            <View style={styles.metricHeader}>
+              <View style={[styles.metricIconWrap, { backgroundColor: "#ECFDF5" }]}>
+                <Ionicons color="#10B981" name="wallet" size={16} />
+              </View>
+              <Text style={styles.metricLabel}>Balance</Text>
+            </View>
+            <Text numberOfLines={1} style={styles.metricValue}>
+              ₹{formatMoney(balancePreview)}
+            </Text>
+            <Text style={styles.metricSub}>After bill</Text>
+          </View>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Customer</Text>
@@ -194,11 +231,11 @@ export default function BillingScreen() {
               </View>
               <View style={styles.qty}>
                 <TouchableOpacity onPress={() => setQty(line.product._id, line.qty - 1)} style={styles.qtyButton}>
-                  <Ionicons color={ios.label} name="remove" size={16} />
+                  <Ionicons color={colors.text} name="remove" size={16} />
                 </TouchableOpacity>
                 <Text style={styles.qtyValue}>{line.qty}</Text>
                 <TouchableOpacity onPress={() => setQty(line.product._id, line.qty + 1)} style={styles.qtyButton}>
-                  <Ionicons color={ios.label} name="add" size={16} />
+                  <Ionicons color={colors.text} name="add" size={16} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -239,7 +276,7 @@ export default function BillingScreen() {
           {(orders.data || []).length ? (orders.data || []).map((order) => {
             const balance = getBalance(order);
             const accent =
-              order.paymentStatus === "paid" ? ios.green : order.paymentStatus === "partial" ? ios.orange : ios.red;
+              order.paymentStatus === "paid" ? "#10B981" : order.paymentStatus === "partial" ? "#F59E0B" : "#EF4444";
             return (
               <View key={order._id} style={styles.invoiceCard}>
                 <View style={[styles.invoiceAccent, { backgroundColor: accent }]} />
@@ -262,7 +299,7 @@ export default function BillingScreen() {
                   </View>
                   <View style={styles.invoiceActions}>
                     <TouchableOpacity onPress={() => shareInvoice(order)} style={styles.actionButton}>
-                      <Ionicons color={ios.blue} name="share-outline" size={16} style={{ marginRight: 4 }} />
+                      <Ionicons color={colors.primary} name="share-outline" size={16} style={{ marginRight: 4 }} />
                       <Text style={styles.actionText}>Share</Text>
                     </TouchableOpacity>
                     {balance > 0 && (
@@ -323,30 +360,83 @@ function formatMoney(value: number) {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingBottom: spacing.xl },
+  screen: { backgroundColor: colors.backgroundDark },
+  container: { alignSelf: "center", maxWidth: 480, paddingBottom: spacing.xl, paddingHorizontal: spacing.md, width: "100%" },
+
+  // Top Metrics
+  metricsRow: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+  },
+  metricCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderLeftWidth: 4,
+    flex: 1,
+    padding: spacing.sm,
+    ...shadows.sm,
+  },
+  metricHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  metricIconWrap: {
+    alignItems: "center",
+    borderRadius: radius.sm,
+    height: 26,
+    justifyContent: "center",
+    width: 26,
+  },
+  metricLabel: {
+    color: colors.textSecondary,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  metricValue: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  metricSub: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    marginTop: 2,
+  },
+
   card: {
-    backgroundColor: ios.card,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radius.lg,
+    borderWidth: 1,
     marginBottom: spacing.md,
     padding: spacing.md,
+    ...shadows.sm,
   },
   sectionTitle: {
-    color: ios.label,
+    color: colors.text,
     fontFamily: fonts.bold,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700",
     letterSpacing: -0.3,
     marginBottom: spacing.sm,
   },
   sectionTitleInline: {
-    color: ios.label,
+    color: colors.text,
     fontFamily: fonts.bold,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700",
     letterSpacing: -0.3,
   },
   fieldLabel: {
-    color: ios.secondary,
+    color: colors.textSecondary,
     fontFamily: fonts.semibold,
     fontSize: 13,
     fontWeight: "600",
@@ -361,21 +451,21 @@ const styles = StyleSheet.create({
   },
 
   customerChip: {
-    backgroundColor: ios.fill,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: radius.md,
     marginRight: spacing.xs,
     minHeight: 40,
     padding: spacing.sm,
     width: 140,
   },
-  customerChipActive: { backgroundColor: ios.blue },
-  customerName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  customerChipActive: { backgroundColor: colors.primary },
+  customerName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   customerNameActive: { color: "#FFFFFF" },
-  customerDue: { color: ios.secondary, fontSize: 11, marginTop: 2 },
+  customerDue: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   customerDueActive: { color: "rgba(255,255,255,0.8)" },
 
   productCard: {
-    backgroundColor: ios.fill,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: radius.md,
     height: 88,
     marginRight: spacing.xs,
@@ -383,14 +473,14 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     width: 130,
   },
-  productName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600", minHeight: 34 },
-  productPrice: { color: ios.blue, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700", marginTop: 2 },
-  stockOk: { color: ios.green, fontSize: 11, fontWeight: "500", marginTop: 2 },
-  stockLow: { color: ios.red, fontSize: 11, fontWeight: "500", marginTop: 2 },
+  productName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600", minHeight: 34 },
+  productPrice: { color: colors.primary, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  stockOk: { color: "#10B981", fontSize: 11, fontWeight: "500", marginTop: 2 },
+  stockLow: { color: "#EF4444", fontSize: 11, fontWeight: "500", marginTop: 2 },
 
   cartLine: {
     alignItems: "center",
-    borderTopColor: ios.separator,
+    borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -398,36 +488,36 @@ const styles = StyleSheet.create({
   },
   cartLineFirst: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: spacing.sm },
   cartInfo: { flex: 1, paddingRight: spacing.sm },
-  cartName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600" },
-  cartMeta: { color: ios.secondary, fontSize: 12, marginTop: 2 },
+  cartName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 14, fontWeight: "600" },
+  cartMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   qty: { alignItems: "center", flexDirection: "row", gap: spacing.xs },
   qtyButton: {
     alignItems: "center",
-    backgroundColor: ios.fill,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: radius.sm,
     height: 36,
     justifyContent: "center",
     width: 36,
   },
-  qtyValue: { color: ios.label, fontFamily: fonts.bold, fontWeight: "700", minWidth: 24, textAlign: "center" },
+  qtyValue: { color: colors.text, fontFamily: fonts.bold, fontWeight: "700", minWidth: 24, textAlign: "center" },
 
   row: { flexDirection: "row", gap: spacing.sm },
   half: { flex: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
   choice: {
     alignItems: "center",
-    backgroundColor: ios.fill,
-    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.full,
     justifyContent: "center",
     minHeight: 36,
     paddingHorizontal: spacing.md,
   },
-  choiceActive: { backgroundColor: ios.blue },
-  choiceText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
+  choiceActive: { backgroundColor: colors.primary },
+  choiceText: { color: colors.text, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
   choiceTextActive: { color: "#FFFFFF" },
 
   invoiceCard: {
-    backgroundColor: ios.fill,
+    backgroundColor: colors.surfaceVariant,
     borderRadius: radius.md,
     flexDirection: "row",
     marginBottom: spacing.sm,
@@ -437,31 +527,35 @@ const styles = StyleSheet.create({
   invoiceBody: { flex: 1, padding: spacing.md },
   invoiceTop: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   invoiceInfo: { flex: 1, paddingRight: spacing.sm },
-  invoiceNo: { color: ios.label, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
-  invoiceMeta: { color: ios.secondary, fontSize: 12, marginTop: 2 },
+  invoiceNo: { color: colors.text, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
+  invoiceMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   amountRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
-  invoiceAmount: { color: ios.label, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
-  dueText: { color: ios.red, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  invoiceAmount: { color: colors.text, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
+  dueText: { color: "#EF4444", fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   invoiceActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   actionButton: {
     alignItems: "center",
-    backgroundColor: ios.card,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radius.sm,
+    borderWidth: 1,
     flex: 1,
     flexDirection: "row",
     justifyContent: "center",
-    minHeight: 44,
+    minHeight: 40,
+    ...shadows.sm,
   },
   actionButtonPrimary: {
     alignItems: "center",
-    backgroundColor: ios.blue,
+    backgroundColor: colors.primary,
     borderRadius: radius.sm,
     flex: 1,
     flexDirection: "row",
     justifyContent: "center",
-    minHeight: 44,
+    minHeight: 40,
+    ...shadows.sm,
   },
-  actionText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  actionText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   actionTextPrimary: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
 
   sheetFooter: { marginTop: spacing.sm },

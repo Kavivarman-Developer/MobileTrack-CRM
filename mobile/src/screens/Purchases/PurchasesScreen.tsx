@@ -1,23 +1,55 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Empty, FabButton, Field, IconButton, IosScreenHeader, IosSearchBar, PageHeader, Screen, SelectOption, StatStrip } from "../../components/Layout";
-import { ios } from "../../constants/ios";
-import { fonts, spacing } from "../../constants/theme";
-import { Product, PurchaseOrder, createPurchaseOrder, getProducts, getPurchaseOrders, getVendors, receivePurchaseOrder } from "../../services/api";
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  Badge,
+  Empty,
+  FabButton,
+  Field,
+  IconButton,
+  IosScreenHeader,
+  IosSearchBar,
+  PageHeader,
+  Screen,
+  SelectOption,
+} from "../../components/Layout";
+import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
+import {
+  apiErrorMessage,
+  createPurchaseOrder,
+  getProducts,
+  getPurchaseOrders,
+  getVendors,
+  Product,
+  PurchaseOrder,
+  receivePurchaseOrder,
+} from "../../services/api";
 
 const blankLine = { product: "", quantity: "1", costPrice: "" };
 type DatePreset = "today" | "week" | "month" | "custom";
 
-const statusColor: Record<string, string> = {
-  ordered: ios.orange,
-  received: ios.green,
-  cancelled: ios.red,
-  draft: ios.blue,
+const statusColor: Record<string, { bg: string; text: string; dot: string }> = {
+  ordered: { bg: "#FFFBEB", text: "#F59E0B", dot: "#F59E0B" },
+  received: { bg: "#ECFDF5", text: "#10B981", dot: "#10B981" },
+  cancelled: { bg: "#FEF2F2", text: "#EF4444", dot: "#EF4444" },
+  draft: { bg: "#EFF6FF", text: "#0079F2", dot: "#0079F2" },
 };
 
-export default function PurchasesScreen() {
+export default function PurchasesScreen({ navigation }: any) {
   const [open, setOpen] = useState(false);
   const [vendor, setVendor] = useState("");
   const [notes, setNotes] = useState("");
@@ -27,168 +59,267 @@ export default function PurchasesScreen() {
   const [customDate, setCustomDate] = useState(todayKey());
   const [pickerMonth, setPickerMonth] = useState(todayKey().slice(0, 7));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
   const vendors = useQuery({ queryKey: ["vendors"], queryFn: () => getVendors("") });
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
-  const filterParams = useMemo(() => ({ ...getDateParams(datePreset, customDate), search: search.trim() || undefined }), [customDate, datePreset, search]);
-  const purchaseOrders = useQuery({ queryKey: ["purchase-orders", filterParams], queryFn: () => getPurchaseOrders(filterParams) });
+  const filterParams = useMemo(
+    () => ({ ...getDateParams(datePreset, customDate), search: search.trim() || undefined }),
+    [customDate, datePreset, search]
+  );
+  const purchaseOrders = useQuery({
+    queryKey: ["purchase-orders", filterParams],
+    queryFn: () => getPurchaseOrders(filterParams),
+  });
   const queryClient = useQueryClient();
-  const total = useMemo(() => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0), [lines]);
+
+  const total = useMemo(
+    () => lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0),
+    [lines]
+  );
   const orderItems = purchaseOrders.data?.items || [];
   const summary = purchaseOrders.data?.summary;
-  const pendingCount = useMemo(() => orderItems.filter((item) => item.status !== "received" && item.status !== "cancelled").length, [orderItems]);
+  const pendingCount = useMemo(
+    () => orderItems.filter((item) => item.status !== "received" && item.status !== "cancelled").length,
+    [orderItems]
+  );
 
   const save = useMutation({
-    mutationFn: () => createPurchaseOrder({ vendor, notes, status: "ordered", items: lines.map((line) => ({ product: line.product, quantity: Number(line.quantity), costPrice: Number(line.costPrice) })) as any }),
+    mutationFn: () =>
+      createPurchaseOrder({
+        vendor,
+        notes,
+        status: "ordered",
+        items: lines.map((line) => ({
+          product: line.product,
+          quantity: Number(line.quantity),
+          costPrice: Number(line.costPrice),
+        })) as any,
+      }),
     onSuccess: () => {
       setOpen(false);
       setVendor("");
       setNotes("");
       setLines([blankLine]);
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      Alert.alert("Purchase order saved", "Use Receive stock when the vendor delivers the items.");
+      Alert.alert("Purchase Order Saved", "Use 'Receive Stock' once the vendor delivers the products.");
     },
-    onError: (error: Error) => Alert.alert("Purchase order failed", error.message),
+    onError: (error: Error) => Alert.alert("Order Failed", apiErrorMessage(error)),
   });
+
   const receive = useMutation({
     mutationFn: receivePurchaseOrder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
-      Alert.alert("Stock received", "Inventory stock has been updated.");
+      Alert.alert("Stock Received", "Inventory stocks have been updated successfully.");
     },
-    onError: (error: Error) => Alert.alert("Receive failed", error.message),
+    onError: (error: Error) => Alert.alert("Receive Failed", apiErrorMessage(error)),
   });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await purchaseOrders.refetch();
+    setRefreshing(false);
+  };
 
   function vendorName(po: PurchaseOrder) {
     return typeof po.vendor === "string" ? "Vendor" : po.vendor.name;
   }
 
-  function statusLabel(status: string) {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  }
-
   return (
     <Screen style={styles.screen}>
-      <IosScreenHeader eyebrow="Purchases" title="Purchases" />
+      <IosScreenHeader
+        eyebrow="Supplier Orders"
+        right={
+          <TouchableOpacity onPress={() => setOpen(true)} style={styles.addHeaderBtn}>
+            <Ionicons color="#FFFFFF" name="add" size={18} />
+            <Text style={styles.addHeaderBtnText}>New PO</Text>
+          </TouchableOpacity>
+        }
+        title="Purchases"
+      />
 
       <FlatList
         data={orderItems}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.content}
-        ListHeaderComponent={(
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} tintColor={colors.primary} />}
+        ListHeaderComponent={
           <View>
-            <StatStrip
-              items={[
-                { label: "Spend", value: `₹${formatMoney(summary?.totalAmount || 0)}`, icon: "cart-outline", tone: "purple" },
-                { label: "Orders", value: String(summary?.orderCount || 0), icon: "document-text-outline", tone: "blue" },
-                { label: "Pending", value: String(pendingCount), icon: "time-outline", tone: "orange" },
-              ]}
-            />
-            <IosSearchBar onChangeText={setSearch} placeholder="Search vendor name…" value={search} />
+            {/* Top Metric Cards */}
+            <View style={styles.metricsRow}>
+              {/* Total Spend */}
+              <View style={[styles.metricCard, { borderLeftColor: "#6366F1" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EEF2FF" }]}>
+                    <Ionicons color="#6366F1" name="cart" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Spend</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  ₹{formatMoney(summary?.totalAmount || 0)}
+                </Text>
+                <Text style={styles.metricSub}>{summary?.orderCount || 0} Orders</Text>
+              </View>
 
-            <View style={styles.segment}>
-              {([
-                ["today", "Today"],
-                ["week", "7 days"],
-                ["month", "Month"],
-              ] as [DatePreset, string][]).map(([key, label]) => (
+              {/* Total Orders */}
+              <View style={[styles.metricCard, { borderLeftColor: "#0079F2" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                    <Ionicons color="#0079F2" name="document-text" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Orders</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {orderItems.length}
+                </Text>
+                <Text style={styles.metricSub}>In this period</Text>
+              </View>
+
+              {/* Pending Delivery */}
+              <View style={[styles.metricCard, { borderLeftColor: "#F59E0B" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#FFFBEB" }]}>
+                    <Ionicons color="#F59E0B" name="time" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Pending</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {pendingCount}
+                </Text>
+                <Text style={styles.metricSub}>Awaiting stock</Text>
+              </View>
+            </View>
+
+            {/* Search Bar */}
+            <IosSearchBar
+              onChangeText={setSearch}
+              placeholder="Search vendor or order number..."
+              style={styles.searchBar}
+              value={search}
+            />
+
+            {/* Date Preset Segment */}
+            <View style={styles.segmentContainer}>
+              {(
+                [
+                  ["week", "7 Days"],
+                  ["month", "Month"],
+                  ["today", "Today"],
+                  ["custom", "Custom"],
+                ] as [DatePreset, string][]
+              ).map(([key, label]) => (
                 <TouchableOpacity
                   key={key}
-                  onPress={() => setDatePreset(key)}
-                  style={[styles.segmentItem, datePreset === key && styles.segmentItemOn]}
+                  onPress={() => {
+                    setDatePreset(key);
+                    if (key === "custom") setShowDatePicker(true);
+                  }}
+                  style={[styles.segmentBtn, datePreset === key && styles.segmentBtnActive]}
                 >
-                  <Text style={[styles.segmentText, datePreset === key && styles.segmentTextOn]}>{label}</Text>
+                  <Text style={[styles.segmentBtnText, datePreset === key && styles.segmentBtnTextActive]}>
+                    {key === "custom" && datePreset === "custom" ? formatDateShort(customDate) : label}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity
-              onPress={() => {
-                setDatePreset("custom");
-                setShowDatePicker(true);
-              }}
-              style={[styles.datePick, datePreset === "custom" && styles.datePickOn]}
-            >
-              <Ionicons color={datePreset === "custom" ? ios.blue : ios.secondary} name="calendar-outline" size={16} />
-              <Text style={[styles.datePickText, datePreset === "custom" && styles.datePickTextOn]}>
-                {datePreset === "custom" ? formatDateShort(customDate) : "Pick a date"}
-              </Text>
-            </TouchableOpacity>
-
-            {!!summary?.monthly?.length && (
-              <View style={styles.monthCard}>
-                <Text style={styles.monthTitle}>Monthly spend</Text>
-                {summary.monthly.slice(0, 3).map((month) => (
-                  <View key={month.month} style={styles.monthRow}>
-                    <Text style={styles.monthText}>{month.month}</Text>
-                    <Text style={styles.monthAmount}>₹{formatMoney(month.totalAmount)}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
 
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionLabelInline}>Purchase orders</Text>
-              <Text style={styles.listCount}>{orderItems.length}</Text>
+              <Text style={styles.sectionLabel}>Purchase Orders</Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{orderItems.length}</Text>
+              </View>
             </View>
           </View>
-        )}
-        ListEmptyComponent={(
+        }
+        ListEmptyComponent={
           <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Ionicons color={ios.blue} name="cart-outline" size={28} />
-            </View>
-            <Text style={styles.emptyTitle}>{purchaseOrders.isLoading ? "Loading purchases…" : "No purchases here"}</Text>
-            <Text style={styles.emptyText}>
-              {purchaseOrders.isLoading ? "Just a moment." : "Try another date filter, or create a new purchase order."}
+            <Ionicons color={colors.textMuted} name="cart-outline" size={44} />
+            <Text style={styles.emptyTitle}>
+              {purchaseOrders.isLoading ? "Loading purchase orders…" : "No purchase orders found"}
             </Text>
-            {!purchaseOrders.isLoading ? (
+            <Text style={styles.emptySub}>
+              {purchaseOrders.isLoading
+                ? "Fetching data..."
+                : "Create a purchase order when ordering stock from vendors."}
+            </Text>
+            {!purchaseOrders.isLoading && (
               <TouchableOpacity onPress={() => setOpen(true)} style={styles.emptyBtn}>
-                <Text style={styles.emptyBtnText}>New purchase order</Text>
+                <Ionicons color="#FFFFFF" name="add" size={18} />
+                <Text style={styles.emptyBtnText}>New Purchase Order</Text>
               </TouchableOpacity>
-            ) : null}
+            )}
           </View>
-        )}
+        }
         renderItem={({ item }) => {
-          const tone = statusColor[item.status] || ios.blue;
+          const cfg = statusColor[item.status] || { bg: "#EFF6FF", text: "#0079F2", dot: "#0079F2" };
+          const canReceive = item.status !== "received" && item.status !== "cancelled";
+
           return (
             <View style={styles.poCard}>
-              <View style={[styles.accent, { backgroundColor: tone }]} />
-              <View style={styles.poInner}>
-                <View style={styles.poTop}>
-                  <View style={[styles.avatar, { backgroundColor: `${tone}1F` }]}>
-                    <Ionicons color={tone} name="cart" size={18} />
+              <View style={[styles.cardAccent, { backgroundColor: cfg.dot }]} />
+              <View style={styles.poContent}>
+                {/* Header Row */}
+                <View style={styles.poHeaderRow}>
+                  <View style={styles.poVendorInfo}>
+                    <Text numberOfLines={1} style={styles.poVendorName}>
+                      {vendorName(item)}
+                    </Text>
+                    <Text style={styles.poDate}>
+                      Ordered on{" "}
+                      {new Date(item.orderDate).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Text>
                   </View>
-                  <View style={styles.poCopy}>
-                    <Text numberOfLines={1} style={styles.poName}>{vendorName(item)}</Text>
-                    <Text style={styles.poMeta}>Ordered {item.orderDate.slice(0, 10)}</Text>
-                  </View>
-                  <View style={[styles.statusPill, { backgroundColor: `${tone}1F` }]}>
-                    <Text style={[styles.statusPillText, { color: tone }]}>{statusLabel(item.status)}</Text>
+                  <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
+                    <Text style={[styles.statusText, { color: cfg.text }]}>
+                      {item.status.toUpperCase()}
+                    </Text>
                   </View>
                 </View>
-                <Text style={styles.poAmount}>₹{formatMoney(item.totalAmount)}</Text>
-                <Text style={styles.poLines}>{item.items.length} line items</Text>
-                <View style={styles.linePreview}>
-                  {item.items.slice(0, 3).map((line, index) => {
-                    const product = typeof line.product === "string" ? null : line.product as Product;
-                    return (
-                      <Text key={`${item._id}-${index}`} numberOfLines={1} style={styles.lineText}>
-                        {product?.name || "Product"} × {line.quantity}
+
+                {/* Items & Amount */}
+                <View style={styles.poBody}>
+                  <View style={styles.linesList}>
+                    {item.items.slice(0, 3).map((line, idx) => {
+                      const product = typeof line.product === "string" ? null : (line.product as Product);
+                      return (
+                        <Text key={idx} numberOfLines={1} style={styles.lineItemText}>
+                          • {product?.name || "Product"} × {line.quantity}
+                        </Text>
+                      );
+                    })}
+                    {item.items.length > 3 && (
+                      <Text style={styles.moreLinesText}>+{item.items.length - 3} more items</Text>
+                    )}
+                  </View>
+                  <View style={styles.amountWrap}>
+                    <Text style={styles.amountLabel}>Total Value</Text>
+                    <Text style={styles.amountNum}>₹{formatMoney(item.totalAmount)}</Text>
+                  </View>
+                </View>
+
+                {/* Action Bar */}
+                {canReceive && (
+                  <View style={styles.poActionRow}>
+                    <TouchableOpacity
+                      disabled={receive.isPending}
+                      onPress={() => receive.mutate(item._id)}
+                      style={styles.receiveBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons color="#FFFFFF" name="checkmark-done" size={16} />
+                      <Text style={styles.receiveBtnText}>
+                        {receive.isPending ? "Receiving Stock…" : "Receive Stock into Inventory"}
                       </Text>
-                    );
-                  })}
-                </View>
-                {item.status !== "received" && item.status !== "cancelled" ? (
-                  <TouchableOpacity
-                    disabled={receive.isPending}
-                    onPress={() => receive.mutate(item._id)}
-                    style={styles.receiveBtn}
-                  >
-                    <Ionicons color="#FFFFFF" name="checkbox" size={16} />
-                    <Text style={styles.receiveText}>{receive.isPending ? "Receiving…" : "Receive stock"}</Text>
-                  </TouchableOpacity>
-                ) : null}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
           );
@@ -210,15 +341,16 @@ export default function PurchasesScreen() {
         visible={showDatePicker}
       />
 
+      {/* CREATE PURCHASE ORDER MODAL */}
       <Modal animationType="slide" visible={open}>
-        <Screen>
+        <Screen style={styles.screen}>
           <PageHeader
-            eyebrow="New purchase"
+            eyebrow="Create Purchase Order"
             right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setOpen(false)} />}
-            title="Purchase Order"
+            title="New Order"
           />
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Select Vendor</Text>
+            <Text style={styles.fieldLabel}>Select Supplier / Vendor</Text>
             {(vendors.data || []).map((item) => (
               <SelectOption
                 key={item._id}
@@ -228,32 +360,74 @@ export default function PurchasesScreen() {
                 selected={vendor === item._id}
               />
             ))}
-            <Text style={styles.fieldLabel}>Product Lines</Text>
+
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Product Lines</Text>
             {lines.map((line, index) => (
               <View key={index} style={styles.lineBox}>
                 <ProductSelect
                   products={products.data || []}
                   value={line.product}
-                  onChange={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, product: value, costPrice: String((products.data || []).find((p) => p._id === value)?.costPrice || row.costPrice) } : row))}
+                  onChange={(value) =>
+                    setLines((prev) =>
+                      prev.map((row, i) =>
+                        i === index
+                          ? {
+                              ...row,
+                              product: value,
+                              costPrice: String(
+                                (products.data || []).find((p) => p._id === value)?.costPrice || row.costPrice
+                              ),
+                            }
+                          : row
+                      )
+                    )
+                  }
                 />
                 <View style={styles.row}>
-                  <View style={styles.half}><Text style={styles.fieldLabel}>Qty</Text><Field keyboardType="numeric" onChangeText={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, quantity: value } : row))} value={line.quantity} /></View>
-                  <View style={styles.half}><Text style={styles.fieldLabel}>Cost Price (₹)</Text><Field keyboardType="numeric" onChangeText={(value) => setLines((prev) => prev.map((row, i) => i === index ? { ...row, costPrice: value } : row))} value={line.costPrice} /></View>
+                  <View style={styles.half}>
+                    <Text style={styles.miniLabel}>Qty</Text>
+                    <Field
+                      keyboardType="numeric"
+                      onChangeText={(value) =>
+                        setLines((prev) => prev.map((row, i) => (i === index ? { ...row, quantity: value } : row)))
+                      }
+                      value={line.quantity}
+                    />
+                  </View>
+                  <View style={styles.half}>
+                    <Text style={styles.miniLabel}>Cost Price (₹)</Text>
+                    <Field
+                      keyboardType="numeric"
+                      onChangeText={(value) =>
+                        setLines((prev) => prev.map((row, i) => (i === index ? { ...row, costPrice: value } : row)))
+                      }
+                      value={line.costPrice}
+                    />
+                  </View>
                 </View>
               </View>
             ))}
+
             <TouchableOpacity onPress={() => setLines((prev) => [...prev, blankLine])} style={styles.linkButton}>
-              <Ionicons color={ios.blue} name="add-circle-outline" size={16} />
-              <Text style={styles.linkText}>Add product line</Text>
+              <Ionicons color={colors.primary} name="add-circle-outline" size={18} />
+              <Text style={styles.linkText}>Add Another Product Line</Text>
             </TouchableOpacity>
+
             <View style={styles.totalBox}>
-              <Text style={styles.totalLabel}>PO total</Text>
+              <Text style={styles.totalLabel}>Total PO Amount</Text>
               <Text style={styles.totalValue}>₹{formatMoney(total)}</Text>
             </View>
-            <Text style={styles.fieldLabel}>Notes</Text>
-            <Field onChangeText={setNotes} placeholder="Delivery or purchase notes" value={notes} />
-            <TouchableOpacity onPress={() => save.mutate()} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>{save.isPending ? "Saving…" : "Save purchase order"}</Text>
+
+            <Text style={styles.fieldLabel}>Order Notes / Instructions</Text>
+            <Field onChangeText={setNotes} placeholder="Delivery expectations, invoice notes..." value={notes} />
+
+            <TouchableOpacity
+              disabled={save.isPending || !vendor}
+              onPress={() => save.mutate()}
+              style={[styles.saveBtn, (!vendor || save.isPending) && styles.saveBtnDisabled]}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.saveBtnText}>{save.isPending ? "Saving PO…" : "Create Purchase Order"}</Text>
             </TouchableOpacity>
           </ScrollView>
         </Screen>
@@ -262,24 +436,53 @@ export default function PurchasesScreen() {
   );
 }
 
-function ProductSelect({ onChange, products, value }: { onChange: (value: string) => void; products: Product[]; value: string }) {
+function ProductSelect({
+  onChange,
+  products,
+  value,
+}: {
+  onChange: (value: string) => void;
+  products: Product[];
+  value: string;
+}) {
   return (
-    <View>
-      <Text style={styles.fieldLabel}>Select Product</Text>
-      {products.slice(0, 8).map((item) => (
-        <SelectOption
-          key={item._id}
-          label={item.name}
-          meta={`₹${formatMoney(item.costPrice)} cost · ${item.stockQty} stock`}
-          onPress={() => onChange(item._id)}
-          selected={value === item._id}
-        />
-      ))}
+    <View style={{ marginBottom: 6 }}>
+      <Text style={styles.miniLabel}>Item</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        {products.slice(0, 10).map((item) => {
+          const isSelected = value === item._id;
+          return (
+            <TouchableOpacity
+              key={item._id}
+              onPress={() => onChange(item._id)}
+              style={[styles.itemPickChip, isSelected && styles.itemPickChipActive]}
+            >
+              <Text style={[styles.itemPickChipText, isSelected && styles.itemPickChipTextActive]}>
+                {item.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
-function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate, visible }: { month: string; onChangeMonth: (month: string) => void; onClose: () => void; onSelect: (date: string) => void; selectedDate: string; visible: boolean }) {
+function DateSelectModal({
+  month,
+  onChangeMonth,
+  onClose,
+  onSelect,
+  selectedDate,
+  visible,
+}: {
+  month: string;
+  onChangeMonth: (month: string) => void;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+  selectedDate: string;
+  visible: boolean;
+}) {
   const days = daysInMonth(month);
   return (
     <Modal animationType="fade" transparent visible={visible}>
@@ -287,17 +490,23 @@ function DateSelectModal({ month, onChangeMonth, onClose, onSelect, selectedDate
         <View style={styles.dateModal}>
           <View style={styles.dateHeader}>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, -1))} style={styles.dateNav}>
-              <Ionicons color={ios.blue} name="chevron-back" size={18} />
+              <Ionicons color={colors.textPrimary} name="chevron-back" size={18} />
             </TouchableOpacity>
             <Text style={styles.dateMonth}>{formatMonth(month)}</Text>
             <TouchableOpacity onPress={() => onChangeMonth(shiftMonth(month, 1))} style={styles.dateNav}>
-              <Ionicons color={ios.blue} name="chevron-forward" size={18} />
+              <Ionicons color={colors.textPrimary} name="chevron-forward" size={18} />
             </TouchableOpacity>
           </View>
           <View style={styles.dateGrid}>
             {days.map((date) => (
-              <TouchableOpacity key={date} onPress={() => onSelect(date)} style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}>
-                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>{Number(date.slice(-2))}</Text>
+              <TouchableOpacity
+                key={date}
+                onPress={() => onSelect(date)}
+                style={[styles.dateCell, selectedDate === date && styles.dateCellActive]}
+              >
+                <Text style={[styles.dateCellText, selectedDate === date && styles.dateCellTextActive]}>
+                  {Number(date.slice(-2))}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -356,208 +565,212 @@ function formatMonth(monthKey: string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: ios.bg },
-  header: { alignItems: "flex-start", flexDirection: "row", marginBottom: spacing.sm, marginTop: spacing.xxs, paddingHorizontal: spacing.md },
-  headerCopy: { flex: 1, minWidth: 0, paddingRight: spacing.sm },
-  greeting: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
-  title: { color: ios.label, fontFamily: fonts.bold, fontSize: 28, letterSpacing: -0.5, lineHeight: 32, marginTop: 1 },
-  headerAdd: {
-    alignItems: "center",
-    backgroundColor: ios.blue,
-    borderRadius: 18,
-    height: 36,
-    justifyContent: "center",
-    marginTop: spacing.xxs,
-    width: 36,
-  },
-  content: { alignSelf: "center", maxWidth: 430, paddingBottom: 88, paddingHorizontal: spacing.md, width: "100%" },
-  searchBox: {
-    alignItems: "center",
-    backgroundColor: ios.card,
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: spacing.xs,
-    marginBottom: 11,
-    minHeight: 40,
-    paddingHorizontal: spacing.sm,
-  },
-  searchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 40, paddingHorizontal: 0 },
+  screen: { backgroundColor: "#F8FAFC" },
+  content: { alignSelf: "center", maxWidth: 500, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
 
-  hero: {
-    backgroundColor: ios.dark,
-    borderRadius: 22,
-    marginBottom: 11,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
-  },
-  heroOverline: { color: "rgba(255,255,255,0.62)", fontFamily: fonts.medium, fontSize: 13 },
-  heroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 40, letterSpacing: -1, lineHeight: 46, marginTop: 2 },
-  heroSub: { color: "rgba(255,255,255,0.55)", fontFamily: fonts.regular, fontSize: 14, marginTop: 2 },
-  heroPills: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
-  heroPill: {
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 999,
-    color: "#FFFFFF",
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    overflow: "hidden",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-  },
-  heroCta: {
+  addHeaderBtn: {
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: spacing.xs,
-    justifyContent: "center",
-    marginTop: spacing.md,
-    minHeight: 40,
-    paddingHorizontal: spacing.md,
-  },
-  heroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 15 },
-
-  segment: { backgroundColor: ios.fill, borderRadius: 12, flexDirection: "row", padding: 3 },
-  segmentItem: { alignItems: "center", borderRadius: 9, flex: 1, justifyContent: "center", minHeight: 34 },
-  segmentItemOn: { backgroundColor: ios.card },
-  segmentText: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
-  segmentTextOn: { color: ios.label, fontFamily: fonts.semibold },
-  datePick: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: ios.card,
+    backgroundColor: colors.primary,
     borderRadius: 999,
     flexDirection: "row",
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...shadows.sm,
   },
-  datePickOn: { backgroundColor: "#007AFF14" },
-  datePickText: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
-  datePickTextOn: { color: ios.blue },
+  addHeaderBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
 
-  monthCard: { backgroundColor: ios.card, borderRadius: 16, marginTop: spacing.sm, padding: 11 },
-  monthTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 14, marginBottom: spacing.xs },
-  monthRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.xxs },
-  monthText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 13 },
-  monthAmount: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13 },
-
-  sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs, marginLeft: spacing.xxs, marginTop: 14 },
-  sectionLabelInline: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
-  listCount: {
-    backgroundColor: ios.fill,
-    borderRadius: 999,
-    color: ios.label,
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    overflow: "hidden",
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
+  // Metric Cards
+  metricsRow: { flexDirection: "row", gap: 8, marginTop: spacing.xs, marginBottom: spacing.md },
+  metricCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    flex: 1,
+    padding: 12,
+    ...shadows.sm,
   },
+  metricHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  metricIconWrap: { alignItems: "center", borderRadius: 8, height: 26, justifyContent: "center", width: 26 },
+  metricLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11 },
+  metricValue: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16, letterSpacing: -0.3 },
+  metricSub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10, marginTop: 2 },
 
-  poCard: {
-    backgroundColor: ios.card,
-    borderRadius: 18,
-    flexDirection: "row",
-    marginBottom: spacing.sm,
-    overflow: "hidden",
-  },
-  accent: { width: 4 },
-  poInner: { flex: 1, minWidth: 0, padding: 11 },
-  poTop: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  avatar: { alignItems: "center", borderRadius: 14, height: 40, justifyContent: "center", width: 40 },
-  poCopy: { flex: 1, minWidth: 0 },
-  poName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
-  poMeta: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 1 },
-  statusPill: { borderRadius: 999, paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs },
-  statusPillText: { fontFamily: fonts.semibold, fontSize: 11 },
-  poAmount: { color: ios.label, fontFamily: fonts.bold, fontSize: 22, letterSpacing: -0.4, marginTop: spacing.sm },
-  poLines: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
-  linePreview: { marginTop: spacing.xs },
-  lineText: { color: ios.label, fontFamily: fonts.medium, fontSize: 13, marginTop: 2 },
-  receiveBtn: {
-    alignItems: "center",
-    backgroundColor: ios.green,
+  searchBar: { marginBottom: 10 },
+
+  // Date Preset Segment
+  segmentContainer: {
+    backgroundColor: "#E2E8F0",
     borderRadius: 12,
     flexDirection: "row",
-    gap: spacing.xs,
-    justifyContent: "center",
-    marginTop: spacing.sm,
-    minHeight: 40,
+    marginBottom: spacing.md,
+    padding: 3,
   },
-  receiveText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 14 },
+  segmentBtn: { alignItems: "center", borderRadius: 9, flex: 1, paddingVertical: 7 },
+  segmentBtnActive: { backgroundColor: colors.card, ...shadows.sm },
+  segmentBtnText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
+  segmentBtnTextActive: { color: colors.textPrimary, fontFamily: fonts.semibold },
 
+  sectionHead: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  sectionLabel: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16 },
+  countBadge: {
+    backgroundColor: colors.backgroundDark,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countBadgeText: { color: colors.textSecondary, fontFamily: fonts.semibold, fontSize: 11 },
+
+  // PO Card
+  poCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 10,
+    overflow: "hidden",
+    ...shadows.sm,
+  },
+  cardAccent: { width: 4 },
+  poContent: { flex: 1, minWidth: 0, padding: 12 },
+  poHeaderRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  poVendorInfo: { flex: 1, minWidth: 0, paddingRight: 8 },
+  poVendorName: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 15 },
+  poDate: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11, marginTop: 1 },
+  statusPill: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  statusText: { fontFamily: fonts.bold, fontSize: 10 },
+
+  poBody: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopColor: "#F1F5F9",
+    borderTopWidth: 1,
+  },
+  linesList: { flex: 1, minWidth: 0 },
+  lineItemText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12, marginTop: 1 },
+  moreLinesText: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
+  amountWrap: { alignItems: "flex-end" },
+  amountLabel: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10 },
+  amountNum: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 16, marginTop: 1 },
+
+  poActionRow: {
+    borderTopColor: "#F1F5F9",
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  receiveBtn: {
+    alignItems: "center",
+    backgroundColor: "#10B981",
+    borderRadius: 10,
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    paddingVertical: 9,
+  },
+  receiveBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
+
+  // Empty Card
   emptyCard: {
     alignItems: "center",
-    backgroundColor: ios.card,
-    borderRadius: 18,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 22,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: spacing.xl,
+    marginTop: 10,
   },
-  emptyIcon: {
-    alignItems: "center",
-    backgroundColor: "#007AFF14",
-    borderRadius: 22,
-    height: 56,
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-    width: 56,
-  },
-  emptyTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 17 },
-  emptyText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 14, marginTop: spacing.xxs, textAlign: "center" },
+  emptyTitle: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 15, marginTop: 10 },
+  emptySub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2, textAlign: "center" },
   emptyBtn: {
-    backgroundColor: ios.dark,
-    borderRadius: 14,
-    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 6,
     marginTop: spacing.md,
-    minHeight: 40,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    ...shadows.sm,
   },
-  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 14, textAlign: "center" },
+  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
 
-  modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
-  fieldLabel: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13, marginBottom: spacing.xs, marginTop: spacing.xs },
-  option: { backgroundColor: ios.fill, borderRadius: 12, marginBottom: spacing.xs, padding: spacing.sm },
-  optionActive: { backgroundColor: `${ios.blue}14` },
-  optionText: { color: ios.label, fontFamily: fonts.medium, fontSize: 14 },
-  optionTextActive: { color: ios.blue, fontFamily: fonts.semibold },
-  lineBox: { backgroundColor: ios.card, borderRadius: 14, marginBottom: spacing.sm, padding: spacing.sm },
-  row: { flexDirection: "row", gap: spacing.sm },
+  // Modal
+  modalContent: { padding: spacing.md, paddingBottom: 40 },
+  fieldLabel: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 14, marginBottom: 8 },
+  miniLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11, marginBottom: 4 },
+  lineBox: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    padding: 10,
+  },
+  row: { flexDirection: "row", gap: 8, marginTop: 6 },
   half: { flex: 1 },
   linkButton: {
     alignItems: "center",
-    backgroundColor: `${ios.blue}14`,
-    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
     flexDirection: "row",
-    gap: spacing.xs,
-    height: 40,
+    gap: 6,
     justifyContent: "center",
-    marginBottom: spacing.sm,
+    marginBottom: 12,
+    paddingVertical: 10,
   },
-  linkText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 14 },
-  totalBox: { backgroundColor: ios.dark, borderRadius: 16, marginBottom: spacing.sm, padding: spacing.md },
-  totalLabel: { color: "rgba(255,255,255,0.6)", fontFamily: fonts.medium, fontSize: 12 },
-  totalValue: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 28, marginTop: 2 },
+  linkText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 13 },
+  totalBox: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    padding: 14,
+  },
+  totalLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 13 },
+  totalValue: { color: colors.primary, fontFamily: fonts.bold, fontSize: 20 },
   saveBtn: {
     alignItems: "center",
-    backgroundColor: ios.dark,
+    backgroundColor: colors.primary,
     borderRadius: 14,
     justifyContent: "center",
-    minHeight: 44,
+    marginTop: 10,
+    paddingVertical: 14,
+    ...shadows.sm,
   },
-  saveBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 15 },
+  saveBtnDisabled: { backgroundColor: "#CBD5E1" },
+  saveBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 15 },
 
-  dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "center", padding: spacing.md },
-  dateModal: { backgroundColor: ios.card, borderRadius: 16, padding: spacing.md, width: "100%" },
-  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  dateNav: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
-  dateMonth: { color: ios.label, fontFamily: fonts.bold, fontSize: 15 },
-  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  dateCell: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 10, height: 36, justifyContent: "center", width: "13%" },
-  dateCellActive: { backgroundColor: ios.blue },
-  dateCellText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12 },
-  dateCellTextActive: { color: "#ffffff" },
-  dateClose: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 12, marginTop: spacing.md, minHeight: 40, justifyContent: "center" },
-  dateCloseText: { color: ios.label, fontFamily: fonts.semibold },
+  itemPickChip: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  itemPickChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  itemPickChipText: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
+  itemPickChipTextActive: { color: "#FFFFFF", fontFamily: fonts.semibold },
+
+  // Date Modal
+  dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.5)", flex: 1, justifyContent: "center", padding: spacing.md },
+  dateModal: { backgroundColor: colors.card, borderRadius: 20, padding: 16, width: "100%", maxWidth: 360 },
+  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  dateNav: { alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 10, height: 34, justifyContent: "center", width: 34 },
+  dateMonth: { color: colors.textPrimary, fontFamily: fonts.bold, fontSize: 15 },
+  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  dateCell: { alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 8, height: 38, justifyContent: "center", width: "12.8%" },
+  dateCellActive: { backgroundColor: colors.primary },
+  dateCellText: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 12 },
+  dateCellTextActive: { color: "#FFFFFF" },
+  dateClose: { alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 12, marginTop: 14, paddingVertical: 10 },
+  dateCloseText: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 13 },
 });
+

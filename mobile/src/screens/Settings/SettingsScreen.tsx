@@ -1,9 +1,9 @@
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Button, IosScreenHeader, Screen } from "../../components/Layout";
-import { ios } from "../../constants/ios";
-import { fonts, spacing } from "../../constants/theme";
+import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAppDispatch, useAppSelector } from "../../hooks/redux";
 import { logout } from "../../redux/authSlice";
 import { API_BASE_URL } from "../../services/api";
@@ -13,55 +13,194 @@ export default function SettingsScreen() {
   const user = useAppSelector((state) => state.auth.user);
   const navigation = useNavigation<any>();
 
+  const initials = (user?.name || "Shop Owner")
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  function confirmLogout() {
+    Alert.alert("Sign Out", "Are you sure you want to log out from this device?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign Out", style: "destructive", onPress: () => dispatch(logout()) },
+    ]);
+  }
+
   return (
     <Screen style={styles.screen}>
+      <IosScreenHeader eyebrow="Control Center" title="Settings" />
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <IosScreenHeader eyebrow="Control center" title="Settings" />
+        {/* User & Store Hero Profile Card */}
+        <View style={styles.heroCard}>
+          <LinearGradient
+            colors={["#0F172A", "#1E293B"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroGradient}
+          >
+            <View style={styles.heroTop}>
+              <View style={styles.avatarWrap}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+              <View style={styles.heroInfo}>
+                <Text numberOfLines={1} style={styles.heroName}>
+                  {user?.name || "Store Admin"}
+                </Text>
+                <Text numberOfLines={1} style={styles.heroEmail}>
+                  {user?.email || user?.phone || "Kadai Kanakku Retailer"}
+                </Text>
+              </View>
+            </View>
 
-        <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user?.name || "User").slice(0, 2).toUpperCase()}</Text>
+            <View style={styles.heroPillsRow}>
+              <View style={styles.heroPill}>
+                <Ionicons color="#10B981" name="shield-checkmark" size={13} />
+                <Text style={styles.heroPillText}>{(user?.role || "Owner").toUpperCase()}</Text>
+              </View>
+              <View style={styles.heroPill}>
+                <Ionicons color="#38BDF8" name="cloud-done" size={13} />
+                <Text style={styles.heroPillText}>Cloud Synced</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Sell & POS Module */}
+        <Text style={styles.groupLabel}>Point of Sale & Orders</Text>
+        <View style={styles.groupCard}>
+          <SettingRow
+            icon="bag"
+            iconColor="#0079F2"
+            iconBg="#EFF6FF"
+            label="Sales Desk"
+            subtitle="Counter billing, active cart, and invoices"
+            onPress={() => navigation.navigate("Sales")}
+          />
+          <SettingRow
+            icon="flash"
+            iconColor="#FF8800"
+            iconBg="#FFF7ED"
+            label="Quick Sale / Express POS"
+            subtitle="Fast barcode scan with UPI QR payment"
+            onPress={() => navigation.navigate("QuickSale")}
+          />
+          <SettingRow
+            icon="receipt"
+            iconColor="#6366F1"
+            iconBg="#EEF2FF"
+            label="Orders Management"
+            subtitle="Track order delivery, shipping & payment"
+            onPress={() => navigation.navigate("Orders")}
+            last
+          />
+        </View>
+
+        {/* Stock & Catalog */}
+        <Text style={styles.groupLabel}>Inventory & Supplies</Text>
+        <View style={styles.groupCard}>
+          <SettingRow
+            icon="cube"
+            iconColor="#10B981"
+            iconBg="#ECFDF5"
+            label="Product Catalog"
+            subtitle="Add, edit items, prices, and categories"
+            onPress={() => navigation.navigate("Items")}
+          />
+          <SettingRow
+            icon="scan"
+            iconColor="#8B5CF6"
+            iconBg="#F5F3FF"
+            label="Barcode Generator"
+            subtitle="Generate & print barcode labels"
+            onPress={() => navigation.navigate("BarcodeGenerator")}
+          />
+          <SettingRow
+            icon="cart"
+            iconColor="#0079F2"
+            iconBg="#EFF6FF"
+            label="Purchase Orders"
+            subtitle="Supplier purchase orders & receive stock"
+            onPress={() => navigation.navigate("Purchases")}
+          />
+          <SettingRow
+            icon="business"
+            iconColor="#F59E0B"
+            iconBg="#FFFBEB"
+            label="Vendors & Suppliers"
+            subtitle="Supplier contacts and purchase history"
+            onPress={() => navigation.navigate("Vendors")}
+            last
+          />
+        </View>
+
+        {/* Finance & Reports */}
+        <Text style={styles.groupLabel}>Finance & Reports</Text>
+        <View style={styles.groupCard}>
+          <SettingRow
+            icon="bar-chart"
+            iconColor="#6366F1"
+            iconBg="#EEF2FF"
+            label="Business Analytics & Reports"
+            subtitle="P&L, gross sales, and profit margin analysis"
+            onPress={() => navigation.navigate("Reports")}
+          />
+          <SettingRow
+            icon="wallet"
+            iconColor="#EF4444"
+            iconBg="#FEF2F2"
+            label="Expenses Tracker"
+            subtitle="Track rent, utilities, salary, and overheads"
+            onPress={() => navigation.navigate("Expenses")}
+          />
+          <SettingRow
+            icon="people"
+            iconColor="#10B981"
+            iconBg="#ECFDF5"
+            label="Customer Directory & Due"
+            subtitle="Customer ledger and balance reminders"
+            onPress={() => navigation.navigate("Customers")}
+            last
+          />
+        </View>
+
+        {/* System & Session */}
+        <Text style={styles.groupLabel}>App & Connectivity</Text>
+        <View style={styles.groupCard}>
+          <View style={[styles.infoRow, styles.infoRowBorder]}>
+            <View style={[styles.iconWrap, { backgroundColor: "#F1F5F9" }]}>
+              <Ionicons color="#64748B" name="cloud-outline" size={18} />
+            </View>
+            <View style={styles.infoCopy}>
+              <Text style={styles.infoTitle}>Cloud Server</Text>
+              <Text numberOfLines={1} style={styles.infoSubtitle}>
+                {API_BASE_URL}
+              </Text>
+            </View>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>ONLINE</Text>
+            </View>
           </View>
-          <Text style={styles.name}>{user?.name || "Shop Owner"}</Text>
-          <Text style={styles.meta}>{user?.email || "No email"}</Text>
-          <View style={styles.heroPills}>
-            <Text style={styles.heroPill}>{(user?.role || "staff").toUpperCase()}</Text>
-            <Text style={styles.heroPill}>{user ? "Signed in" : "Signed out"}</Text>
+
+          <View style={styles.infoRow}>
+            <View style={[styles.iconWrap, { backgroundColor: "#F1F5F9" }]}>
+              <Ionicons color="#64748B" name="information-circle-outline" size={18} />
+            </View>
+            <View style={styles.infoCopy}>
+              <Text style={styles.infoTitle}>App Version</Text>
+              <Text style={styles.infoSubtitle}>Kadai Kanakku v2.4 (Enterprise Edition)</Text>
+            </View>
           </View>
         </View>
 
-        <Text style={styles.groupLabel}>Sell</Text>
-        <View style={styles.group}>
-          <ModuleLink icon="bag-outline" label="Sales" onPress={() => navigation.navigate("Sales")} />
-          <ModuleLink icon="flash-outline" label="Quick POS" onPress={() => navigation.navigate("QuickSale")} />
-          <ModuleLink icon="card-outline" label="Billing desk" onPress={() => navigation.navigate("Billing")} />
-          <ModuleLink icon="receipt-outline" label="Orders" onPress={() => navigation.navigate("Orders")} last />
-        </View>
-
-        <Text style={styles.groupLabel}>Stock</Text>
-        <View style={styles.group}>
-          <ModuleLink icon="cube-outline" label="Items" onPress={() => navigation.navigate("Items")} />
-          <ModuleLink icon="options-outline" label="Stock adjustments" onPress={() => navigation.navigate("Inventory Adjustments")} />
-          <ModuleLink icon="cart-outline" label="Purchases" onPress={() => navigation.navigate("Purchases")} />
-          <ModuleLink icon="people-outline" label="Vendors" onPress={() => navigation.navigate("Vendors")} last />
-        </View>
-
-        <Text style={styles.groupLabel}>Money</Text>
-        <View style={styles.group}>
-          <ModuleLink icon="bar-chart-outline" label="Reports" onPress={() => navigation.navigate("Reports")} />
-          <ModuleLink icon="wallet-outline" label="Expenses" onPress={() => navigation.navigate("Expenses")} />
-          <ModuleLink icon="person-add-outline" label="Customers" onPress={() => navigation.navigate("Customers")} last />
-        </View>
-
-        <Text style={styles.groupLabel}>Account</Text>
-        <View style={styles.group}>
-          <SettingRow icon="server-outline" label="API" value={API_BASE_URL} />
-          <SettingRow icon="shield-checkmark-outline" label="Session" value={user ? "Active" : "Signed out"} positive={!!user} last />
-        </View>
-
-        <View style={styles.danger}>
-          <Text style={styles.dangerHint}>Sign out clears this device session.</Text>
-          <Button icon="log-out-outline" onPress={() => dispatch(logout())} title="Sign Out" variant="danger" />
+        {/* Sign Out Card */}
+        <View style={styles.logoutCard}>
+          <TouchableOpacity onPress={confirmLogout} style={styles.logoutBtn} activeOpacity={0.8}>
+            <Ionicons color="#EF4444" name="log-out-outline" size={20} />
+            <Text style={styles.logoutBtnText}>Sign Out from Device</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </Screen>
@@ -70,126 +209,134 @@ export default function SettingsScreen() {
 
 function SettingRow({
   icon,
+  iconColor,
+  iconBg,
   label,
-  positive,
-  value,
-  last,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  positive?: boolean;
-  value: string;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.row, !last && styles.rowBorder]}>
-      <View style={styles.rowIcon}>
-        <Ionicons color={ios.blue} name={icon} size={18} />
-      </View>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text numberOfLines={1} style={[styles.rowValue, positive && styles.positive]}>{value}</Text>
-    </View>
-  );
-}
-
-function ModuleLink({
-  icon,
-  label,
+  subtitle,
   onPress,
   last,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  iconBg: string;
   label: string;
+  subtitle: string;
   onPress: () => void;
   last?: boolean;
 }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.row, !last && styles.rowBorder]}>
-      <View style={styles.rowIcon}>
-        <Ionicons color={ios.blue} name={icon} size={18} />
+    <TouchableOpacity onPress={onPress} style={[styles.settingRow, !last && styles.settingRowBorder]} activeOpacity={0.7}>
+      <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
+        <Ionicons color={iconColor} name={icon} size={20} />
       </View>
-      <Text style={styles.moduleLabel}>{label}</Text>
-      <Ionicons color={ios.secondary} name="chevron-forward" size={18} />
+      <View style={styles.settingCopy}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        <Text numberOfLines={1} style={styles.settingSub}>
+          {subtitle}
+        </Text>
+      </View>
+      <Ionicons color={colors.textMuted} name="chevron-forward" size={18} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: ios.bg },
-  container: { paddingBottom: spacing.xxl },
-  hero: {
-    alignItems: "center",
-    backgroundColor: ios.dark,
-    borderRadius: 24,
-    marginBottom: spacing.lg,
-    padding: spacing.xl,
-  },
-  avatar: {
+  screen: { backgroundColor: "#F8FAFC" },
+  container: { alignSelf: "center", maxWidth: 500, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
+
+  // Hero Card
+  heroCard: { borderRadius: 20, overflow: "hidden", marginBottom: spacing.lg, ...shadows.md },
+  heroGradient: { padding: 18 },
+  heroTop: { alignItems: "center", flexDirection: "row", gap: 14 },
+  avatarWrap: {
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 28,
-    height: 56,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 52,
     justifyContent: "center",
-    marginBottom: spacing.sm,
-    width: 56,
+    width: 52,
   },
-  avatarText: { color: "#fff", fontFamily: fonts.bold, fontSize: 18, fontWeight: "700" },
-  name: { color: "#fff", fontFamily: fonts.bold, fontSize: 22, fontWeight: "700" },
-  meta: { color: "rgba(255,255,255,0.65)", fontFamily: fonts.medium, fontSize: 14, marginTop: 4 },
-  heroPills: { flexDirection: "row", gap: spacing.xs, marginTop: 11 },
+  avatarText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 18 },
+  heroInfo: { flex: 1, minWidth: 0 },
+  heroName: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 18 },
+  heroEmail: { color: "rgba(255,255,255,0.7)", fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
+  heroPillsRow: { flexDirection: "row", gap: 8, marginTop: 14 },
   heroPill: {
+    alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 999,
-    color: "#fff",
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    fontWeight: "600",
-    overflow: "hidden",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
+  heroPillText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 11 },
+
+  // Grouped Settings Cards
   groupLabel: {
-    color: ios.secondary,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: spacing.xs,
-    marginLeft: spacing.xxs,
-    marginTop: spacing.xxs,
+    color: colors.textSecondary,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
     textTransform: "uppercase",
   },
-  group: {
-    backgroundColor: ios.card,
-    borderRadius: 16,
-    marginBottom: spacing.md,
+  groupCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: spacing.lg,
     overflow: "hidden",
+    ...shadows.sm,
   },
-  row: {
+
+  settingRow: { alignItems: "center", flexDirection: "row", gap: 12, padding: 14 },
+  settingRowBorder: { borderBottomColor: "#F1F5F9", borderBottomWidth: 1 },
+  iconWrap: { alignItems: "center", borderRadius: 12, height: 38, justifyContent: "center", width: 38 },
+  settingCopy: { flex: 1, minWidth: 0 },
+  settingLabel: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 15 },
+  settingSub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+
+  // Info Row
+  infoRow: { alignItems: "center", flexDirection: "row", gap: 12, padding: 14 },
+  infoRowBorder: { borderBottomColor: "#F1F5F9", borderBottomWidth: 1 },
+  infoCopy: { flex: 1, minWidth: 0 },
+  infoTitle: { color: colors.textPrimary, fontFamily: fonts.semibold, fontSize: 14 },
+  infoSubtitle: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  liveBadge: {
     alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderRadius: 6,
     flexDirection: "row",
-    minHeight: 46,
-    paddingHorizontal: 11,
-    paddingVertical: spacing.sm,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  rowBorder: { borderBottomColor: ios.separator, borderBottomWidth: StyleSheet.hairlineWidth },
-  rowIcon: {
-    alignItems: "center",
-    backgroundColor: ios.fill,
-    borderRadius: 8,
-    height: 32,
-    justifyContent: "center",
-    marginRight: spacing.sm,
-    width: 32,
-  },
-  rowLabel: { color: ios.label, flex: 1, fontFamily: fonts.medium, fontSize: 15, fontWeight: "500" },
-  rowValue: { color: ios.secondary, flexShrink: 1, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600", maxWidth: "45%", textAlign: "right" },
-  positive: { color: ios.green },
-  moduleLabel: { color: ios.label, flex: 1, fontFamily: fonts.medium, fontSize: 16, fontWeight: "500" },
-  danger: {
-    backgroundColor: ios.card,
+  liveDot: { backgroundColor: "#10B981", borderRadius: 999, height: 6, width: 6 },
+  liveText: { color: "#10B981", fontFamily: fonts.bold, fontSize: 10 },
+
+  // Logout Card
+  logoutCard: {
+    backgroundColor: colors.card,
+    borderColor: "#FEE2E2",
     borderRadius: 16,
-    marginTop: spacing.sm,
-    padding: spacing.md,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 20,
+    ...shadows.sm,
   },
-  dangerHint: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13, marginBottom: spacing.sm },
+  logoutBtn: {
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    paddingVertical: 14,
+  },
+  logoutBtnText: { color: "#EF4444", fontFamily: fonts.bold, fontSize: 15 },
 });
+

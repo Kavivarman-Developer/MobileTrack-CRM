@@ -132,6 +132,18 @@ export default function VendorsScreen() {
     queryClient.invalidateQueries({ queryKey: ["vendor-call-summary"] });
   }
 
+  async function whatsappVendor(vendor: Vendor) {
+    const phone = String(vendor.phone || "").trim().replace(/[^\d]/g, "");
+    if (!phone) {
+      Alert.alert("No phone number", "Add a valid phone number for this vendor first.");
+      return;
+    }
+    const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
+    const msg = `Vanakkam ${vendor.name}, regarding purchase order & supplies inquiry from our store.`;
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    Linking.openURL(url).catch(() => Alert.alert("WhatsApp error", "Could not open WhatsApp."));
+  }
+
   function openCalls(vendor: Vendor) {
     setSelectedVendor(vendor);
     setCallNote("");
@@ -158,12 +170,18 @@ export default function VendorsScreen() {
   return (
     <Screen style={styles.screen}>
       <IosScreenHeader
-        eyebrow="Vendors"
-        right={(
-          <TouchableOpacity accessibilityLabel="Pick call date" onPress={() => setShowDatePicker(true)} style={styles.dateBtn}>
-            <Ionicons color={ios.navy} name="calendar-outline" size={18} />
-          </TouchableOpacity>
-        )}
+        eyebrow="Suppliers & Contacts"
+        right={
+          <View style={styles.headerActions}>
+            <TouchableOpacity accessibilityLabel="Pick call date" onPress={() => setShowDatePicker(true)} style={styles.headerIconBtn}>
+              <Ionicons color={colors.primary} name="calendar-outline" size={18} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => openForm()} style={styles.addHeaderBtn}>
+              <Ionicons color="#FFFFFF" name="add" size={18} />
+              <Text style={styles.addHeaderBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        }
         title="Vendors"
       />
 
@@ -173,18 +191,63 @@ export default function VendorsScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={(
           <View>
-            <StatStrip
-              items={[
-                { label: "Calls", value: String(today?.total || 0), icon: "call-outline", tone: "purple" },
-                { label: "Outgoing", value: String(today?.appOutgoing ?? today?.outgoing ?? 0), icon: "arrow-up-outline", tone: "blue" },
-                { label: "Missed", value: String(today?.missed || 0), icon: "alert-circle-outline", tone: "orange" },
-              ]}
+            {/* Top Metric Cards */}
+            <View style={styles.metricsRow}>
+              {/* Total Vendors */}
+              <View style={[styles.metricCard, { borderLeftColor: "#6366F1" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EEF2FF" }]}>
+                    <Ionicons color="#6366F1" name="business" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Total</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {vendorCount}
+                </Text>
+                <Text style={styles.metricSub}>Suppliers</Text>
+              </View>
+
+              {/* Today's Calls */}
+              <View style={[styles.metricCard, { borderLeftColor: "#3B82F6" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                    <Ionicons color="#3B82F6" name="call" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Today Calls</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {today?.total || 0}
+                </Text>
+                <Text style={styles.metricSub}>{today?.appOutgoing ?? today?.outgoing ?? 0} outgoing</Text>
+              </View>
+
+              {/* Missed Calls */}
+              <View style={[styles.metricCard, { borderLeftColor: "#EF4444" }]}>
+                <View style={styles.metricHeader}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#FEF2F2" }]}>
+                    <Ionicons color="#EF4444" name="alert-circle" size={16} />
+                  </View>
+                  <Text style={styles.metricLabel}>Missed</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.metricValue}>
+                  {today?.missed || 0}
+                </Text>
+                <Text style={styles.metricSub}>Follow ups</Text>
+              </View>
+            </View>
+
+            {/* Search Bar */}
+            <IosSearchBar
+              onChangeText={setSearch}
+              placeholder="Search vendor, phone, GST…"
+              style={styles.searchBar}
+              value={search}
             />
-            <IosSearchBar onChangeText={setSearch} placeholder="Search vendor, phone, GST…" value={search} />
 
             {syncingCalls ? <Text style={styles.syncText}>Syncing call logs…</Text> : null}
             {permissionWarning && Platform.OS === "android" ? (
               <View style={styles.permissionBanner}>
+                <Ionicons color="#F59E0B" name="warning-outline" size={18} />
                 <Text style={styles.permissionText}>Enable call log access to auto-track missed calls</Text>
                 <TouchableOpacity onPress={openCallLogSettings} style={styles.permissionButton}>
                   <Text style={styles.permissionButtonText}>Settings</Text>
@@ -193,54 +256,69 @@ export default function VendorsScreen() {
             ) : null}
 
             <View style={styles.sectionHead}>
-              <Text style={styles.sectionLabelInline}>All vendors</Text>
-              <Text style={styles.listCount}>{vendorCount}</Text>
+              <Text style={styles.sectionLabelInline}>Suppliers Directory</Text>
+              <Text style={styles.listCount}>{filteredVendors.length}</Text>
             </View>
           </View>
         )}
         ListEmptyComponent={(
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
-              <Ionicons color={ios.blue} name="people-outline" size={28} />
+              <Ionicons color={colors.primary} name="business-outline" size={32} />
             </View>
             <Text style={styles.emptyTitle}>{vendors.isLoading ? "Loading vendors…" : "No vendors yet"}</Text>
-            <Text style={styles.emptyText}>{vendors.isLoading ? "Just a moment." : "Add your first supplier to start calling and logging."}</Text>
+            <Text style={styles.emptyText}>{vendors.isLoading ? "Just a moment." : "Add your first supplier to start calling, tracking POs and logging interactions."}</Text>
             {!vendors.isLoading ? (
               <TouchableOpacity onPress={() => openForm()} style={styles.emptyBtn}>
-                <Text style={styles.emptyBtnText}>Add vendor</Text>
+                <Ionicons color="#FFFFFF" name="add-circle-outline" size={18} />
+                <Text style={styles.emptyBtnText}>Add Vendor</Text>
               </TouchableOpacity>
             ) : null}
           </View>
         )}
         renderItem={({ item }) => (
           <View style={styles.vendorCard}>
-            <TouchableOpacity onPress={() => openForm(item)} style={styles.vendorMain}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => openForm(item)} style={styles.vendorMain}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.slice(0, 1).toUpperCase()}</Text>
+                <Text style={styles.avatarText}>{item.name.slice(0, 2).toUpperCase()}</Text>
               </View>
               <View style={styles.vendorInfo}>
                 <Text numberOfLines={1} style={styles.vendorName}>{item.name}</Text>
-                <Text numberOfLines={1} style={styles.vendorMeta}>{item.phone || "No phone"}</Text>
-                <Text numberOfLines={1} style={styles.vendorSub}>{item.gstNumber || item.email || item.address || "No extra details"}</Text>
+                <View style={styles.vendorMetaRow}>
+                  <Ionicons color={colors.textMuted} name="call-outline" size={13} />
+                  <Text numberOfLines={1} style={styles.vendorMeta}>{item.phone || "No phone"}</Text>
+                </View>
+                {(item.gstNumber || item.address) ? (
+                  <Text numberOfLines={1} style={styles.vendorSub}>
+                    {item.gstNumber ? `GST: ${item.gstNumber}` : item.address}
+                  </Text>
+                ) : null}
               </View>
-              <Ionicons color="#C7C7CC" name="chevron-forward" size={16} />
+              <Ionicons color={colors.border} name="chevron-forward" size={18} />
             </TouchableOpacity>
+
             <View style={styles.vendorActions}>
               <TouchableOpacity onPress={() => callVendor(item)} style={styles.vendorAction}>
-                <Ionicons color={ios.green} name="call" size={15} />
-                <Text style={[styles.vendorActionText, { color: ios.green }]}>Call</Text>
+                <Ionicons color="#10B981" name="call" size={15} />
+                <Text style={[styles.vendorActionText, { color: "#10B981" }]}>Call</Text>
               </TouchableOpacity>
+              {item.phone ? (
+                <TouchableOpacity onPress={() => whatsappVendor(item)} style={styles.vendorAction}>
+                  <Ionicons color="#25D366" name="logo-whatsapp" size={15} />
+                  <Text style={[styles.vendorActionText, { color: "#10B981" }]}>WhatsApp</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={() => openCalls(item)} style={styles.vendorAction}>
-                <Ionicons color={ios.blue} name="time" size={15} />
-                <Text style={[styles.vendorActionText, { color: ios.blue }]}>Logs</Text>
+                <Ionicons color="#3B82F6" name="time" size={15} />
+                <Text style={[styles.vendorActionText, { color: "#3B82F6" }]}>Logs</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => openForm(item)} style={styles.vendorAction}>
-                <Ionicons color={ios.label} name="create-outline" size={15} />
+                <Ionicons color={colors.textSecondary} name="create-outline" size={15} />
                 <Text style={styles.vendorActionText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.vendorAction}>
-                <Ionicons color={ios.red} name="trash-outline" size={15} />
-                <Text style={[styles.vendorActionText, { color: ios.red }]}>Delete</Text>
+                <Ionicons color="#EF4444" name="trash-outline" size={15} />
+                <Text style={[styles.vendorActionText, { color: "#EF4444" }]}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -262,7 +340,7 @@ export default function VendorsScreen() {
       <Modal animationType="slide" visible={open}>
         <Screen>
           <PageHeader
-            eyebrow={editing ? "Update vendor" : "New vendor"}
+            eyebrow={editing ? "Update supplier" : "New supplier"}
             right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setOpen(false)} />}
             title={editing ? "Edit Vendor" : "Add Vendor"}
           />
@@ -276,7 +354,15 @@ export default function VendorsScreen() {
                 <Field multiline={multiline} onChangeText={(value) => setForm((prev) => ({ ...prev, [key]: value }))} value={form[key]} />
               </View>
             ))}
-            <Button icon="checkmark-circle-outline" loading={save.isPending} onPress={() => save.mutate()} title="Save Vendor Profile" />
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={save.isPending}
+              onPress={() => save.mutate()}
+              style={[styles.saveBtn, save.isPending && { opacity: 0.7 }]}
+            >
+              <Ionicons color="#FFFFFF" name="checkmark-circle-outline" size={18} />
+              <Text style={styles.saveBtnText}>{save.isPending ? "Saving..." : "Save Vendor Profile"}</Text>
+            </TouchableOpacity>
           </ScrollView>
         </Screen>
       </Modal>
@@ -284,24 +370,24 @@ export default function VendorsScreen() {
       <Modal animationType="slide" visible={callsOpen}>
         <Screen>
           <PageHeader
-            eyebrow="Call follow-up logs"
+            eyebrow="Follow-up logs"
             right={<IconButton accessibilityLabel="Close" icon="close" onPress={() => setCallsOpen(false)} />}
             title={selectedVendor?.name || "Vendor Calls"}
           />
           <View style={styles.callsPanel}>
             <View style={styles.dateSwitcher}>
               <TouchableOpacity onPress={() => shiftCallDate(-1)} style={styles.dateButton}>
-                <Ionicons color={ios.blue} name="chevron-back" size={18} />
+                <Ionicons color={colors.primary} name="chevron-back" size={18} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateCenter}>
-                <Ionicons color={ios.blue} name="calendar-outline" size={16} />
+                <Ionicons color={colors.primary} name="calendar-outline" size={16} />
                 <View>
                   <Text style={styles.dateTitle}>{formatDayLong(callDate)}</Text>
                   <Text style={styles.dateHint}>{callDate === todayKey() ? "Today" : callDate}</Text>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => shiftCallDate(1)} style={styles.dateButton}>
-                <Ionicons color={ios.blue} name="chevron-forward" size={18} />
+                <Ionicons color={colors.primary} name="chevron-forward" size={18} />
               </TouchableOpacity>
             </View>
             <DateSelectModal
@@ -321,7 +407,7 @@ export default function VendorsScreen() {
                 <Text style={styles.logStatLabel}>App calls</Text>
               </View>
               <View style={styles.logStatItem}>
-                <Text style={[styles.logStatValue, { color: ios.red }]}>{callDayStats.missed}</Text>
+                <Text style={[styles.logStatValue, { color: "#EF4444" }]}>{callDayStats.missed}</Text>
                 <Text style={styles.logStatLabel}>Missed</Text>
               </View>
               <View style={styles.logStatItem}>
@@ -335,11 +421,11 @@ export default function VendorsScreen() {
                 <Text style={styles.callActionTextLight}>Call now</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => logCall.mutate({ type: "missed", note: callNote || "Missed call from vendor" })} style={[styles.callAction, styles.callActionMissed]}>
-                <Ionicons color={ios.red} name="call-outline" size={16} />
+                <Ionicons color="#EF4444" name="alert-circle-outline" size={16} />
                 <Text style={styles.callActionTextMissed}>Missed</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => logCall.mutate({ type: "incoming", note: callNote || "Incoming call from vendor" })} style={styles.callAction}>
-                <Ionicons color={ios.green} name="arrow-down-circle-outline" size={16} />
+                <Ionicons color="#10B981" name="arrow-down-circle-outline" size={16} />
                 <Text style={styles.callActionText}>Received</Text>
               </TouchableOpacity>
             </View>
@@ -356,11 +442,11 @@ export default function VendorsScreen() {
                 <View style={styles.callLogTop}>
                   <View style={styles.callTypeRow}>
                     <Ionicons
-                      color={item.type === "missed" ? ios.red : item.type === "incoming" ? ios.green : ios.blue}
+                      color={item.type === "missed" ? "#EF4444" : item.type === "incoming" ? "#10B981" : colors.primary}
                       name={item.type === "missed" ? "alert-circle" : item.type === "incoming" ? "arrow-down-circle-outline" : "call-outline"}
                       size={16}
                     />
-                    <Text style={[styles.callType, item.type === "missed" && { color: ios.red }, item.type === "incoming" && { color: ios.green }]}>{callTypeLabel[item.type]}</Text>
+                    <Text style={[styles.callType, item.type === "missed" && { color: "#EF4444" }, item.type === "incoming" && { color: "#10B981" }]}>{callTypeLabel[item.type]}</Text>
                   </View>
                   <Text style={styles.callDate}>{new Date(item.occurredAt || item.createdAt).toLocaleString()}</Text>
                 </View>
@@ -445,88 +531,113 @@ function formatMonth(monthKey: string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: ios.bg },
-  header: { alignItems: "flex-start", flexDirection: "row", marginBottom: spacing.sm, marginTop: spacing.xxs, paddingHorizontal: spacing.md },
-  headerCopy: { flex: 1, minWidth: 0, paddingRight: spacing.sm },
-  greeting: { color: ios.secondary, fontFamily: fonts.medium, fontSize: 13 },
-  title: { color: ios.label, fontFamily: fonts.bold, fontSize: 28, letterSpacing: -0.5, lineHeight: 32, marginTop: 1 },
-  headerAdd: {
+  screen: { backgroundColor: colors.backgroundDark },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  headerIconBtn: {
     alignItems: "center",
-    backgroundColor: ios.blue,
-    borderRadius: 18,
-    height: 36,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 38,
     justifyContent: "center",
-    marginTop: spacing.xxs,
-    width: 36,
+    width: 38,
+    ...shadows.sm,
   },
-  content: { alignSelf: "center", maxWidth: 430, paddingBottom: 88, paddingHorizontal: spacing.md, width: "100%" },
-  searchBox: {
+  addHeaderBtn: {
     alignItems: "center",
-    backgroundColor: ios.card,
-    borderRadius: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     flexDirection: "row",
-    gap: spacing.xs,
-    marginBottom: 11,
-    minHeight: 40,
-    paddingHorizontal: spacing.sm,
-  },
-  searchInput: { backgroundColor: "transparent", borderWidth: 0, flex: 1, marginBottom: 0, minHeight: 40, paddingHorizontal: 0 },
-
-  hero: {
-    backgroundColor: ios.dark,
-    borderRadius: 22,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
-  },
-  heroOverline: { color: "rgba(255,255,255,0.62)", fontFamily: fonts.medium, fontSize: 13 },
-  heroAmount: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 40, letterSpacing: -1, lineHeight: 46, marginTop: 2 },
-  heroSub: { color: "rgba(255,255,255,0.55)", fontFamily: fonts.regular, fontSize: 14, marginTop: 2 },
-  heroPills: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
-  heroPill: {
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 999,
-    color: "#FFFFFF",
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    overflow: "hidden",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-  },
-  heroCta: {
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: spacing.xs,
+    gap: 4,
+    height: 38,
     justifyContent: "center",
-    marginTop: spacing.md,
-    minHeight: 40,
     paddingHorizontal: spacing.md,
+    ...shadows.sm,
   },
-  heroCtaText: { color: ios.dark, fontFamily: fonts.semibold, fontSize: 15 },
+  addHeaderBtnText: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  content: { alignSelf: "center", maxWidth: 480, paddingBottom: 88, paddingHorizontal: spacing.md, width: "100%" },
 
-  syncText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginBottom: spacing.xs },
+  // Top Metrics
+  metricsRow: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+  },
+  metricCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderLeftWidth: 4,
+    flex: 1,
+    padding: spacing.sm,
+    ...shadows.sm,
+  },
+  metricHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  metricIconWrap: {
+    alignItems: "center",
+    borderRadius: radius.sm,
+    height: 26,
+    justifyContent: "center",
+    width: 26,
+  },
+  metricLabel: {
+    color: colors.textSecondary,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  metricValue: {
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  metricSub: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  searchBar: {
+    marginBottom: spacing.sm,
+  },
+
+  syncText: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginBottom: spacing.xs },
   permissionBanner: {
     alignItems: "center",
-    backgroundColor: "#FF95001F",
-    borderRadius: 14,
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+    borderRadius: radius.md,
+    borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm,
+    gap: spacing.xs,
     marginBottom: spacing.sm,
     padding: spacing.sm,
   },
-  permissionText: { color: ios.label, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
-  permissionButton: { backgroundColor: ios.card, borderRadius: 999, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  permissionButtonText: { color: ios.blue, fontFamily: fonts.semibold, fontSize: 12 },
+  permissionText: { color: "#92400E", flex: 1, fontFamily: fonts.medium, fontSize: 12 },
+  permissionButton: { backgroundColor: colors.surface, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  permissionButtonText: { color: colors.primary, fontFamily: fonts.bold, fontSize: 12 },
 
   sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs, marginLeft: spacing.xxs, marginTop: spacing.xs },
-  sectionLabelInline: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
+  sectionLabelInline: { color: colors.textSecondary, flex: 1, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   listCount: {
-    backgroundColor: ios.fill,
-    borderRadius: 999,
-    color: ios.label,
-    fontFamily: fonts.semibold,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.full,
+    color: colors.textSecondary,
+    fontFamily: fonts.bold,
     fontSize: 12,
     overflow: "hidden",
     paddingHorizontal: spacing.xs,
@@ -534,28 +645,33 @@ const styles = StyleSheet.create({
   },
 
   vendorCard: {
-    backgroundColor: ios.card,
-    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     marginBottom: spacing.sm,
     overflow: "hidden",
+    ...shadows.sm,
   },
-  vendorMain: { alignItems: "center", flexDirection: "row", padding: 11 },
+  vendorMain: { alignItems: "center", flexDirection: "row", padding: spacing.md },
   avatar: {
     alignItems: "center",
-    backgroundColor: "#007AFF14",
-    borderRadius: 14,
+    backgroundColor: "#EEF2FF",
+    borderRadius: radius.md,
     height: 44,
     justifyContent: "center",
     marginRight: spacing.sm,
     width: 44,
   },
-  avatarText: { color: ios.blue, fontFamily: fonts.bold, fontSize: 16 },
+  avatarText: { color: "#6366F1", fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
   vendorInfo: { flex: 1, minWidth: 0, paddingRight: spacing.xs },
-  vendorName: { color: ios.label, fontFamily: fonts.semibold, fontSize: 16 },
-  vendorMeta: { color: ios.label, fontFamily: fonts.medium, fontSize: 13, marginTop: 2 },
-  vendorSub: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  vendorName: { color: colors.text, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
+  vendorMetaRow: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 3 },
+  vendorMeta: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 13 },
+  vendorSub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
   vendorActions: {
-    borderTopColor: "rgba(60,60,67,0.12)",
+    backgroundColor: "#F8FAFC",
+    borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
   },
@@ -563,120 +679,177 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     flexDirection: "row",
-    gap: spacing.xxs,
+    gap: 4,
     justifyContent: "center",
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
   },
-  vendorActionText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12 },
+  vendorActionText: { color: colors.textSecondary, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
 
   emptyCard: {
     alignItems: "center",
-    backgroundColor: ios.card,
-    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 22,
+    paddingVertical: spacing.xl,
+    ...shadows.sm,
   },
   emptyIcon: {
     alignItems: "center",
-    backgroundColor: "#007AFF14",
-    borderRadius: 22,
-    height: 56,
+    backgroundColor: "#EEF2FF",
+    borderRadius: radius.full,
+    height: 64,
     justifyContent: "center",
-    marginBottom: spacing.sm,
-    width: 56,
+    marginBottom: spacing.md,
+    width: 64,
   },
-  emptyTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 17 },
-  emptyText: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 14, marginTop: spacing.xxs, textAlign: "center" },
+  emptyTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 17, fontWeight: "700" },
+  emptyText: { color: colors.textSecondary, fontFamily: fonts.regular, fontSize: 14, marginTop: spacing.xs, textAlign: "center" },
   emptyBtn: {
-    backgroundColor: ios.dark,
-    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    gap: 6,
     marginTop: spacing.md,
-    minHeight: 40,
+    minHeight: 42,
     justifyContent: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.lg,
+    ...shadows.sm,
   },
-  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 14, textAlign: "center" },
+  emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
 
   modalContent: { padding: spacing.md, paddingBottom: spacing.xl },
-  fieldBlock: { marginBottom: spacing.sm },
+  fieldBlock: { marginBottom: spacing.md },
   fieldLabelRow: { alignItems: "center", flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs },
   label: { color: colors.text, ...typography.label },
+  saveBtn: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    flexDirection: "row",
+    gap: 6,
+    height: 48,
+    justifyContent: "center",
+    marginTop: spacing.md,
+    ...shadows.sm,
+  },
+  saveBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
 
-  callsPanel: { backgroundColor: ios.card, borderRadius: 16, marginHorizontal: spacing.md, marginBottom: spacing.sm, padding: spacing.md },
-  dateSwitcher: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 999, flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm, padding: spacing.xxs },
-  dateButton: { alignItems: "center", backgroundColor: ios.card, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
-  dateCenter: { alignItems: "center", backgroundColor: ios.card, borderRadius: 999, flex: 1, flexDirection: "row", gap: spacing.xs, height: 36, justifyContent: "center", paddingHorizontal: spacing.sm },
-  dateTitle: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12 },
-  dateHint: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 10 },
+  callsPanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    ...shadows.sm,
+  },
+  dateSwitcher: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.full,
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+    padding: 3,
+  },
+  dateButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.full, height: 34, justifyContent: "center", width: 34, ...shadows.sm },
+  dateCenter: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.xs,
+    height: 34,
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    ...shadows.sm,
+  },
+  dateTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
+  dateHint: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10 },
   logStatsRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
   logStatItem: {
     alignItems: "center",
-    backgroundColor: ios.fill,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.md,
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
   },
-  logStatValue: { color: ios.label, fontFamily: fonts.bold, fontSize: 18 },
-  logStatLabel: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
+  logStatValue: { color: colors.text, fontFamily: fonts.bold, fontSize: 18, fontWeight: "700" },
+  logStatLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
   callActions: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
   callAction: {
     alignItems: "center",
-    backgroundColor: ios.fill,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.md,
     flex: 1,
     flexDirection: "row",
-    gap: spacing.xxs,
+    gap: 4,
     justifyContent: "center",
     minHeight: 40,
   },
-  callActionDial: { backgroundColor: ios.green },
-  callActionMissed: { backgroundColor: "#FF3B301F" },
-  callActionText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12 },
-  callActionTextMissed: { color: ios.red, fontFamily: fonts.semibold, fontSize: 12 },
-  callActionTextLight: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 12 },
+  callActionDial: { backgroundColor: "#10B981" },
+  callActionMissed: { backgroundColor: "#FEE2E2" },
+  callActionText: { color: colors.text, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
+  callActionTextMissed: { color: "#EF4444", fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
+  callActionTextLight: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 12, fontWeight: "700" },
   callsList: { paddingBottom: spacing.lg, paddingHorizontal: spacing.md },
   callLogCard: {
-    backgroundColor: ios.card,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     marginBottom: spacing.xs,
     overflow: "hidden",
-    padding: 11,
+    padding: spacing.md,
+    ...shadows.sm,
   },
-  callLogCardMissed: { backgroundColor: "#FF3B3014" },
-  missedStripe: { backgroundColor: ios.red, bottom: 0, left: 0, position: "absolute", top: 0, width: 4 },
+  callLogCardMissed: { backgroundColor: "#FFF5F5" },
+  missedStripe: { backgroundColor: "#EF4444", bottom: 0, left: 0, position: "absolute", top: 0, width: 4 },
   callLogTop: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xxs },
   callTypeRow: { alignItems: "center", flex: 1, flexDirection: "row", gap: spacing.xs, paddingLeft: 2 },
-  callType: { color: ios.label, fontFamily: fonts.semibold, fontSize: 13 },
-  callDate: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 11 },
-  callPhone: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12 },
-  callNote: { color: ios.secondary, fontFamily: fonts.regular, fontSize: 12, marginTop: spacing.xxs },
+  callType: { color: colors.text, fontFamily: fonts.bold, fontSize: 13, fontWeight: "600" },
+  callDate: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11 },
+  callPhone: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
+  callNote: { color: colors.textSecondary, fontFamily: fonts.regular, fontSize: 12, marginTop: spacing.xxs },
   callBackButton: {
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: ios.green,
-    borderRadius: 999,
+    backgroundColor: "#10B981",
+    borderRadius: radius.full,
     flexDirection: "row",
-    gap: spacing.xxs,
+    gap: 4,
     height: 32,
     marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
-  callBackText: { color: "#ffffff", fontFamily: fonts.semibold, fontSize: 12 },
+  callBackText: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 12, fontWeight: "700" },
 
   dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "center", padding: spacing.md },
-  dateModal: { backgroundColor: ios.card, borderRadius: 16, padding: spacing.md, width: "100%" },
-  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  dateNav: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
-  dateNavText: { color: ios.blue, fontFamily: fonts.bold, fontSize: 16 },
-  dateMonth: { color: ios.label, fontFamily: fonts.bold, fontSize: 15 },
-  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  dateCell: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 10, height: 36, justifyContent: "center", width: "13%" },
-  dateCellActive: { backgroundColor: ios.blue },
-  dateCellText: { color: ios.label, fontFamily: fonts.semibold, fontSize: 12 },
-  dateCellTextActive: { color: "#ffffff" },
-  dateClose: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 12, marginTop: spacing.md, minHeight: 40, justifyContent: "center" },
-  dateCloseText: { color: ios.label, fontFamily: fonts.semibold },
-  dateBtn: { alignItems: "center", backgroundColor: ios.fill, borderRadius: 14, height: 40, justifyContent: "center", width: 40 },
+  dateModal: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, width: "100%", maxWidth: 400, ...shadows.md },
+  dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
+  dateNav: { alignItems: "center", backgroundColor: colors.surfaceVariant, borderRadius: radius.full, height: 36, justifyContent: "center", width: 36 },
+  dateNavText: { color: colors.primary, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
+  dateMonth: { color: colors.text, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
+  dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  dateCell: { alignItems: "center", backgroundColor: colors.surfaceVariant, borderRadius: radius.sm, height: 38, justifyContent: "center", width: "13%" },
+  dateCellActive: { backgroundColor: colors.primary },
+  dateCellText: { color: colors.text, fontFamily: fonts.bold, fontSize: 12 },
+  dateCellTextActive: { color: "#ffffff", fontWeight: "700" },
+  dateClose: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.md,
+    marginTop: spacing.lg,
+    minHeight: 42,
+    justifyContent: "center",
+  },
+  dateCloseText: { color: colors.text, fontFamily: fonts.bold, fontSize: 14, fontWeight: "600" },
 });

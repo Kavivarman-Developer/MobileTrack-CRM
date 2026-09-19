@@ -6,7 +6,6 @@ import { Button, IosScreenHeader, Screen } from "../../components/Layout";
 import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAppDispatch, useAppSelector } from "../../hooks/redux";
 import { logout } from "../../redux/authSlice";
-import { API_BASE_URL } from "../../services/api";
 
 export default function SettingsScreen() {
   const dispatch = useAppDispatch();
@@ -166,24 +165,8 @@ export default function SettingsScreen() {
         </View>
 
         {/* System & Session */}
-        <Text style={styles.groupLabel}>App & Connectivity</Text>
+        <Text style={styles.groupLabel}>App Information</Text>
         <View style={styles.groupCard}>
-          <View style={[styles.infoRow, styles.infoRowBorder]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#F1F5F9" }]}>
-              <Ionicons color="#64748B" name="cloud-outline" size={18} />
-            </View>
-            <View style={styles.infoCopy}>
-              <Text style={styles.infoTitle}>Cloud Server</Text>
-              <Text numberOfLines={1} style={styles.infoSubtitle}>
-                {API_BASE_URL}
-              </Text>
-            </View>
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>ONLINE</Text>
-            </View>
-          </View>
-
           <View style={styles.infoRow}>
             <View style={[styles.iconWrap, { backgroundColor: "#F1F5F9" }]}>
               <Ionicons color="#64748B" name="information-circle-outline" size={18} />

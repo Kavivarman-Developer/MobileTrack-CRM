@@ -32,6 +32,7 @@ import { spacing } from "../../constants/theme";
 import { firebaseApp, firebaseAuth } from "../../config/firebase";
 import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
+import { FirebasePhoneAuthBridge, FirebasePhoneAuthBridgeRef } from "../../components/FirebasePhoneAuthBridge";
 import { apiErrorMessage, AuthLookupResult, firebaseLogin, lookupAccount } from "../../services/api";
 import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast";
 
@@ -161,34 +162,30 @@ function PrimaryCTA({
   );
 }
 
-async function sendPhoneOtp(phone: string): Promise<any> {
+async function sendPhoneOtpWeb(phone: string): Promise<any> {
   const formattedPhone = toE164(phone);
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    const fb = require("firebase/compat/app").default || require("firebase/compat/app");
-    require("firebase/compat/auth");
+  const fb = require("firebase/compat/app").default || require("firebase/compat/app");
+  require("firebase/compat/auth");
 
-    let container = document.getElementById("recaptcha-container");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "recaptcha-container";
-      document.body.appendChild(container);
-    }
-
-    if ((window as any).recaptchaVerifier) {
-      try {
-        (window as any).recaptchaVerifier.clear();
-      } catch (e) {}
-    }
-
-    const verifier = new fb.auth.RecaptchaVerifier("recaptcha-container", {
-      size: "invisible",
-    });
-    (window as any).recaptchaVerifier = verifier;
-
-    return await fb.auth().signInWithPhoneNumber(formattedPhone, verifier);
-  } else {
-    return await signInWithPhoneNumber(firebaseAuth, formattedPhone);
+  let container = document.getElementById("recaptcha-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "recaptcha-container";
+    document.body.appendChild(container);
   }
+
+  if ((window as any).recaptchaVerifier) {
+    try {
+      (window as any).recaptchaVerifier.clear();
+    } catch (e) {}
+  }
+
+  const verifier = new fb.auth.RecaptchaVerifier("recaptcha-container", {
+    size: "invisible",
+  });
+  (window as any).recaptchaVerifier = verifier;
+
+  return await fb.auth().signInWithPhoneNumber(formattedPhone, verifier);
 }
 
 export default function LoginScreen() {
@@ -196,6 +193,7 @@ export default function LoginScreen() {
   const confirmationRef = useRef<any>(null);
   const pendingIdTokenRef = useRef<string | null>(null);
   const phoneInputRef = useRef<TextInput>(null);
+  const phoneAuthBridgeRef = useRef<FirebasePhoneAuthBridgeRef>(null);
 
   const [step, setStep] = useState<AuthStep>("identifier");
   const [identifier, setIdentifier] = useState("");
@@ -257,8 +255,15 @@ export default function LoginScreen() {
 
   const sendOtp = useMutation({
     mutationFn: async () => {
-      const confirmation = await sendPhoneOtp(identifier);
-      confirmationRef.current = confirmation;
+      const formattedPhone = toE164(identifier);
+      if (Platform.OS === "web") {
+        const confirmation = await sendPhoneOtpWeb(identifier);
+        confirmationRef.current = confirmation;
+      } else {
+        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
+        const verificationId = await phoneAuthBridgeRef.current.sendOtp(formattedPhone);
+        confirmationRef.current = verificationId;
+      }
     },
     onSuccess: () => {
       setOtpCode("");
@@ -269,9 +274,14 @@ export default function LoginScreen() {
 
   const confirmOtp = useMutation({
     mutationFn: async () => {
-      if (!confirmationRef.current) throw new Error("Request a new OTP.");
-      const credential = await confirmationRef.current.confirm(otpCode.trim());
-      return credential.user.getIdToken();
+      if (Platform.OS === "web") {
+        if (!confirmationRef.current) throw new Error("Request a new OTP.");
+        const credential = await confirmationRef.current.confirm(otpCode.trim());
+        return credential.user.getIdToken();
+      } else {
+        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
+        return await phoneAuthBridgeRef.current.confirmOtp(otpCode.trim());
+      }
     },
     onSuccess: async (idToken) => {
       if (lookup?.exists) {
@@ -839,6 +849,7 @@ export default function LoginScreen() {
           </>
         ) : null}
       </Sheet>
+      <FirebasePhoneAuthBridge ref={phoneAuthBridgeRef} />
       <Toast config={toastConfig} />
     </SafeAreaView>
   );

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -37,6 +37,31 @@ export function SubscriptionModal({
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+
+    function handleWindowMessage(event: MessageEvent) {
+      try {
+        let data = event.data;
+        if (typeof data === "string") {
+          data = JSON.parse(data);
+        }
+        if (
+          data &&
+          (data.type === "PAYMENT_SUCCESS" ||
+            data.type === "CHECKOUT_COMPLETE" ||
+            data.status === "SUCCESS" ||
+            data.type === "SUCCESS")
+        ) {
+          handleVerify(data.orderId || pendingOrderId || undefined);
+        }
+      } catch (e) {}
+    }
+
+    window.addEventListener("message", handleWindowMessage);
+    return () => window.removeEventListener("message", handleWindowMessage);
+  }, [pendingOrderId]);
+
   async function handlePay() {
     try {
       setLoading(true);
@@ -47,13 +72,8 @@ export function SubscriptionModal({
       const baseUrl = API_BASE_URL.replace(/\/api\/?$/, "");
       const fullCheckoutUrl = baseUrl + res.checkoutUrl;
 
-      if (Platform.OS === "web") {
-        if (typeof window !== "undefined") {
-          window.open(fullCheckoutUrl, "_blank");
-        }
-      } else {
-        setCheckoutUrl(fullCheckoutUrl);
-      }
+      // Open inline on both Web and Mobile
+      setCheckoutUrl(fullCheckoutUrl);
     } catch (error: any) {
       Alert.alert(
         "Payment Initiation Failed",
@@ -174,21 +194,29 @@ export function SubscriptionModal({
               </View>
             </View>
 
-            <WebView
-              source={{ uri: checkoutUrl }}
-              onNavigationStateChange={handleNavigationStateChange}
-              onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-              javaScriptEnabled={true}
-              domStorageEnabled={true}
-              startInLoadingState={true}
-              renderLoading={() => (
-                <View style={styles.webLoadingOverlay}>
-                  <ActivityIndicator size="large" color="#0D3666" />
-                  <Text style={styles.webLoadingText}>Connecting to Cashfree Secure Payment...</Text>
-                </View>
-              )}
-              style={styles.webView}
-            />
+            {Platform.OS === "web" ? (
+              <iframe
+                src={checkoutUrl}
+                style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFFFFF" } as any}
+                title="Cashfree Secure Checkout"
+              />
+            ) : (
+              <WebView
+                source={{ uri: checkoutUrl }}
+                onNavigationStateChange={handleNavigationStateChange}
+                onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                startInLoadingState={true}
+                renderLoading={() => (
+                  <View style={styles.webLoadingOverlay}>
+                    <ActivityIndicator size="large" color="#0D3666" />
+                    <Text style={styles.webLoadingText}>Connecting to Cashfree Secure Payment...</Text>
+                  </View>
+                )}
+                style={styles.webView}
+              />
+            )}
           </SafeAreaView>
         ) : (
           /* ================= POLISHED WHITE ACTIVATION CARD ================= */
@@ -518,10 +546,13 @@ const styles = StyleSheet.create({
   /* WebView Container */
   webViewContainer: {
     width: "100%",
+    maxWidth: 480,
     height: "92%",
+    maxHeight: 700,
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     overflow: "hidden",
+    alignSelf: "center",
   },
   webViewHeader: {
     height: 52,

@@ -16,27 +16,34 @@ export type User = {
 type AuthState = {
   user: User | null;
   accessToken: string | null;
+  refreshToken: string | null;
   isHydrated: boolean;
 };
 
 function getInitialState(): AuthState {
   let user: User | null = null;
   let accessToken: string | null = null;
+  let refreshToken: string | null = null;
+
   if (Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
     try {
       const storedUser = window.localStorage.getItem("user");
       const storedToken = window.localStorage.getItem("accessToken");
+      const storedRefresh = window.localStorage.getItem("refreshToken");
       if (storedUser && storedToken) {
-        user = JSON.parse(storedUser);
+        user = typeof storedUser === "string" ? JSON.parse(storedUser) : storedUser;
         accessToken = storedToken;
+        refreshToken = storedRefresh || null;
       }
     } catch (e) {
       console.warn("Could not read initial auth from localStorage:", e);
     }
   }
+
   return {
     user,
     accessToken,
+    refreshToken,
     isHydrated: Platform.OS === "web" ? true : false,
   };
 }
@@ -48,6 +55,7 @@ const authSlice = createSlice({
     setCredentials(state, action: PayloadAction<{ user: User; accessToken: string; refreshToken?: string }>) {
       state.user = action.payload.user;
       state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken || state.refreshToken || null;
       state.isHydrated = true;
 
       const userJson = JSON.stringify(action.payload.user);
@@ -67,15 +75,18 @@ const authSlice = createSlice({
       if (action.payload) {
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
-      } else {
+        state.refreshToken = action.payload.refreshToken || state.refreshToken || null;
+      } else if (!state.user) {
         state.user = null;
         state.accessToken = null;
+        state.refreshToken = null;
       }
       state.isHydrated = true;
     },
     logout(state) {
       state.user = null;
       state.accessToken = null;
+      state.refreshToken = null;
       state.isHydrated = true;
 
       AsyncStorage.removeItem("user");

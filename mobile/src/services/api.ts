@@ -23,7 +23,13 @@ export function apiErrorMessage(error: unknown) {
 }
 
 api.interceptors.request.use(async (config) => {
-  const token = store.getState().auth.accessToken || await AsyncStorage.getItem("accessToken");
+  let token = store.getState().auth.accessToken;
+  if (!token && Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+    token = window.localStorage.getItem("accessToken");
+  }
+  if (!token) {
+    token = await AsyncStorage.getItem("accessToken");
+  }
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -34,7 +40,39 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const message = error.response?.data?.message;
-    const shouldLogout = (error.response?.status === 401 || (error.response?.status === 403 && ["Account is blocked", "Organization is inactive", "Subscription is cancelled"].includes(message))) && !String(error.config?.url || "").includes("/auth/login");
+    const url = String(error.config?.url || "");
+    const isAuthRoute = url.includes("/auth/");
+
+    if (error.response?.status === 401 && !isAuthRoute && !error.config?._retry) {
+      error.config._retry = true;
+      try {
+        let refreshToken = store.getState().auth.refreshToken;
+        if (!refreshToken && Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+          refreshToken = window.localStorage.getItem("refreshToken");
+        }
+        if (!refreshToken) {
+          refreshToken = await AsyncStorage.getItem("refreshToken");
+        }
+
+        if (refreshToken) {
+          const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+          if (data?.accessToken) {
+            store.dispatch(setCredentials(data));
+            error.config.headers.Authorization = `Bearer ${data.accessToken}`;
+            return api(error.config);
+          }
+        }
+      } catch (refreshErr) {
+        // Refresh token failed
+      }
+    }
+
+    const shouldLogout =
+      (error.response?.status === 401 ||
+        (error.response?.status === 403 &&
+          ["Account is blocked", "Organization is inactive", "Subscription is cancelled"].includes(message))) &&
+      !isAuthRoute;
+
     if (shouldLogout) {
       store.dispatch(logout());
       if (!sessionAlertShown) {

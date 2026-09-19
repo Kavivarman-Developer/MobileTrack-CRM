@@ -134,35 +134,44 @@ function SocketBridge() {
 
 function AuthHydrator({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
+  const authUser = useAppSelector((state) => state.auth.user);
   const isHydrated = useAppSelector((state) => state.auth.isHydrated);
 
   useEffect(() => {
     async function loadStoredAuth() {
       try {
-        const storedUser = await AsyncStorage.getItem("user");
-        const storedToken = await AsyncStorage.getItem("accessToken");
-        const storedRefresh = await AsyncStorage.getItem("refreshToken");
+        let storedUser: any = null;
+        let storedToken: string | null = null;
+        let storedRefresh: string | null = null;
+
+        if (Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+          try {
+            storedUser = window.localStorage.getItem("user");
+            storedToken = window.localStorage.getItem("accessToken");
+            storedRefresh = window.localStorage.getItem("refreshToken");
+          } catch (e) {}
+        }
+
+        if (!storedUser || !storedToken) {
+          storedUser = await AsyncStorage.getItem("user");
+          storedToken = await AsyncStorage.getItem("accessToken");
+          storedRefresh = await AsyncStorage.getItem("refreshToken");
+        }
 
         if (storedUser && storedToken) {
-          const user = JSON.parse(storedUser);
+          const user = typeof storedUser === "string" ? JSON.parse(storedUser) : storedUser;
           dispatch(restoreCredentials({ user, accessToken: storedToken, refreshToken: storedRefresh || undefined }));
-        } else {
+        } else if (!authUser) {
           dispatch(restoreCredentials(null));
         }
       } catch (e) {
-        dispatch(restoreCredentials(null));
+        if (!authUser) {
+          dispatch(restoreCredentials(null));
+        }
       }
     }
     loadStoredAuth();
   }, [dispatch]);
-
-  if (!isHydrated && Platform.OS !== "web") {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
 
   return <>{children}</>;
 }

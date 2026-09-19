@@ -1,5 +1,5 @@
-﻿const express = require('express');
-const { auth } = require('../middleware/auth');
+const express = require('express');
+const { protect } = require('../middleware/auth');
 const { tenantScope } = require('../middleware/tenantScope');
 const {
   createActivationOrder,
@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.get('/checkout/:orderId', renderCheckoutPage);
 
-router.use(auth);
+router.use(protect);
 router.use(tenantScope);
 
 router.get('/status', getSubscriptionStatus);

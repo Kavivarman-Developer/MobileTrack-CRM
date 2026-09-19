@@ -23,6 +23,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   sendPasswordResetEmail,
+  RecaptchaVerifier,
   ConfirmationResult,
 } from "firebase/auth";
 import { LinearGradient } from "expo-linear-gradient";
@@ -161,9 +162,28 @@ function PrimaryCTA({
   );
 }
 
+function getRecaptchaVerifier(): RecaptchaVerifier | undefined {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    if ((window as any).recaptchaVerifier) {
+      return (window as any).recaptchaVerifier;
+    }
+    let container = document.getElementById("recaptcha-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "recaptcha-container";
+      document.body.appendChild(container);
+    }
+    const verifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-container", {
+      size: "invisible",
+    });
+    (window as any).recaptchaVerifier = verifier;
+    return verifier;
+  }
+  return undefined;
+}
+
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const pendingIdTokenRef = useRef<string | null>(null);
 
@@ -227,9 +247,8 @@ export default function LoginScreen() {
 
   const sendOtp = useMutation({
     mutationFn: async () => {
-      const verifier = recaptchaVerifier.current;
-      if (!verifier) throw new Error("Verification is not ready. Try again.");
-      const confirmation = await signInWithPhoneNumber(firebaseAuth, toE164(identifier), verifier);
+      const verifier = getRecaptchaVerifier();
+      const confirmation = await signInWithPhoneNumber(firebaseAuth, toE164(identifier), verifier as any);
       confirmationRef.current = confirmation;
     },
     onSuccess: () => {
@@ -337,11 +356,6 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseApp.options as any}
-        attemptInvisibleVerification
-      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}

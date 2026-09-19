@@ -33,7 +33,7 @@ import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
 import { apiErrorMessage, AuthLookupResult, firebaseLogin, lookupAccount } from "../../services/api";
 import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast";
-
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 type AuthStep = "identifier" | "email-password" | "email-register" | "otp" | "phone-register";
 
 const brand = {
@@ -152,8 +152,9 @@ function PrimaryCTA({
           <ActivityIndicator color="#FFFFFF" size="small" />
         ) : (
           <>
-            <Text style={styles.ctaText}>{title}</Text>
+            {/* Icon comes BEFORE the label to match the reference design (→ Get OTP / → Login) */}
             <Ionicons color="#FFFFFF" name={icon} size={19} />
+            <Text style={styles.ctaText}>{title}</Text>
           </>
         )}
       </LinearGradient>
@@ -377,8 +378,8 @@ export default function LoginScreen() {
               style={StyleSheet.absoluteFill}
             />
             {/* Curved wave cut where the hero meets the content below */}
-            <Svg height="20" style={styles.heroWave} viewBox="0 0 400 20" width="100%">
-              <Path d="M0 20 Q 100 0 200 8 Q 300 16 400 2 L400 20 Z" fill={brand.cream} />
+            <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
+              <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 3 L400 24 Z" fill={brand.cream} />
             </Svg>
           </View>
 
@@ -660,7 +661,7 @@ export default function LoginScreen() {
               <View style={styles.featureIconBadge}>
                 <Ionicons color={brand.orange} name="bar-chart" size={14} />
               </View>
-              <Text style={styles.featureText}>Manage Shop</Text>
+              <Text style={styles.featureText}>Manage Your Business</Text>
             </View>
           </View>
         </ScrollView>
@@ -723,12 +724,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
     minHeight: 28,
     justifyContent: "center",
+    position: "absolute",
   },
   topBackRow: { alignItems: "center", flexDirection: "row", gap: 4, paddingVertical: 4 },
   topBackText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
 
   heroWrapper: {
-    height: 110,
+    height: 190,
     width: "100%",
     position: "relative",
     overflow: "hidden",
@@ -741,7 +743,7 @@ const styles = StyleSheet.create({
 
   brandBlock: {
     alignItems: "center",
-    marginTop: -24,
+    marginTop: -30,
     paddingHorizontal: spacing.md,
     zIndex: 5,
   },

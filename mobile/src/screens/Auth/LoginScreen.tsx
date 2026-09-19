@@ -365,18 +365,6 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Bar Back Button (Only for sub-steps) */}
-          <View style={styles.topBar}>
-            {step !== "identifier" ? (
-              <Pressable onPress={goBack} style={styles.topBackRow}>
-                <Ionicons color={brand.navy} name="arrow-back" size={18} />
-                <Text style={styles.topBackText}>Back</Text>
-              </Pressable>
-            ) : (
-              <View style={{ height: 16 }} />
-            )}
-          </View>
-
           {/* Hero Storefront Banner */}
           <View style={styles.heroWrapper}>
             <Image
@@ -384,15 +372,24 @@ export default function LoginScreen() {
               source={require("../../../assets/hero.jpeg")}
               style={styles.heroImage}
             />
-            {/* Deep gradient for punch + legibility, fading into the cream canvas */}
+            {/* Soft linear gradient overlay */}
             <LinearGradient
-              colors={["rgba(13,54,102,0.55)", "rgba(13,54,102,0.05)", brand.cream]}
-              locations={[0, 0.55, 1]}
+              colors={["rgba(13,54,102,0.35)", "rgba(13,54,102,0.02)", "rgba(254,245,233,0.85)", brand.cream]}
+              locations={[0, 0.45, 0.88, 1]}
               style={StyleSheet.absoluteFill}
             />
+            {/* Top Bar Back Button (floating over hero) */}
+            {step !== "identifier" && (
+              <View style={styles.floatingTopBar}>
+                <Pressable onPress={goBack} style={styles.topBackPill}>
+                  <Ionicons color="#FFFFFF" name="arrow-back" size={16} />
+                  <Text style={styles.topBackPillText}>Back</Text>
+                </Pressable>
+              </View>
+            )}
             {/* Curved wave cut where the hero meets the content below */}
-            <Svg height="20" style={styles.heroWave} viewBox="0 0 400 20" width="100%">
-              <Path d="M0 20 Q 100 0 200 8 Q 300 16 400 2 L400 20 Z" fill={brand.cream} />
+            <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
+              <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 4 L400 24 Z" fill={brand.cream} />
             </Svg>
           </View>
 
@@ -400,7 +397,7 @@ export default function LoginScreen() {
           <View style={styles.brandBlock}>
             <View style={styles.logoBadgeGlow}>
               <View style={styles.logoBadge}>
-                <Ionicons color="#FFFFFF" name="storefront" size={22} />
+                <Ionicons color="#FFFFFF" name="storefront" size={24} />
               </View>
             </View>
             <Text style={styles.brand}>Kadai Kanakku</Text>
@@ -409,7 +406,7 @@ export default function LoginScreen() {
             </Text>
 
             {/* Orange Curved Underline accent */}
-            <Svg height="8" width="90" viewBox="0 0 90 8" style={{ marginTop: 3 }}>
+            <Svg height="8" width="90" viewBox="0 0 90 8" style={{ marginTop: 4 }}>
               <Path
                 d="M 3 2 Q 45 7 87 2"
                 fill="none"
@@ -658,25 +655,31 @@ export default function LoginScreen() {
           <View style={styles.featureRow}>
             <View style={styles.featureItem}>
               <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="shield-checkmark" size={14} />
+                <Ionicons color={brand.orange} name="shield-checkmark" size={16} />
               </View>
-              <Text style={styles.featureText}>Safe & Secure</Text>
+              <Text style={styles.featureTitle}>Safe & Secure</Text>
+              <Text style={styles.featureSubtitle}>Bank-grade privacy</Text>
             </View>
             <View style={styles.featureDivider} />
             <View style={styles.featureItem}>
               <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="flash" size={14} />
+                <Ionicons color={brand.orange} name="flash" size={16} />
               </View>
-              <Text style={styles.featureText}>Fast Access</Text>
+              <Text style={styles.featureTitle}>Fast Access</Text>
+              <Text style={styles.featureSubtitle}>Instant OTP login</Text>
             </View>
             <View style={styles.featureDivider} />
             <View style={styles.featureItem}>
               <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="bar-chart" size={14} />
+                <Ionicons color={brand.orange} name="cube" size={16} />
               </View>
-              <Text style={styles.featureText}>Manage Shop</Text>
+              <Text style={styles.featureTitle}>Manage Stock</Text>
+              <Text style={styles.featureSubtitle}>Live inventory</Text>
             </View>
           </View>
+
+          {/* Clean Footer Note */}
+          <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -729,25 +732,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  topBar: {
-    width: "100%",
-    maxWidth: 420,
-    paddingHorizontal: spacing.md,
-    paddingTop: Platform.OS === "android" ? spacing.xs : 0,
-    zIndex: 10,
-    minHeight: 28,
-    justifyContent: "center",
-  },
-  topBackRow: { alignItems: "center", flexDirection: "row", gap: 4, paddingVertical: 4 },
-  topBackText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
-
   heroWrapper: {
-    height: 150,
+    height: 220,
     width: "100%",
     position: "relative",
     overflow: "hidden",
   },
   heroImage: { height: "100%", width: "100%" },
+  floatingTopBar: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 14 : 10,
+    left: 14,
+    zIndex: 20,
+  },
+  topBackPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(13, 54, 102, 0.78)",
+    borderRadius: 20,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  topBackPillText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 13, fontWeight: "700" },
   heroWave: {
     bottom: -1,
     position: "absolute",
@@ -755,7 +762,7 @@ const styles = StyleSheet.create({
 
   brandBlock: {
     alignItems: "center",
-    marginTop: -24,
+    marginTop: -28,
     paddingHorizontal: spacing.md,
     zIndex: 5,
   },
@@ -801,11 +808,11 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: 20,
     padding: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     width: "92%",
-    maxWidth: 420,
+    maxWidth: 440,
     shadowColor: "#0D3666",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
@@ -1008,33 +1015,59 @@ const styles = StyleSheet.create({
 
   featureRow: {
     alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: brand.border,
+    borderRadius: 16,
+    borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 12,
     width: "92%",
-    maxWidth: 420,
+    maxWidth: 440,
+    shadowColor: brand.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  featureItem: { alignItems: "center", flex: 1 },
+  featureItem: { alignItems: "center", flex: 1, paddingHorizontal: 2 },
   featureIconBadge: {
     alignItems: "center",
     backgroundColor: brand.featureIconBg,
-    borderRadius: 8,
-    height: 26,
+    borderRadius: 10,
+    height: 30,
     justifyContent: "center",
-    marginBottom: 2,
-    width: 26,
+    marginBottom: 4,
+    width: 30,
   },
-  featureText: {
-    color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 10,
+  featureTitle: {
+    color: brand.navy,
+    fontFamily: fonts.bold,
+    fontSize: 11.5,
+    fontWeight: "700",
     textAlign: "center",
-    lineHeight: 13,
+  },
+  featureSubtitle: {
+    color: brand.muted,
+    fontFamily: fonts.regular,
+    fontSize: 9.5,
+    textAlign: "center",
+    marginTop: 1,
+    lineHeight: 12,
   },
   featureDivider: {
     backgroundColor: brand.border,
-    height: 20,
+    height: 28,
     width: 1,
+  },
+  footerNote: {
+    color: brand.muted,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    textAlign: "center",
   },
 });

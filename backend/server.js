@@ -40,10 +40,12 @@ app.use(
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: ["'self'", "https:", "wss:", "ws:"],
         frameSrc: ["'self'", "https://*.cashfree.com", "https://sdk.cashfree.com"],
+        frameAncestors: ["'self'", "https://app-kadaikanakku.web.app", "https://kadaikanakku.web.app", "https://kadaikanakku.firebaseapp.com", "https://www.kadaikanakku.in", "https://kadaikanakku.in", "https://app.kadaikanakku.in"],
       },
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false,
+    xFrameOptions: false,
   })
 );
 app.use(cors({ origin: corsOrigin }));

@@ -148,9 +148,10 @@ function renderCheckoutPage(req, res) {
   const sessionId = req.query.session_id || "";
   const isProd = process.env.CASHFREE_ENV === "production";
 
+  res.removeHeader("X-Frame-Options");
   res.setHeader(
     "Content-Security-Policy",
-    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com; script-src-elem * 'unsafe-inline' https://sdk.cashfree.com https://*.cashfree.com; script-src-attr * 'unsafe-inline'; frame-src * https://*.cashfree.com https://sdk.cashfree.com; connect-src * https://*.cashfree.com https://api.cashfree.com;"
+    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://*.cashfree.com; script-src-elem * 'unsafe-inline' https://sdk.cashfree.com https://*.cashfree.com; script-src-attr * 'unsafe-inline'; frame-src * https://*.cashfree.com https://sdk.cashfree.com; frame-ancestors * https://app-kadaikanakku.web.app https://www.kadaikanakku.in https://kadaikanakku.in; connect-src * https://*.cashfree.com https://api.cashfree.com;"
   );
 
   const html = `<!DOCTYPE html>
@@ -341,8 +342,12 @@ function renderCheckoutPage(req, res) {
     var sessionId = "${sessionId}";
 
     function notifyNative(type, payload) {
+      var msg = JSON.stringify({ type: type, payload: payload, orderId: "${orderId}" });
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, payload: payload, orderId: "${orderId}" }));
+        window.ReactNativeWebView.postMessage(msg);
+      }
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(msg, "*");
       }
     }
 

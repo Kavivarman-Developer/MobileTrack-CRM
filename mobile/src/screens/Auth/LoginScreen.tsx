@@ -1010,6 +1010,7 @@ const styles = StyleSheet.create({
   brandBlock: {
     alignItems: "center",
     marginTop: -28,
+    marginBottom: 10,
     paddingHorizontal: spacing.md,
     zIndex: 5,
   },
@@ -1046,18 +1047,19 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: brand.muted,
-    fontFamily: fonts.regular,
-    fontSize: 11.5,
-    marginTop: 2,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
     textAlign: "center",
-    lineHeight: 15,
+    lineHeight: 16,
   },
 
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: spacing.md,
-    marginTop: spacing.xs,
+    marginTop: 14,
     width: "92%",
     maxWidth: 440,
     shadowColor: "#0D3666",

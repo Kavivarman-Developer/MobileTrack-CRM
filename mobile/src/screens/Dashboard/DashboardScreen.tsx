@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Image,
   Platform,
@@ -15,10 +15,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
 import { ios } from "../../constants/ios";
 import { fonts, spacing } from "../../constants/theme";
 import { useAppSelector } from "../../hooks/redux";
-import { getDashboard, getStockSummary } from "../../services/api";
+import { getDashboard, getStockSummary, verifyActivationOrder } from "../../services/api";
 import { SubscriptionModal } from "../../components/SubscriptionModal";
 
 type DatePreset = "today" | "week" | "month";
@@ -48,6 +49,28 @@ export default function DashboardScreen() {
     queryFn: () => getStockSummary({ from: monthRange.dateFrom, to: monthRange.dateTo }),
     queryKey: ["stock-summary", monthRange],
   });
+
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const orderId = params.get("order_id") || params.get("orderId");
+        if (orderId) {
+          verifyActivationOrder(orderId).then((res) => {
+            if (res.success || res.status === "PAID") {
+              Toast.show({
+                type: "success",
+                text1: "Shop Activated! 🎉",
+                text2: "Your ₹1 activation was successful. Full access is unlocked.",
+              });
+              dashboard.refetch();
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   const data = dashboard.data;
   const movementTotals = useMemo(() => {

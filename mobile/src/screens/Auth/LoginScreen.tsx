@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
   topBackText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
 
   heroWrapper: {
-    height: 110,
+    height: 150,
     width: "100%",
     position: "relative",
     overflow: "hidden",

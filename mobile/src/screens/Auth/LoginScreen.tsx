@@ -24,7 +24,6 @@ import {
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   sendPasswordResetEmail,
-  RecaptchaVerifier,
   ConfirmationResult,
 } from "firebase/auth";
 import { LinearGradient } from "expo-linear-gradient";
@@ -169,29 +168,39 @@ function PrimaryCTA({
   );
 }
 
-function getRecaptchaVerifier(): RecaptchaVerifier | undefined {
+async function sendPhoneOtp(phone: string): Promise<any> {
+  const formattedPhone = toE164(phone);
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    if ((window as any).recaptchaVerifier) {
-      return (window as any).recaptchaVerifier;
-    }
+    const fb = require("firebase/compat/app").default || require("firebase/compat/app");
+    require("firebase/compat/auth");
+
     let container = document.getElementById("recaptcha-container");
     if (!container) {
       container = document.createElement("div");
       container.id = "recaptcha-container";
       document.body.appendChild(container);
     }
-    const verifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-container", {
+
+    if ((window as any).recaptchaVerifier) {
+      try {
+        (window as any).recaptchaVerifier.clear();
+      } catch (e) {}
+    }
+
+    const verifier = new fb.auth.RecaptchaVerifier("recaptcha-container", {
       size: "invisible",
     });
     (window as any).recaptchaVerifier = verifier;
-    return verifier;
+
+    return await fb.auth().signInWithPhoneNumber(formattedPhone, verifier);
+  } else {
+    return await signInWithPhoneNumber(firebaseAuth, formattedPhone);
   }
-  return undefined;
 }
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
+  const confirmationRef = useRef<any>(null);
   const pendingIdTokenRef = useRef<string | null>(null);
 
   const [step, setStep] = useState<AuthStep>("identifier");
@@ -254,8 +263,7 @@ export default function LoginScreen() {
 
   const sendOtp = useMutation({
     mutationFn: async () => {
-      const verifier = getRecaptchaVerifier();
-      const confirmation = await signInWithPhoneNumber(firebaseAuth, toE164(identifier), verifier as any);
+      const confirmation = await sendPhoneOtp(identifier);
       confirmationRef.current = confirmation;
     },
     onSuccess: () => {

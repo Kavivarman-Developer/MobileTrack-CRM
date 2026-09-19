@@ -41,7 +41,8 @@
         {
           "cameraPermission": "Allow Kadai Kanakku to access the camera to scan product barcodes."
         }
-      ]
+      ],
+      "expo-image"
     ]
   }
 }

@@ -15,8 +15,7 @@ import {
   Sheet,
   StatStrip,
 } from "../../components/Layout";
-import { ios } from "../../constants/ios";
-import { fonts, radius, spacing } from "../../constants/theme";
+import { colors, fonts, radius, shadows, spacing } from "../../constants/theme";
 import { createBillingInvoice, Customer, getCustomers, getOrders, getProducts, Order, Product, recordOrderPayment } from "../../services/api";
 
 type CartLine = { product: Product; qty: number };

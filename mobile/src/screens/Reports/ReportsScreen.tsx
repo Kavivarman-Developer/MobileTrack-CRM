@@ -15,8 +15,7 @@ import {
   Screen,
   StatStrip,
 } from "../../components/Layout";
-import { ios } from "../../constants/ios";
-import { fonts, radius, spacing } from "../../constants/theme";
+import { colors, fonts, radius, shadows, spacing } from "../../constants/theme";
 import { api, getFullReport } from "../../services/api";
 
 type RangeField = "from" | "to";

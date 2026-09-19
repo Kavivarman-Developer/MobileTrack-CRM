@@ -18,15 +18,21 @@ export function scaleFont(size: number): number {
 }
 
 export const colors = {
-  // Base surfaces & canvas (Emergent soft lavender-gray)
+  // Base surfaces & canvas
   background: ios.bg,
+  backgroundDark: ios.bg,
   surface: ios.card,
   surfaceTint: ios.fill,
+  surfaceVariant: ios.fill,
+  card: ios.card,
   border: ios.separator,
   borderDark: "#D0D2DE",
 
   // Text hierarchy
   text: ios.label,
+  textPrimary: ios.label,
+  textSecondary: ios.secondary,
+  textMuted: "#8B8FA8",
   muted: ios.secondary,
   faint: "#AEB1C2",
 
@@ -71,9 +77,31 @@ export const radius = {
   lg: scale(16),
   xl: scale(19),
   pill: 999,
+  full: 999,
 };
 
 export const shadows = {
+  sm: {
+    shadowColor: "#1B1F3B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  md: {
+    shadowColor: "#1B1F3B",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  lg: {
+    shadowColor: "#1B1F3B",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
   card: {
     shadowColor: "#1B1F3B",
     shadowOffset: { width: 0, height: 2 },

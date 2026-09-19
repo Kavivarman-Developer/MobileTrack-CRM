@@ -3,8 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AppState, FlatList, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Button, Empty, FabButton, Field, IconButton, IosScreenHeader, IosSearchBar, PageHeader, Screen, StatStrip } from "../../components/Layout";
-import { ios } from "../../constants/ios";
-import { colors, fonts, spacing, typography } from "../../constants/theme";
+import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import { hasCallLogPermissionWarning, openCallLogSettings, syncVendorCallLogs } from "../../services/callLogSync";
 import { createVendor, createVendorCall, deleteVendor, getVendorCalls, getVendorCallSummary, getVendors, updateVendor, Vendor } from "../../services/api";
 
@@ -531,7 +530,7 @@ function formatMonth(monthKey: string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.backgroundDark },
+  screen: { backgroundColor: colors.background },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   headerIconBtn: {
     alignItems: "center",
@@ -542,7 +541,7 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: "center",
     width: 38,
-    ...shadows.sm,
+    ...shadows.card,
   },
   addHeaderBtn: {
     alignItems: "center",
@@ -553,7 +552,7 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: "center",
     paddingHorizontal: spacing.md,
-    ...shadows.sm,
+    ...shadows.card,
   },
   addHeaderBtnText: {
     color: "#FFFFFF",
@@ -576,7 +575,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     flex: 1,
     padding: spacing.sm,
-    ...shadows.sm,
+    ...shadows.card,
   },
   metricHeader: {
     alignItems: "center",
@@ -592,7 +591,7 @@ const styles = StyleSheet.create({
     width: 26,
   },
   metricLabel: {
-    color: colors.textSecondary,
+    color: colors.muted,
     fontFamily: fonts.medium,
     fontSize: 11,
     fontWeight: "500",
@@ -605,7 +604,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   metricSub: {
-    color: colors.textMuted,
+    color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 10,
     marginTop: 2,
@@ -615,7 +614,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
 
-  syncText: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginBottom: spacing.xs },
+  syncText: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginBottom: spacing.xs },
   permissionBanner: {
     alignItems: "center",
     backgroundColor: "#FEF3C7",
@@ -628,15 +627,15 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   permissionText: { color: "#92400E", flex: 1, fontFamily: fonts.medium, fontSize: 12 },
-  permissionButton: { backgroundColor: colors.surface, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  permissionButton: { backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4 },
   permissionButtonText: { color: colors.primary, fontFamily: fonts.bold, fontSize: 12 },
 
   sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs, marginLeft: spacing.xxs, marginTop: spacing.xs },
-  sectionLabelInline: { color: colors.textSecondary, flex: 1, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
+  sectionLabelInline: { color: colors.muted, flex: 1, fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
   listCount: {
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: radius.full,
-    color: colors.textSecondary,
+    backgroundColor: colors.surfaceTint,
+    borderRadius: radius.pill,
+    color: colors.muted,
     fontFamily: fonts.bold,
     fontSize: 12,
     overflow: "hidden",
@@ -651,7 +650,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: spacing.sm,
     overflow: "hidden",
-    ...shadows.sm,
+    ...shadows.card,
   },
   vendorMain: { alignItems: "center", flexDirection: "row", padding: spacing.md },
   avatar: {
@@ -667,8 +666,8 @@ const styles = StyleSheet.create({
   vendorInfo: { flex: 1, minWidth: 0, paddingRight: spacing.xs },
   vendorName: { color: colors.text, fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
   vendorMetaRow: { alignItems: "center", flexDirection: "row", gap: 4, marginTop: 3 },
-  vendorMeta: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 13 },
-  vendorSub: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  vendorMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13 },
+  vendorSub: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
   vendorActions: {
     backgroundColor: "#F8FAFC",
     borderTopColor: colors.border,
@@ -683,7 +682,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
   },
-  vendorActionText: { color: colors.textSecondary, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
+  vendorActionText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
 
   emptyCard: {
     alignItems: "center",
@@ -694,19 +693,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xl,
-    ...shadows.sm,
+    ...shadows.card,
   },
   emptyIcon: {
     alignItems: "center",
     backgroundColor: "#EEF2FF",
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     height: 64,
     justifyContent: "center",
     marginBottom: spacing.md,
     width: 64,
   },
   emptyTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 17, fontWeight: "700" },
-  emptyText: { color: colors.textSecondary, fontFamily: fonts.regular, fontSize: 14, marginTop: spacing.xs, textAlign: "center" },
+  emptyText: { color: colors.muted, fontFamily: fonts.regular, fontSize: 14, marginTop: spacing.xs, textAlign: "center" },
   emptyBtn: {
     alignItems: "center",
     backgroundColor: colors.primary,
@@ -717,7 +716,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
-    ...shadows.sm,
+    ...shadows.card,
   },
   emptyBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
 
@@ -734,7 +733,7 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: "center",
     marginTop: spacing.md,
-    ...shadows.sm,
+    ...shadows.card,
   },
   saveBtnText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 15, fontWeight: "700" },
 
@@ -746,36 +745,36 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
     padding: spacing.md,
-    ...shadows.sm,
+    ...shadows.card,
   },
   dateSwitcher: {
     alignItems: "center",
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: radius.full,
+    backgroundColor: colors.surfaceTint,
+    borderRadius: radius.pill,
     flexDirection: "row",
     gap: spacing.xs,
     marginBottom: spacing.sm,
     padding: 3,
   },
-  dateButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.full, height: 34, justifyContent: "center", width: 34, ...shadows.sm },
+  dateButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.pill, height: 34, justifyContent: "center", width: 34, ...shadows.card },
   dateCenter: {
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     flex: 1,
     flexDirection: "row",
     gap: spacing.xs,
     height: 34,
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
-    ...shadows.sm,
+    ...shadows.card,
   },
   dateTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 12, fontWeight: "600" },
-  dateHint: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 10 },
+  dateHint: { color: colors.muted, fontFamily: fonts.regular, fontSize: 10 },
   logStatsRow: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
   logStatItem: {
     alignItems: "center",
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: colors.surfaceTint,
     borderRadius: radius.md,
     flex: 1,
     minHeight: 44,
@@ -783,11 +782,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   logStatValue: { color: colors.text, fontFamily: fonts.bold, fontSize: 18, fontWeight: "700" },
-  logStatLabel: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+  logStatLabel: { color: colors.muted, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
   callActions: { flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
   callAction: {
     alignItems: "center",
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: colors.surfaceTint,
     borderRadius: radius.md,
     flex: 1,
     flexDirection: "row",
@@ -809,21 +808,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     overflow: "hidden",
     padding: spacing.md,
-    ...shadows.sm,
+    ...shadows.card,
   },
   callLogCardMissed: { backgroundColor: "#FFF5F5" },
   missedStripe: { backgroundColor: "#EF4444", bottom: 0, left: 0, position: "absolute", top: 0, width: 4 },
   callLogTop: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xxs },
   callTypeRow: { alignItems: "center", flex: 1, flexDirection: "row", gap: spacing.xs, paddingLeft: 2 },
   callType: { color: colors.text, fontFamily: fonts.bold, fontSize: 13, fontWeight: "600" },
-  callDate: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 11 },
-  callPhone: { color: colors.textSecondary, fontFamily: fonts.medium, fontSize: 12 },
-  callNote: { color: colors.textSecondary, fontFamily: fonts.regular, fontSize: 12, marginTop: spacing.xxs },
+  callDate: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11 },
+  callPhone: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12 },
+  callNote: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: spacing.xxs },
   callBackButton: {
     alignItems: "center",
     alignSelf: "flex-start",
     backgroundColor: "#10B981",
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     flexDirection: "row",
     gap: 4,
     height: 32,
@@ -833,19 +832,19 @@ const styles = StyleSheet.create({
   callBackText: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 12, fontWeight: "700" },
 
   dateOverlay: { alignItems: "center", backgroundColor: "rgba(15, 23, 42, 0.45)", flex: 1, justifyContent: "center", padding: spacing.md },
-  dateModal: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, width: "100%", maxWidth: 400, ...shadows.md },
+  dateModal: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, width: "100%", maxWidth: 400, ...shadows.overlay },
   dateHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md },
-  dateNav: { alignItems: "center", backgroundColor: colors.surfaceVariant, borderRadius: radius.full, height: 36, justifyContent: "center", width: 36 },
+  dateNav: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.pill, height: 36, justifyContent: "center", width: 36 },
   dateNavText: { color: colors.primary, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
   dateMonth: { color: colors.text, fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
   dateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  dateCell: { alignItems: "center", backgroundColor: colors.surfaceVariant, borderRadius: radius.sm, height: 38, justifyContent: "center", width: "13%" },
+  dateCell: { alignItems: "center", backgroundColor: colors.surfaceTint, borderRadius: radius.sm, height: 38, justifyContent: "center", width: "13%" },
   dateCellActive: { backgroundColor: colors.primary },
   dateCellText: { color: colors.text, fontFamily: fonts.bold, fontSize: 12 },
   dateCellTextActive: { color: "#ffffff", fontWeight: "700" },
   dateClose: {
     alignItems: "center",
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: colors.surfaceTint,
     borderRadius: radius.md,
     marginTop: spacing.lg,
     minHeight: 42,

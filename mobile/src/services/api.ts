@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Alert, Platform } from "react-native";
-import { logout } from "../redux/authSlice";
+import { logout, setCredentials } from "../redux/authSlice";
 import { store } from "../redux/store";
 
 function resolveApiBaseUrl() {

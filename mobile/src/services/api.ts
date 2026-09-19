@@ -700,3 +700,45 @@ export async function unblockAdminUser(id: string) {
   const { data } = await api.patch(`/admin/users/${id}/unblock`);
   return data;
 }
+
+export interface SubscriptionStatusResponse {
+  organizationId: string;
+  organizationName: string;
+  plan: string;
+  billingCycle: "monthly" | "yearly";
+  subscriptionStatus: "trial" | "active" | "past_due" | "cancelled";
+  subscriptionStartDate?: string | null;
+  subscriptionEndDate?: string | null;
+  isExpired: boolean;
+  daysLeft: number;
+  activationAmount: number;
+  isActive: boolean;
+}
+
+export async function getSubscriptionStatus() {
+  const { data } = await api.get<SubscriptionStatusResponse>("/subscription/status");
+  return data;
+}
+
+export async function createActivationOrder() {
+  const { data } = await api.post<{
+    orderId: string;
+    cfOrderId: string;
+    paymentSessionId: string;
+    amount: number;
+    currency: string;
+    organizationId: string;
+    checkoutUrl: string;
+  }>("/subscription/create-activation-order");
+  return data;
+}
+
+export async function verifyActivationOrder(orderId: string) {
+  const { data } = await api.post<{
+    success: boolean;
+    status: string;
+    organization: any;
+    message: string;
+  }>("/subscription/verify-activation", { orderId });
+  return data;
+}

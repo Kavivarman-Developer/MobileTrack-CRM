@@ -1,16 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Button, IosScreenHeader, Screen } from "../../components/Layout";
+import { SubscriptionModal } from "../../components/SubscriptionModal";
 import { colors, fonts, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAppDispatch, useAppSelector } from "../../hooks/redux";
 import { logout } from "../../redux/authSlice";
+import { getSubscriptionStatus } from "../../services/api";
 
 export default function SettingsScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const navigation = useNavigation<any>();
+  const [subModalOpen, setSubModalOpen] = useState(false);
+
+  const subQuery = useQuery({
+    queryKey: ["subscription-status"],
+    queryFn: getSubscriptionStatus,
+    staleTime: 30000,
+  });
+  const sub = subQuery.data;
 
   const initials = (user?.name || "Shop Owner")
     .split(" ")
@@ -64,6 +76,43 @@ export default function SettingsScreen() {
               </View>
             </View>
           </LinearGradient>
+        </View>
+
+        {/* Subscription / Shop Activation Card */}
+        <View style={styles.subCard}>
+          <View style={styles.subCardLeft}>
+            <View style={[styles.subIconWrap, { backgroundColor: sub?.isActive ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 153, 38, 0.15)" }]}>
+              <Ionicons
+                name={sub?.isActive ? "shield-checkmark" : "flash"}
+                size={18}
+                color={sub?.isActive ? "#10B981" : "#F59926"}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text numberOfLines={1} style={styles.subPlanTitle}>{sub?.organizationName || "Shop Plan"}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: sub?.isActive ? "#ECFDF5" : "#FFF7ED" }]}>
+                  <Text style={[styles.statusBadgeText, { color: sub?.isActive ? "#059669" : "#D97706" }]}>
+                    {sub?.subscriptionStatus === "active" ? "ACTIVE" : sub?.subscriptionStatus === "past_due" ? "EXPIRED" : "TRIAL"}
+                  </Text>
+                </View>
+              </View>
+              <Text numberOfLines={1} style={styles.subPlanSubtitle}>
+                {sub?.isActive && sub?.daysLeft !== undefined
+                  ? `${sub.daysLeft} days remaining in cycle`
+                  : "Activate shop for ₹1 (30 days access)"}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.subActionBtn, { backgroundColor: sub?.isActive ? "#0079F2" : "#F59926" }]}
+            onPress={() => setSubModalOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.subActionBtnText, { color: sub?.isActive ? "#FFFFFF" : "#0D1B2A" }]}>
+              {sub?.isActive ? "Renew" : "Pay ₹1"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Sell & POS Module */}
@@ -186,6 +235,13 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <SubscriptionModal
+        visible={subModalOpen}
+        onClose={() => setSubModalOpen(false)}
+        onActivated={() => subQuery.refetch()}
+        currentStatus={sub?.subscriptionStatus}
+      />
     </Screen>
   );
 }
@@ -256,6 +312,66 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   heroPillText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 11 },
+
+  // Subscription Card
+  subCard: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
+    padding: 14,
+    ...shadows.sm,
+  },
+  subCardLeft: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 12,
+    marginRight: 10,
+  },
+  subIconWrap: {
+    alignItems: "center",
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  subPlanTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+  },
+  subPlanSubtitle: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  statusBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  statusBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  subActionBtn: {
+    alignItems: "center",
+    borderRadius: 10,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  subActionBtnText: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+  },
 
   // Grouped Settings Cards
   groupLabel: {

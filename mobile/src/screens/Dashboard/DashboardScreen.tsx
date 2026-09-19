@@ -19,6 +19,7 @@ import { ios } from "../../constants/ios";
 import { fonts, spacing } from "../../constants/theme";
 import { useAppSelector } from "../../hooks/redux";
 import { getDashboard, getStockSummary } from "../../services/api";
+import { SubscriptionModal } from "../../components/SubscriptionModal";
 
 type DatePreset = "today" | "week" | "month";
 
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
   const user = useAppSelector((state) => state.auth.user);
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [refreshing, setRefreshing] = useState(false);
+  const [subModalOpen, setSubModalOpen] = useState(false);
   const dateRange = useMemo(() => getDateRange(datePreset), [datePreset]);
 
   const dashboard = useQuery({
@@ -147,12 +149,39 @@ export default function DashboardScreen() {
 
         {data && (
           <>
-            {/* Subscription Warning */}
+            {/* Subscription & Activation Banner */}
+            {data.organization?.subscriptionStatus === "trial" && (
+              <TouchableOpacity
+                style={styles.trialActivationBanner}
+                onPress={() => setSubModalOpen(true)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.trialBannerLeft}>
+                  <View style={styles.trialBannerIconWrap}>
+                    <Ionicons color="#F59926" name="flash" size={16} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.trialBannerTitle}>Activate Shop • ₹1 Special Launch Offer</Text>
+                    <Text style={styles.trialBannerSub}>Unlock full POS, multi-device sync & GST bills</Text>
+                  </View>
+                </View>
+                <View style={styles.trialBannerBtn}>
+                  <Text style={styles.trialBannerBtnText}>Pay ₹1</Text>
+                  <Ionicons color="#0D1B2A" name="arrow-forward" size={13} />
+                </View>
+              </TouchableOpacity>
+            )}
+
             {data.organization?.subscriptionStatus === "past_due" && (
-              <View style={styles.alertCard}>
+              <TouchableOpacity
+                style={styles.pastDueBanner}
+                onPress={() => setSubModalOpen(true)}
+                activeOpacity={0.85}
+              >
                 <Ionicons color="#EF4444" name="alert-circle" size={20} />
-                <Text style={styles.alertText}>Subscription is overdue. Renew to keep billing uninterrupted.</Text>
-              </View>
+                <Text style={styles.pastDueBannerText}>Subscription overdue. Tap to renew shop for ₹1.</Text>
+                <Ionicons color="#EF4444" name="chevron-forward" size={16} />
+              </TouchableOpacity>
             )}
 
             {/* ========================================== */}
@@ -368,6 +397,13 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+
+      <SubscriptionModal
+        visible={subModalOpen}
+        onClose={() => setSubModalOpen(false)}
+        onActivated={() => dashboard.refetch()}
+        currentStatus={data?.organization?.subscriptionStatus}
+      />
     </SafeAreaView>
   );
 }
@@ -691,6 +727,75 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
     padding: 12,
+  },
+  trialActivationBanner: {
+    alignItems: "center",
+    backgroundColor: "#0D1B2A",
+    borderColor: "rgba(245, 153, 38, 0.4)",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  trialBannerLeft: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginRight: 10,
+  },
+  trialBannerIconWrap: {
+    alignItems: "center",
+    backgroundColor: "rgba(245, 153, 38, 0.15)",
+    borderRadius: 10,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  trialBannerTitle: {
+    color: "#F59926",
+    fontFamily: fonts.bold,
+    fontSize: 13,
+  },
+  trialBannerSub: {
+    color: "#94A3B8",
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  trialBannerBtn: {
+    alignItems: "center",
+    backgroundColor: "#F59926",
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  trialBannerBtnText: {
+    color: "#0D1B2A",
+    fontFamily: fonts.bold,
+    fontSize: 12,
+  },
+  pastDueBanner: {
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderColor: "#F87171",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    padding: 12,
+  },
+  pastDueBannerText: {
+    color: "#991B1B",
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 12.5,
   },
   alertText: { color: "#991B1B", flex: 1, fontFamily: fonts.medium, fontSize: 12.5 },
 

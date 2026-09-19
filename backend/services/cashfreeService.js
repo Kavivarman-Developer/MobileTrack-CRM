@@ -1,4 +1,4 @@
-const CASHFREE_API_VERSION = process.env.CASHFREE_API_VERSION || "2025-01-01";
+const CASHFREE_API_VERSION = process.env.CASHFREE_API_VERSION || "2023-08-01";
 
 function getCashfreeBaseUrl() {
   return process.env.CASHFREE_ENV === "production"
@@ -46,24 +46,24 @@ async function cashfreeRequest(path, options = {}) {
   return data;
 }
 
-async function createPaymentOrder({ orderId, amount, customer, returnUrl, notifyUrl }) {
+async function createPaymentOrder({ orderId, amount, customer, returnUrl, notifyUrl, tags = {} }) {
   const orderMeta = { return_url: returnUrl };
   if (notifyUrl) orderMeta.notify_url = notifyUrl;
   return cashfreeRequest("/orders", {
     method: "POST",
     body: JSON.stringify({
       order_id: orderId,
-      order_amount: Number(amount.toFixed(2)),
+      order_amount: Number(Number(amount).toFixed(2)),
       order_currency: "INR",
       customer_details: {
-        customer_id: customer.id,
-        customer_name: customer.name,
-        customer_email: customer.email,
-        customer_phone: customer.phone,
+        customer_id: String(customer.id || customer._id || "cust_" + Date.now()),
+        customer_name: customer.name || "Kadai Kanakku User",
+        customer_email: customer.email || "billing@kadaikanakku.in",
+        customer_phone: customer.phone || "9999999999",
       },
       order_meta: orderMeta,
-      order_tags: {
-        checkout_context: "Guest grocery checkout",
+      order_tags: tags || {
+        checkout_context: "Kadai Kanakku Subscription Activation",
       },
     }),
   });
@@ -73,4 +73,5 @@ async function getPaymentOrder(orderId) {
   return cashfreeRequest(`/orders/${encodeURIComponent(orderId)}`);
 }
 
-module.exports = { createPaymentOrder, getPaymentOrder, isConfigured };
+module.exports = { createPaymentOrder, getPaymentOrder, isConfigured, getCashfreeBaseUrl };
+

@@ -199,6 +199,7 @@ export function SubscriptionModal({
                 src={checkoutUrl}
                 style={{ width: "100%", height: "100%", border: "none", backgroundColor: "#FFFFFF" } as any}
                 title="Cashfree Secure Checkout"
+                allow="payment *; bluetooth *; camera *; microphone *; clipboard-write *"
               />
             ) : (
               <WebView

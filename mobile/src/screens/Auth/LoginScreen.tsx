@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -353,335 +354,443 @@ export default function LoginScreen() {
     onError: (error) => showErrorToast(firebaseErrorMessage(error), "Request failed"),
   });
 
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 860;
+
+  function renderFormSteps() {
+    return (
+      <>
+        {/* STEP 1: Phone / Email Entry */}
+        {step === "identifier" && (
+          <View style={styles.stepBody}>
+            <View style={styles.phoneInputContainer}>
+              <View style={styles.countryPickerBox}>
+                <Text style={styles.flagEmoji}>🇮🇳</Text>
+                <Text style={styles.countryCodeText}>+91</Text>
+                <Ionicons color={brand.muted} name="chevron-down" size={13} style={{ marginLeft: 2 }} />
+              </View>
+              <View style={styles.phoneInputDivider} />
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                onChangeText={setIdentifier}
+                onSubmitEditing={submitIdentifier}
+                placeholder="Mobile number"
+                placeholderTextColor="#94A3B8"
+                returnKeyType="next"
+                style={styles.phoneTextInput}
+                value={identifier}
+              />
+            </View>
+
+            <PrimaryCTA
+              icon="arrow-forward"
+              loading={checkAccount.isPending || sendOtp.isPending}
+              onPress={submitIdentifier}
+              title="Get OTP"
+            />
+          </View>
+        )}
+
+        {/* STEP 2: Password Step (Existing Email Users) */}
+        {step === "email-password" && (
+          <View style={styles.stepBody}>
+            <View style={styles.selectedIdentifierBox}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="phone-portrait-outline" size={18} />
+                <Text style={styles.selectedIdentifierText}>{formatDisplayPhone(identifier)}</Text>
+              </View>
+              <Pressable onPress={goBack} style={styles.changeLink}>
+                <Text style={styles.changeLinkText}>Change</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
+              <Field
+                autoComplete="password"
+                onChangeText={setPassword}
+                onSubmitEditing={submitEmailPassword}
+                placeholder="Enter your password"
+                secureTextEntry={!showPassword}
+                style={styles.inputWithIconRight}
+                value={password}
+              />
+              <Pressable
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                onPress={() => setShowPassword((v) => !v)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  color={brand.muted}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.rememberRow}>
+              <Pressable onPress={() => setRememberMe((v) => !v)} style={styles.rememberLeft}>
+                <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+                  {rememberMe && <Ionicons color="#FFFFFF" name="checkmark" size={11} />}
+                </View>
+                <Text style={styles.rememberText}>Remember me</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setResetEmail(accountEmail || identifier);
+                  setResetSent(false);
+                  setResetOpen(true);
+                }}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+
+            <PrimaryCTA
+              icon="log-in-outline"
+              loading={emailSignIn.isPending}
+              onPress={submitEmailPassword}
+              title="Login"
+            />
+
+            <Pressable onPress={goBack} style={styles.createPanel}>
+              <Text style={styles.createPanelText}>Don’t have an account?</Text>
+              <Text style={styles.createPanelLink}>Create one →</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* STEP 3: Email Register */}
+        {step === "email-register" && (
+          <View style={styles.stepBody}>
+            <View style={styles.selectedIdentifierBox}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="person-add-outline" size={16} />
+                <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Your name</Text>
+            <Field onChangeText={setName} placeholder="Owner name" value={name} />
+
+            <Text style={styles.label}>Shop name</Text>
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
+
+            <Text style={styles.label}>Create password</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
+              <Field
+                onChangeText={setPassword}
+                placeholder="Min 6 characters"
+                secureTextEntry={!showPassword}
+                style={styles.inputWithIconRight}
+                value={password}
+              />
+              <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
+                <Ionicons
+                  color={brand.muted}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                />
+              </Pressable>
+            </View>
+
+            <Text style={styles.label}>Confirm password</Text>
+            <Field
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter password"
+              secureTextEntry={!showPassword}
+              value={confirmPassword}
+            />
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              loading={emailRegister.isPending}
+              onPress={submitEmailRegister}
+              title="Create account & enter"
+            />
+          </View>
+        )}
+
+        {/* STEP 4: OTP Verification */}
+        {step === "otp" && (
+          <View style={styles.stepBody}>
+            <View style={styles.selectedIdentifierBox}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="call-outline" size={16} />
+                <Text style={styles.selectedIdentifierText}>{identifier.trim()}</Text>
+              </View>
+              <Pressable onPress={goBack} style={styles.changeLink}>
+                <Text style={styles.changeLinkText}>Change</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Ionicons color={brand.muted} name="keypad-outline" size={18} style={styles.inputIcon} />
+              <Field
+                keyboardType="number-pad"
+                maxLength={6}
+                onChangeText={setOtpCode}
+                onSubmitEditing={submitOtp}
+                placeholder="Enter 6-digit OTP"
+                style={styles.inputWithIcon}
+                value={otpCode}
+              />
+            </View>
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              loading={confirmOtp.isPending}
+              onPress={submitOtp}
+              title="Verify & continue"
+            />
+
+            <Pressable onPress={() => sendOtp.mutate()} style={styles.forgotButton}>
+              <Text style={styles.forgotText}>
+                {sendOtp.isPending ? "Sending..." : "Resend code"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* STEP 5: Phone Onboarding / Shop Details */}
+        {step === "phone-register" && (
+          <View style={styles.stepBody}>
+            <View style={styles.selectedIdentifierBox}>
+              <View style={styles.selectedIdentifierLeft}>
+                <Ionicons color={brand.navy} name="person-add-outline" size={16} />
+                <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.label}>Your name</Text>
+            <Field onChangeText={setName} placeholder="Owner name" value={name} />
+
+            <Text style={styles.label}>Shop name</Text>
+            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
+
+            <PrimaryCTA
+              icon="checkmark-circle-outline"
+              loading={phoneRegister.isPending}
+              onPress={submitPhoneRegister}
+              title="Create account & enter"
+            />
+          </View>
+        )}
+      </>
+    );
+  }
+
+  function renderTrustBar() {
+    return (
+      <View style={styles.featureRow}>
+        <View style={styles.featureItem}>
+          <View style={styles.featureIconBadge}>
+            <Ionicons color={brand.orange} name="shield-checkmark" size={16} />
+          </View>
+          <Text style={styles.featureTitle}>Safe & Secure</Text>
+          <Text style={styles.featureSubtitle}>Bank-grade privacy</Text>
+        </View>
+        <View style={styles.featureDivider} />
+        <View style={styles.featureItem}>
+          <View style={styles.featureIconBadge}>
+            <Ionicons color={brand.orange} name="flash" size={16} />
+          </View>
+          <Text style={styles.featureTitle}>Fast Access</Text>
+          <Text style={styles.featureSubtitle}>Instant OTP login</Text>
+        </View>
+        <View style={styles.featureDivider} />
+        <View style={styles.featureItem}>
+          <View style={styles.featureIconBadge}>
+            <Ionicons color={brand.orange} name="cube" size={16} />
+          </View>
+          <Text style={styles.featureTitle}>Manage Stock</Text>
+          <Text style={styles.featureSubtitle}>Live inventory</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.container}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero Storefront Banner */}
-          <View style={styles.heroWrapper}>
+
+      {isDesktop ? (
+        /* ================= DESKTOP SPLIT VIEW (100% Full Viewport) ================= */
+        <View style={styles.desktopContainer}>
+          {/* Left Column: Full-Height Hero Showcase */}
+          <View style={styles.desktopHeroColumn}>
             <Image
               resizeMode="cover"
               source={require("../../../assets/hero.jpeg")}
-              style={styles.heroImage}
-            />
-            {/* Soft linear gradient overlay */}
-            <LinearGradient
-              colors={["rgba(13,54,102,0.35)", "rgba(13,54,102,0.02)", "rgba(254,245,233,0.85)", brand.cream]}
-              locations={[0, 0.45, 0.88, 1]}
               style={StyleSheet.absoluteFill}
             />
-            {/* Top Bar Back Button (floating over hero) */}
-            {step !== "identifier" && (
-              <View style={styles.floatingTopBar}>
-                <Pressable onPress={goBack} style={styles.topBackPill}>
-                  <Ionicons color="#FFFFFF" name="arrow-back" size={16} />
-                  <Text style={styles.topBackPillText}>Back</Text>
-                </Pressable>
+            <LinearGradient
+              colors={["rgba(13, 54, 102, 0.82)", "rgba(13, 54, 102, 0.45)", "rgba(13, 54, 102, 0.94)"]}
+              locations={[0, 0.45, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.desktopHeroContent}>
+              {/* Brand Header */}
+              <View style={styles.desktopBrandHeader}>
+                <View style={styles.desktopLogoBadge}>
+                  <Ionicons color="#FFFFFF" name="storefront" size={26} />
+                </View>
+                <View>
+                  <Text style={styles.desktopBrandTitle}>Kadai Kanakku</Text>
+                  <Text style={styles.desktopBrandTagline}>Smart Retail POS & Billing</Text>
+                </View>
               </View>
-            )}
-            {/* Curved wave cut where the hero meets the content below */}
-            <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
-              <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 4 L400 24 Z" fill={brand.cream} />
-            </Svg>
-          </View>
 
-          {/* Brand Identity Block */}
-          <View style={styles.brandBlock}>
-            <View style={styles.logoBadgeGlow}>
-              <View style={styles.logoBadge}>
-                <Ionicons color="#FFFFFF" name="storefront" size={24} />
+              {/* Slogan & Description */}
+              <View style={styles.desktopHeroCenter}>
+                <Text style={styles.desktopHeroSlogan}>
+                  Unnaalum Unnoda{"\n"}Kadaiyum Nalla Nadakkattum
+                </Text>
+                <Svg height="10" width="130" viewBox="0 0 130 10" style={{ marginTop: 8, marginBottom: 14 }}>
+                  <Path d="M 4 3 Q 65 9 126 3" fill="none" stroke={brand.orange} strokeWidth="3.5" strokeLinecap="round" />
+                </Svg>
+                <Text style={styles.desktopHeroDescription}>
+                  Manage billing, barcode scanner, live stock alerts, customer khata, and daily profit totals seamlessly from your phone or desktop.
+                </Text>
+              </View>
+
+              {/* Bottom Trust Cards on Left Showcase */}
+              <View style={styles.desktopTrustRow}>
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="shield-checkmark" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Safe & Secure</Text>
+                  <Text style={styles.desktopTrustSubtitle}>Encrypted cloud store</Text>
+                </View>
+
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="flash" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Fast Access</Text>
+                  <Text style={styles.desktopTrustSubtitle}>1-Click instant login</Text>
+                </View>
+
+                <View style={styles.desktopTrustCard}>
+                  <View style={styles.featureIconBadge}>
+                    <Ionicons color={brand.orange} name="cube" size={17} />
+                  </View>
+                  <Text style={styles.desktopTrustTitle}>Manage Stock</Text>
+                  <Text style={styles.desktopTrustSubtitle}>Realtime inventory</Text>
+                </View>
               </View>
             </View>
-            <Text style={styles.brand}>Kadai Kanakku</Text>
-            <Text style={styles.subtitle}>
-              Unnaalum Unnoda Kadaiyum Nalla Nadakkattum
-            </Text>
+          </View>
 
-            {/* Orange Curved Underline accent */}
-            <Svg height="8" width="90" viewBox="0 0 90 8" style={{ marginTop: 4 }}>
-              <Path
-                d="M 3 2 Q 45 7 87 2"
-                fill="none"
-                stroke={brand.orange}
-                strokeWidth="2.5"
-                strokeLinecap="round"
+          {/* Right Column: Centered Form Card */}
+          <View style={styles.desktopFormColumn}>
+            <ScrollView
+              contentContainerStyle={styles.desktopFormScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {step !== "identifier" && (
+                <Pressable onPress={goBack} style={styles.desktopBackRow}>
+                  <Ionicons color={brand.navy} name="arrow-back" size={16} />
+                  <Text style={styles.desktopBackText}>Back to Mobile / Email</Text>
+                </Pressable>
+              )}
+
+              <View style={styles.desktopCard}>
+                <View style={styles.stepHeaderRow}>
+                  <StepBadge n={stepCopy.n} />
+                  <View style={styles.stepHeaderText}>
+                    <Text style={styles.cardTitle}>{stepCopy.title}</Text>
+                    <Text style={styles.cardHint}>{stepCopy.hint}</Text>
+                  </View>
+                </View>
+
+                {renderFormSteps()}
+              </View>
+
+              {/* Trust Bar below form */}
+              {renderTrustBar()}
+
+              <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
+            </ScrollView>
+          </View>
+        </View>
+      ) : (
+        /* ================= MOBILE VIEW (Full Height Scrollable) ================= */
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.container}
+        >
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Hero Storefront Banner */}
+            <View style={styles.heroWrapper}>
+              <Image
+                resizeMode="cover"
+                source={require("../../../assets/hero.jpeg")}
+                style={styles.heroImage}
               />
-            </Svg>
-          </View>
-
-          {/* Primary Form Card */}
-          <View style={styles.card}>
-            {/* Step Header */}
-            <View style={styles.stepHeaderRow}>
-              <StepBadge n={stepCopy.n} />
-              <View style={styles.stepHeaderText}>
-                <Text style={styles.cardTitle}>{stepCopy.title}</Text>
-                <Text style={styles.cardHint}>{stepCopy.hint}</Text>
-              </View>
+              <LinearGradient
+                colors={["rgba(13,54,102,0.35)", "rgba(13,54,102,0.02)", "rgba(254,245,233,0.85)", brand.cream]}
+                locations={[0, 0.45, 0.88, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+              {step !== "identifier" && (
+                <View style={styles.floatingTopBar}>
+                  <Pressable onPress={goBack} style={styles.topBackPill}>
+                    <Ionicons color="#FFFFFF" name="arrow-back" size={16} />
+                    <Text style={styles.topBackPillText}>Back</Text>
+                  </Pressable>
+                </View>
+              )}
+              <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
+                <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 4 L400 24 Z" fill={brand.cream} />
+              </Svg>
             </View>
 
-            {/* STEP 1: Phone / Email Entry */}
-            {step === "identifier" && (
-              <View style={styles.stepBody}>
-                <View style={styles.phoneInputContainer}>
-                  <View style={styles.countryPickerBox}>
-                    <Text style={styles.flagEmoji}>🇮🇳</Text>
-                    <Text style={styles.countryCodeText}>+91</Text>
-                    <Ionicons color={brand.muted} name="chevron-down" size={13} style={{ marginLeft: 2 }} />
-                  </View>
-                  <View style={styles.phoneInputDivider} />
-                  <TextInput
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    onChangeText={setIdentifier}
-                    onSubmitEditing={submitIdentifier}
-                    placeholder="Mobile number"
-                    placeholderTextColor="#94A3B8"
-                    returnKeyType="next"
-                    style={styles.phoneTextInput}
-                    value={identifier}
-                  />
+            {/* Brand Identity Block */}
+            <View style={styles.brandBlock}>
+              <View style={styles.logoBadgeGlow}>
+                <View style={styles.logoBadge}>
+                  <Ionicons color="#FFFFFF" name="storefront" size={24} />
                 </View>
-
-                {/* Primary CTA Button */}
-                <PrimaryCTA
-                  icon="arrow-forward"
-                  loading={checkAccount.isPending || sendOtp.isPending}
-                  onPress={submitIdentifier}
-                  title="Get OTP"
-                />
               </View>
-            )}
-
-            {/* STEP 2: Password Step (Existing Email Users) */}
-            {step === "email-password" && (
-              <View style={styles.stepBody}>
-                <View style={styles.selectedIdentifierBox}>
-                  <View style={styles.selectedIdentifierLeft}>
-                    <Ionicons color={brand.navy} name="phone-portrait-outline" size={18} />
-                    <Text style={styles.selectedIdentifierText}>{formatDisplayPhone(identifier)}</Text>
-                  </View>
-                  <Pressable onPress={goBack} style={styles.changeLink}>
-                    <Text style={styles.changeLinkText}>Change</Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.inputWrap}>
-                  <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
-                  <Field
-                    autoComplete="password"
-                    onChangeText={setPassword}
-                    onSubmitEditing={submitEmailPassword}
-                    placeholder="Enter your password"
-                    secureTextEntry={!showPassword}
-                    style={styles.inputWithIconRight}
-                    value={password}
-                  />
-                  <Pressable
-                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                    onPress={() => setShowPassword((v) => !v)}
-                    style={styles.eyeButton}
-                  >
-                    <Ionicons
-                      color={brand.muted}
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={18}
-                    />
-                  </Pressable>
-                </View>
-
-                {/* Remember & Forgot Password Links */}
-                <View style={styles.rememberRow}>
-                  <Pressable onPress={() => setRememberMe((v) => !v)} style={styles.rememberLeft}>
-                    <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
-                      {rememberMe && <Ionicons color="#FFFFFF" name="checkmark" size={11} />}
-                    </View>
-                    <Text style={styles.rememberText}>Remember me</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setResetEmail(accountEmail || identifier);
-                      setResetSent(false);
-                      setResetOpen(true);
-                    }}
-                  >
-                    <Text style={styles.forgotText}>Forgot password?</Text>
-                  </Pressable>
-                </View>
-
-                <PrimaryCTA
-                  icon="log-in-outline"
-                  loading={emailSignIn.isPending}
-                  onPress={submitEmailPassword}
-                  title="Login"
-                />
-
-                <Pressable onPress={goBack} style={styles.createPanel}>
-                  <Text style={styles.createPanelText}>Don’t have an account?</Text>
-                  <Text style={styles.createPanelLink}>Create one →</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {/* STEP 3: Email Register */}
-            {step === "email-register" && (
-              <View style={styles.stepBody}>
-                <View style={styles.selectedIdentifierBox}>
-                  <View style={styles.selectedIdentifierLeft}>
-                    <Ionicons color={brand.navy} name="person-add-outline" size={16} />
-                    <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.label}>Your name</Text>
-                <Field onChangeText={setName} placeholder="Owner name" value={name} />
-
-                <Text style={styles.label}>Shop name</Text>
-                <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
-
-                <Text style={styles.label}>Create password</Text>
-                <View style={styles.inputWrap}>
-                  <Ionicons color={brand.muted} name="lock-closed-outline" size={18} style={styles.inputIcon} />
-                  <Field
-                    onChangeText={setPassword}
-                    placeholder="Min 6 characters"
-                    secureTextEntry={!showPassword}
-                    style={styles.inputWithIconRight}
-                    value={password}
-                  />
-                  <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
-                    <Ionicons
-                      color={brand.muted}
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={18}
-                    />
-                  </Pressable>
-                </View>
-
-                <Text style={styles.label}>Confirm password</Text>
-                <Field
-                  onChangeText={setConfirmPassword}
-                  placeholder="Re-enter password"
-                  secureTextEntry={!showPassword}
-                  value={confirmPassword}
-                />
-
-                <PrimaryCTA
-                  icon="checkmark-circle-outline"
-                  loading={emailRegister.isPending}
-                  onPress={submitEmailRegister}
-                  title="Create account & enter"
-                />
-              </View>
-            )}
-
-            {/* STEP 4: OTP Verification */}
-            {step === "otp" && (
-              <View style={styles.stepBody}>
-                <View style={styles.selectedIdentifierBox}>
-                  <View style={styles.selectedIdentifierLeft}>
-                    <Ionicons color={brand.navy} name="call-outline" size={16} />
-                    <Text style={styles.selectedIdentifierText}>{identifier.trim()}</Text>
-                  </View>
-                  <Pressable onPress={goBack} style={styles.changeLink}>
-                    <Text style={styles.changeLinkText}>Change</Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.inputWrap}>
-                  <Ionicons color={brand.muted} name="keypad-outline" size={18} style={styles.inputIcon} />
-                  <Field
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    onChangeText={setOtpCode}
-                    onSubmitEditing={submitOtp}
-                    placeholder="Enter 6-digit OTP"
-                    style={styles.inputWithIcon}
-                    value={otpCode}
-                  />
-                </View>
-
-                <PrimaryCTA
-                  icon="checkmark-circle-outline"
-                  loading={confirmOtp.isPending}
-                  onPress={submitOtp}
-                  title="Verify & continue"
-                />
-
-                <Pressable onPress={() => sendOtp.mutate()} style={styles.forgotButton}>
-                  <Text style={styles.forgotText}>
-                    {sendOtp.isPending ? "Sending..." : "Resend code"}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-
-            {/* STEP 5: Phone Onboarding / Shop Details */}
-            {step === "phone-register" && (
-              <View style={styles.stepBody}>
-                <View style={styles.selectedIdentifierBox}>
-                  <View style={styles.selectedIdentifierLeft}>
-                    <Ionicons color={brand.navy} name="person-add-outline" size={16} />
-                    <Text style={styles.selectedIdentifierText}>New shop · {identifier.trim()}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.label}>Your name</Text>
-                <Field onChangeText={setName} placeholder="Owner name" value={name} />
-
-                <Text style={styles.label}>Shop name</Text>
-                <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" value={businessName} />
-
-                <PrimaryCTA
-                  icon="checkmark-circle-outline"
-                  loading={phoneRegister.isPending}
-                  onPress={submitPhoneRegister}
-                  title="Create account & enter"
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Three Feature Highlights / Trust Bar */}
-          <View style={styles.featureRow}>
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="shield-checkmark" size={16} />
-              </View>
-              <Text style={styles.featureTitle}>Safe & Secure</Text>
-              <Text style={styles.featureSubtitle}>Bank-grade privacy</Text>
+              <Text style={styles.brand}>Kadai Kanakku</Text>
+              <Text style={styles.subtitle}>
+                Unnaalum Unnoda Kadaiyum Nalla Nadakkattum
+              </Text>
+              <Svg height="8" width="90" viewBox="0 0 90 8" style={{ marginTop: 4 }}>
+                <Path d="M 3 2 Q 45 7 87 2" fill="none" stroke={brand.orange} strokeWidth="2.5" strokeLinecap="round" />
+              </Svg>
             </View>
-            <View style={styles.featureDivider} />
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="flash" size={16} />
-              </View>
-              <Text style={styles.featureTitle}>Fast Access</Text>
-              <Text style={styles.featureSubtitle}>Instant OTP login</Text>
-            </View>
-            <View style={styles.featureDivider} />
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons color={brand.orange} name="cube" size={16} />
-              </View>
-              <Text style={styles.featureTitle}>Manage Stock</Text>
-              <Text style={styles.featureSubtitle}>Live inventory</Text>
-            </View>
-          </View>
 
-          {/* Clean Footer Note */}
-          <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            {/* Primary Form Card */}
+            <View style={styles.card}>
+              <View style={styles.stepHeaderRow}>
+                <StepBadge n={stepCopy.n} />
+                <View style={styles.stepHeaderText}>
+                  <Text style={styles.cardTitle}>{stepCopy.title}</Text>
+                  <Text style={styles.cardHint}>{stepCopy.hint}</Text>
+                </View>
+              </View>
+
+              {renderFormSteps()}
+            </View>
+
+            {/* Trust Bar */}
+            {renderTrustBar()}
+
+            <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
 
       {/* Reset Password Sheet */}
       <Sheet
@@ -731,6 +840,147 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     alignItems: "center",
   },
+
+  /* ================= DESKTOP STYLES ================= */
+  desktopContainer: {
+    flex: 1,
+    flexDirection: "row",
+    height: "100%",
+    minHeight: "100vh" as any,
+    width: "100%",
+    backgroundColor: brand.cream,
+  },
+  desktopHeroColumn: {
+    flex: 1.15,
+    height: "100%",
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: brand.navy,
+  },
+  desktopHeroContent: {
+    flex: 1,
+    padding: 48,
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
+  desktopBrandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  desktopLogoBadge: {
+    alignItems: "center",
+    backgroundColor: brand.navy,
+    borderRadius: 14,
+    height: 52,
+    justifyContent: "center",
+    width: 52,
+    borderWidth: 2,
+    borderColor: brand.orange,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  desktopBrandTitle: {
+    color: "#FFFFFF",
+    fontFamily: fonts.extraBold,
+    fontSize: 26,
+    letterSpacing: -0.5,
+  },
+  desktopBrandTagline: {
+    color: "#E2E8F0",
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  desktopHeroCenter: {
+    marginVertical: 24,
+    maxWidth: 520,
+  },
+  desktopHeroSlogan: {
+    color: "#FFFFFF",
+    fontFamily: fonts.extraBold,
+    fontSize: 32,
+    lineHeight: 42,
+    letterSpacing: -0.5,
+  },
+  desktopHeroDescription: {
+    color: "#CBD5E1",
+    fontFamily: fonts.regular,
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  desktopTrustRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  desktopTrustCard: {
+    flex: 1,
+    backgroundColor: "rgba(13, 54, 102, 0.75)",
+    borderColor: "rgba(245, 153, 38, 0.35)",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+  },
+  desktopTrustTitle: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  desktopTrustSubtitle: {
+    color: "#94A3B8",
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  desktopFormColumn: {
+    flex: 1,
+    height: "100%",
+    backgroundColor: brand.cream,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  desktopFormScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    paddingVertical: 32,
+  },
+  desktopBackRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    marginBottom: 12,
+    width: "100%",
+    maxWidth: 440,
+  },
+  desktopBackText: {
+    color: brand.navy,
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  desktopCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 28,
+    width: "100%",
+    maxWidth: 440,
+    shadowColor: "#0D3666",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+
+  /* ================= MOBILE STYLES ================= */
 
   heroWrapper: {
     height: 220,

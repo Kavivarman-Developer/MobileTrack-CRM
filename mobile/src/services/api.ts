@@ -719,6 +719,10 @@ export async function getSubscriptionStatus() {
 }
 
 export async function createActivationOrder() {
+  let returnUrl = "https://app.kadaikanakku.in/?order_id={order_id}&payment=complete";
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    returnUrl = `${window.location.origin}/?order_id={order_id}&payment=complete`;
+  }
   const { data } = await api.post<{
     orderId: string;
     cfOrderId: string;
@@ -727,7 +731,7 @@ export async function createActivationOrder() {
     currency: string;
     organizationId: string;
     checkoutUrl: string;
-  }>("/subscription/create-activation-order");
+  }>("/subscription/create-activation-order", { returnUrl });
   return data;
 }
 

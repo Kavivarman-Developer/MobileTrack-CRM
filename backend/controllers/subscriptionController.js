@@ -29,7 +29,9 @@ async function createActivationOrder(req, res, next) {
     const amount = 1.00;
 
     let clientBaseUrl = "https://app.kadaikanakku.in";
-    if (req.headers.origin) {
+    if (req.body?.returnUrl) {
+      // Use client-provided returnUrl directly
+    } else if (req.headers.origin) {
       clientBaseUrl = req.headers.origin;
     } else if (req.headers.referer) {
       try {
@@ -39,7 +41,7 @@ async function createActivationOrder(req, res, next) {
       clientBaseUrl = process.env.APP_BASE_URL;
     }
 
-    const returnUrl = `${clientBaseUrl}/?order_id={order_id}&payment=complete`;
+    const returnUrl = req.body?.returnUrl || `${clientBaseUrl}/?order_id={order_id}&payment=complete`;
 
     const customer = {
       id: String(user._id || org._id),

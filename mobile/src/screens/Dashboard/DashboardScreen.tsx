@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
   },
   content: {
     alignSelf: "center",
-    maxWidth: 960,
+    maxWidth: 1360,
     paddingBottom: 96,
     paddingHorizontal: 16,
     paddingTop: 8,

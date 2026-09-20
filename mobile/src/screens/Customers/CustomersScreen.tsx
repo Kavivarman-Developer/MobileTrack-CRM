@@ -400,7 +400,7 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: "#F8FAFC" },
-  content: { alignSelf: "center", maxWidth: 500, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
+  content: { alignSelf: "center", maxWidth: 1280, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
 
   addHeaderBtn: {
     alignItems: "center",

@@ -69,7 +69,7 @@ export default function InventoryScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
   const [subModalOpen, setSubModalOpen] = useState(false);
-  const isActivated = user?.subscriptionStatus === "active";
+  const isActivated = true;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -213,10 +213,6 @@ export default function InventoryScreen() {
   });
 
   function openForm(product?: Product) {
-    if (!product && !isActivated) {
-      setSubModalOpen(true);
-      return;
-    }
     setEditing(product || null);
     setOpen(true);
     setForm(product ? {

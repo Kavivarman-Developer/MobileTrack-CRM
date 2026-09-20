@@ -95,13 +95,9 @@ export default function DashboardScreen() {
   const lowStock = data?.lowStockProducts || [];
   const lowStockCount = data?.lowStockProductCount ?? lowStock.length;
 
-  const isActivated = data?.organization?.subscriptionStatus === "active" || user?.subscriptionStatus === "active";
+  const isActivated = true;
 
   function go(name: string, params?: object) {
-    if (!isActivated && (name === "QuickSale" || name === "Billing" || name === "Sales" || name === "Items")) {
-      setSubModalOpen(true);
-      return;
-    }
     const drawer = navigation.getParent();
     const stack = drawer?.getParent();
     if (name === "Items" || name === "BarcodeGenerator") return drawer?.navigate(name);

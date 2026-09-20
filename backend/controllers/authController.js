@@ -152,7 +152,11 @@ async function register(req, res, next) {
     }
 
     const safeRole = role === "staff" ? "staff" : "admin";
-    const organization = await Organization.create({ name: businessName || `${name}'s Shop` });
+    const organization = await Organization.create({
+      name: businessName || `${name}'s Shop`,
+      subscriptionStatus: "active",
+      isActive: true,
+    });
     const user = await User.create({
       name: String(name).trim(),
       email: cleanEmail,

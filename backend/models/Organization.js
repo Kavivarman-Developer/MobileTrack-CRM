@@ -5,7 +5,7 @@ const organizationSchema = new mongoose.Schema({
   ownerUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   plan: { type: String, default: "free" },
   billingCycle: { type: String, enum: ["monthly", "yearly"], default: "monthly" },
-  subscriptionStatus: { type: String, enum: ["trial", "active", "past_due", "cancelled"], default: "trial" },
+  subscriptionStatus: { type: String, enum: ["trial", "active", "past_due", "cancelled"], default: "active" },
   subscriptionStartDate: { type: Date, default: null },
   subscriptionEndDate: { type: Date, default: null },
   forgotPasswordEnabled: { type: Boolean, default: false },

@@ -77,8 +77,8 @@ async function getDashboard(req, res, next) {
       organization: req.organization ? {
         _id: req.organization._id,
         name: req.organization.name,
-        isActive: req.organization.isActive,
-        subscriptionStatus: req.organization.subscriptionStatus,
+        isActive: req.organization.isActive !== false,
+        subscriptionStatus: req.organization.subscriptionStatus === "cancelled" ? "cancelled" : "active",
         subscriptionEndDate: req.organization.subscriptionEndDate,
       } : null,
     });

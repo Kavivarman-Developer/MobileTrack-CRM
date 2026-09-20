@@ -55,7 +55,7 @@ type PaymentMode = "cash" | "upi" | "card" | "pending";
 export default function SalesScreen() {
   const user = useAppSelector((state) => state.auth.user);
   const [subModalOpen, setSubModalOpen] = useState(false);
-  const isActivated = user?.subscriptionStatus === "active";
+  const isActivated = true;
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState("0");
@@ -523,10 +523,6 @@ export default function SalesScreen() {
               <TouchableOpacity
                 disabled={saveMutation.isPending}
                 onPress={() => {
-                  if (!isActivated) {
-                    setSubModalOpen(true);
-                    return;
-                  }
                   if (!cart.length) return Alert.alert("Empty Cart", "Add at least one item.");
                   saveMutation.mutate();
                 }}

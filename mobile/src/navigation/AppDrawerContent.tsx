@@ -11,18 +11,21 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.container}>
       <View style={styles.brand}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        <Text style={styles.shop}>Kadai Kanakku</Text>
-        <Text style={styles.name}>{user?.name || "Shop owner"}</Text>
-        <Text style={styles.email}>{user?.email || ""}</Text>
-        {user?.role ? (
-          <View style={styles.rolePill}>
-            <Ionicons color={colors.primary} name="shield-checkmark-outline" size={12} />
-            <Text style={styles.roleText}>{user.role}</Text>
+        <View style={styles.brandRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-        ) : null}
+          <View style={styles.brandInfo}>
+            <Text numberOfLines={1} style={styles.shop}>KADAI KANAKKU</Text>
+            <Text numberOfLines={1} style={styles.name}>{user?.name || "Shop owner"}</Text>
+          </View>
+          {user?.role ? (
+            <View style={styles.rolePill}>
+              <Ionicons color="#FFFFFF" name="shield-checkmark-outline" size={11} />
+              <Text style={styles.roleText}>{user.role}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       <View style={styles.list}>
         <DrawerItemList {...props} />
@@ -35,34 +38,52 @@ const styles = StyleSheet.create({
   container: { paddingTop: 0 },
   brand: {
     backgroundColor: colors.secondary,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.lg,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   avatar: {
     alignItems: "center",
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    height: 48,
+    borderRadius: 8,
+    height: 36,
     justifyContent: "center",
-    marginBottom: spacing.sm,
-    width: 48,
+    width: 36,
   },
-  avatarText: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 16, fontWeight: "700" },
-  shop: { color: "#A5B4FC", ...typography.eyebrow },
-  name: { color: "#ffffff", ...typography.h3, marginTop: 4 },
-  email: { color: "#94A3B8", fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
+  avatarText: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 13, fontWeight: "700" },
+  brandInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  shop: {
+    color: "#A5B4FC",
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  name: {
+    color: "#ffffff",
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 1,
+  },
   rolePill: {
     alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: radius.pill,
     flexDirection: "row",
-    gap: 4,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  roleText: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 11, fontWeight: "600", textTransform: "capitalize" },
-  list: { paddingTop: spacing.xs },
+  roleText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 10, fontWeight: "600", textTransform: "capitalize" },
+  list: { paddingTop: 2 },
 });

@@ -1,5 +1,5 @@
 const express = require("express");
-const { blockUser, createShopOwner, getOrganization, listOrganizationUsers, listOrganizations, unblockUser, updateOrganization } = require("../controllers/adminController");
+const { blockUser, createShopOwner, getHomeBanner, getOrganization, listOrganizationUsers, listOrganizations, unblockUser, updateHomeBanner, updateOrganization } = require("../controllers/adminController");
 const { protect } = require("../middleware/auth");
 const { requireSuperAdmin } = require("../middleware/requireSuperAdmin");
 
@@ -13,5 +13,7 @@ router.patch("/users/:id/unblock", unblockUser);
 router.get("/organizations/:id", getOrganization);
 router.get("/organizations/:id/users", listOrganizationUsers);
 router.patch("/organizations/:id", updateOrganization);
+router.get("/home-banner", getHomeBanner);
+router.put("/home-banner", updateHomeBanner);
 
 module.exports = router;

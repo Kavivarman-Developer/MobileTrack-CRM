@@ -1,17 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Alert, Platform } from "react-native";
-import { logout } from "../redux/authSlice";
+import { logout, setCredentials } from "../redux/authSlice";
 import { store } from "../redux/store";
 
 function resolveApiBaseUrl() {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (!envUrl) {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL is not set. Set it before starting or building the app, e.g. EXPO_PUBLIC_API_URL=https://your-api.example.com/api"
-    );
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
   }
-  return envUrl;
+  return "https://kadaikanakku-775937258064.asia-south1.run.app/api";
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -23,7 +21,13 @@ export function apiErrorMessage(error: unknown) {
 }
 
 api.interceptors.request.use(async (config) => {
-  const token = store.getState().auth.accessToken || await AsyncStorage.getItem("accessToken");
+  let token = store.getState().auth.accessToken;
+  if (!token && Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+    token = window.localStorage.getItem("accessToken");
+  }
+  if (!token) {
+    token = await AsyncStorage.getItem("accessToken");
+  }
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -34,7 +38,39 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const message = error.response?.data?.message;
-    const shouldLogout = (error.response?.status === 401 || (error.response?.status === 403 && ["Account is blocked", "Organization is inactive", "Subscription is cancelled"].includes(message))) && !String(error.config?.url || "").includes("/auth/login");
+    const url = String(error.config?.url || "");
+    const isAuthRoute = url.includes("/auth/");
+
+    if (error.response?.status === 401 && !isAuthRoute && !error.config?._retry) {
+      error.config._retry = true;
+      try {
+        let refreshToken = store.getState().auth.refreshToken;
+        if (!refreshToken && Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+          refreshToken = window.localStorage.getItem("refreshToken");
+        }
+        if (!refreshToken) {
+          refreshToken = await AsyncStorage.getItem("refreshToken");
+        }
+
+        if (refreshToken) {
+          const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+          if (data?.accessToken) {
+            store.dispatch(setCredentials(data));
+            error.config.headers.Authorization = `Bearer ${data.accessToken}`;
+            return api(error.config);
+          }
+        }
+      } catch (refreshErr) {
+        // Refresh token failed
+      }
+    }
+
+    const shouldLogout =
+      (error.response?.status === 401 ||
+        (error.response?.status === 403 &&
+          ["Account is blocked", "Organization is inactive", "Subscription is cancelled"].includes(message))) &&
+      !isAuthRoute;
+
     if (shouldLogout) {
       store.dispatch(logout());
       if (!sessionAlertShown) {
@@ -232,8 +268,38 @@ export type AdminOrganizationRow = {
   };
 };
 
-export async function login(email: string, password: string) {
-  const { data } = await api.post("/auth/login", { email, password });
+export type AuthLookupResult = {
+  exists: boolean;
+  kind: "email" | "phone";
+  email?: string;
+  phone?: string;
+  nameHint?: string;
+  authProvider?: string;
+};
+
+export async function lookupAccount(identifier: string) {
+  const { data } = await api.post<AuthLookupResult>("/auth/lookup", { identifier });
+  return data;
+}
+
+export async function login(identifier: string, password: string) {
+  const { data } = await api.post("/auth/login", { identifier, email: identifier, password });
+  return data;
+}
+
+export async function registerShop(payload: {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  businessName?: string;
+}) {
+  const { data } = await api.post("/auth/register", payload);
+  return data;
+}
+
+export async function firebaseLogin(idToken: string, name?: string, businessName?: string) {
+  const { data } = await api.post("/auth/firebase", { idToken, name, businessName });
   return data;
 }
 
@@ -262,8 +328,65 @@ export async function getDashboard(params?: { dateFrom?: string; dateTo?: string
   return data;
 }
 
+export type HomeBanner = {
+  _id?: string;
+  enabled: boolean;
+  title: string;
+  message: string;
+  ctaLabel?: string;
+  ctaAction?: string;
+  tone?: "promo" | "info" | "warning";
+};
+
+export async function getAdminHomeBanner() {
+  const { data } = await api.get<HomeBanner>("/admin/home-banner");
+  return data;
+}
+
+export async function updateAdminHomeBanner(payload: Partial<HomeBanner>) {
+  const { data } = await api.put<HomeBanner>("/admin/home-banner", payload);
+  return data;
+}
+
 export async function getProducts(search = "") {
   const { data } = await api.get<Product[]>("/inventory/products", { params: { search } });
+  return data;
+}
+
+export type StoreProduct = Pick<Product, "_id" | "name" | "images" | "unit" | "stockQty" | "category" | "brand"> & {
+  price: number;
+};
+
+export type StoreCatalog = {
+  store: { _id: string; name: string };
+  products: StoreProduct[];
+};
+
+export type GuestCheckoutPayload = {
+  customer: {
+    name: string;
+    phone: string;
+    email?: string;
+    address: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  items: { productId: string; qty: number }[];
+};
+
+export async function getStoreProducts(search = "") {
+  const { data } = await api.get<StoreCatalog>("/store/products", { params: { search } });
+  return data;
+}
+
+export async function createGuestStoreOrder(payload: GuestCheckoutPayload) {
+  const { data } = await api.post("/store/guest-orders", payload);
+  return data;
+}
+
+export async function verifyGuestStoreOrder(orderId: string) {
+  const { data } = await api.get(`/store/guest-orders/${encodeURIComponent(orderId)}/verify`);
   return data;
 }
 
@@ -573,5 +696,61 @@ export async function blockAdminUser(id: string, reason?: string) {
 
 export async function unblockAdminUser(id: string) {
   const { data } = await api.patch(`/admin/users/${id}/unblock`);
+  return data;
+}
+
+export interface SubscriptionStatusResponse {
+  organizationId: string;
+  organizationName: string;
+  plan: string;
+  billingCycle: "monthly" | "yearly";
+  subscriptionStatus: "trial" | "active" | "past_due" | "cancelled";
+  subscriptionStartDate?: string | null;
+  subscriptionEndDate?: string | null;
+  isExpired: boolean;
+  daysLeft: number;
+  activationAmount: number;
+  isActive: boolean;
+}
+
+export async function getSubscriptionStatus() {
+  const { data } = await api.get<SubscriptionStatusResponse>("/subscription/status");
+  return data;
+}
+
+export async function createActivationOrder() {
+  let returnUrl = "https://app.kadaikanakku.in/?order_id={order_id}&payment=complete";
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    returnUrl = `${window.location.origin}/?order_id={order_id}&payment=complete`;
+  }
+  const { data } = await api.post<{
+    orderId: string;
+    cfOrderId: string;
+    paymentSessionId: string;
+    amount: number;
+    currency: string;
+    organizationId: string;
+    checkoutUrl: string;
+  }>("/subscription/create-activation-order", { returnUrl });
+  return data;
+}
+
+export async function verifyActivationOrder(orderId: string) {
+  const { data } = await api.post<{
+    success: boolean;
+    status: string;
+    organization: any;
+    message: string;
+  }>("/subscription/verify-activation", { orderId });
+  return data;
+}
+
+export async function registerFcmToken(token: string, platform: string = "android") {
+  const { data } = await api.post("/auth/fcm-token", { token, platform });
+  return data;
+}
+
+export async function removeFcmToken(token: string) {
+  const { data } = await api.delete("/auth/fcm-token", { data: { token } });
   return data;
 }

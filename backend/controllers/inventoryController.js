@@ -3,10 +3,8 @@ const Brand = require("../models/Brand");
 const Category = require("../models/Category");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
-const cloudinary = require("../config/cloudinary");
+const { uploadImageFile } = require("../config/storage");
 const { emitToOrg } = require("../utils/emitEvent");
-
-const PRODUCT_IMAGE_FOLDER = "mobitrack-crm";
 
 function isObjectId(value) {
   return typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
@@ -105,11 +103,7 @@ async function uploadProductImage(req, res, next) {
     const product = await Product.findOne(scoped(req, { _id: req.params.id })).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: PRODUCT_IMAGE_FOLDER,
-      resource_type: "image",
-    });
-    const imageUrl = result.secure_url;
+    const imageUrl = await uploadImageFile(req.file.path, req.file.originalname);
     product.images.push(imageUrl);
     await product.save();
     emitToOrg(req, "product:updated", product);
@@ -138,6 +132,17 @@ async function updateProduct(req, res, next) {
     const product = await Product.findOneAndUpdate(scoped(req, { _id: req.params.id }), await productPayload(req.body, req.orgId), { returnDocument: "after" }).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
     emitToOrg(req, "product:updated", product);
+    if (product.stockQty <= (product.lowStockThreshold ?? 5)) {
+      emitToOrg(req, "inventory:low-stock", {
+        productId: product._id,
+        name: product.name,
+        sku: product.sku,
+        stockQty: product.stockQty,
+        lowStockThreshold: product.lowStockThreshold ?? 5,
+      });
+      const { sendLowStockAlert } = require("../services/notificationService");
+      sendLowStockAlert(req.orgId, product).catch(() => {});
+    }
     res.json(product);
   } catch (error) {
     sendProductError(error, res, next);

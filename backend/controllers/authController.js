@@ -1,4 +1,5 @@
 const { OAuth2Client } = require("google-auth-library");
+const admin = require("../config/firebase");
 const Organization = require("../models/Organization");
 const User = require("../models/User");
 const { signAccessToken, signRefreshToken, hashResetToken, createPasswordResetToken } = require("../utils/tokens");
@@ -12,6 +13,50 @@ const GOOGLE_AUDIENCE = [
   process.env.GOOGLE_CLIENT_ID_IOS,
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS,
 ].filter(Boolean);
+
+function normalizePhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("91")) return digits.slice(-10);
+  if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+  if (digits.length > 10) return digits.slice(-10);
+  return digits;
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function isPhone(value) {
+  const digits = normalizePhone(value);
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function detectIdentifierKind(value) {
+  const trimmed = String(value || "").trim();
+  if (isEmail(trimmed)) return "email";
+  if (isPhone(trimmed)) return "phone";
+  return null;
+}
+
+async function findUserByPhone(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+  const users = await User.find({ phone: { $exists: true, $nin: [null, ""] } });
+  return (
+    users.find((user) => {
+      const stored = normalizePhone(user.phone);
+      return stored === normalized || stored.endsWith(normalized) || normalized.endsWith(stored);
+    }) || null
+  );
+}
+
+async function findUserByIdentifier(identifier) {
+  const trimmed = String(identifier || "").trim();
+  const kind = detectIdentifierKind(trimmed);
+  if (kind === "email") return User.findOne({ email: trimmed.toLowerCase() });
+  if (kind === "phone") return findUserByPhone(trimmed);
+  return null;
+}
 
 async function authPayload(user) {
   if (user.role && !["superadmin", "admin", "staff"].includes(user.role)) user.role = "admin";
@@ -54,15 +99,73 @@ async function authPayload(user) {
   };
 }
 
+async function lookupAccount(req, res, next) {
+  try {
+    const identifier = String(req.body.identifier || "").trim();
+    const kind = detectIdentifierKind(identifier);
+    if (!kind) {
+      return res.status(400).json({ message: "Enter a valid email or 10-digit mobile number" });
+    }
+
+    const user = await findUserByIdentifier(identifier);
+    if (!user) {
+      return res.json({
+        exists: false,
+        kind,
+        email: kind === "email" ? identifier.toLowerCase() : "",
+        phone: kind === "phone" ? normalizePhone(identifier) : "",
+      });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+    }
+
+    res.json({
+      exists: true,
+      kind,
+      email: user.email,
+      phone: user.phone || "",
+      nameHint: user.name ? String(user.name).split(" ")[0] : "",
+      authProvider: user.authProvider || "local",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function register(req, res, next) {
   try {
     const { name, email, password, phone, role = "admin", businessName } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: "Email already registered" });
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanPhone = phone ? normalizePhone(phone) : "";
+    if (!name || !cleanEmail || !password) return res.status(400).json({ message: "Name, email and password are required" });
+    if (String(password).length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+    if (!isEmail(cleanEmail)) return res.status(400).json({ message: "Enter a valid email" });
+    if (phone && !isPhone(phone)) return res.status(400).json({ message: "Enter a valid mobile number" });
+
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) return res.status(409).json({ message: "Email already registered" });
+    if (cleanPhone) {
+      const existingPhone = await findUserByPhone(cleanPhone);
+      if (existingPhone) return res.status(409).json({ message: "Mobile number already registered" });
+    }
+
     const safeRole = role === "staff" ? "staff" : "admin";
-    const organization = await Organization.create({ name: businessName || `${name}'s Business` });
-    const user = await User.create({ name, email, password, phone, role: safeRole, organizationId: organization._id, authProvider: "local" });
+    const organization = await Organization.create({
+      name: businessName || `${name}'s Shop`,
+      subscriptionStatus: "active",
+      isActive: true,
+    });
+    const user = await User.create({
+      name: String(name).trim(),
+      email: cleanEmail,
+      password,
+      phone: cleanPhone || undefined,
+      role: safeRole,
+      organizationId: organization._id,
+      authProvider: "local",
+    });
     organization.ownerUserId = user._id;
     await organization.save();
     res.status(201).json(await authPayload(user));
@@ -74,8 +177,11 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const identifier = String(req.body.identifier || req.body.email || req.body.phone || "").trim();
+    const password = String(req.body.password || "");
+    if (!identifier || !password) return res.status(400).json({ message: "Email/mobile and password are required" });
+
+    const user = await findUserByIdentifier(identifier);
     if (!user || !(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid credentials" });
     if (user.isActive === false) {
       return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
@@ -210,4 +316,121 @@ async function googleLogin(req, res, next) {
   }
 }
 
-module.exports = { register, login, googleLogin, forgotPasswordStatus, requestPasswordReset, resetPassword };
+async function firebaseLogin(req, res, next) {
+  try {
+    const { idToken, name, businessName } = req.body;
+    if (!idToken) return res.status(400).json({ message: "Firebase ID token is required" });
+
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const { uid, email, phone_number: phoneNumber } = decoded;
+    const cleanEmail = email ? email.toLowerCase() : "";
+    const cleanPhone = phoneNumber ? normalizePhone(phoneNumber) : "";
+
+    let user = await User.findOne({ firebaseUid: uid });
+    if (!user && cleanEmail) user = await User.findOne({ email: cleanEmail });
+    if (!user && cleanPhone) user = await findUserByPhone(cleanPhone);
+
+    if (user) {
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Account is blocked", reason: user.blockedReason || undefined });
+      }
+      user.firebaseUid = user.firebaseUid || uid;
+      user.authProvider = "firebase";
+      if (cleanEmail && !user.email) user.email = cleanEmail;
+      if (cleanPhone && !user.phone) user.phone = cleanPhone;
+      if (!user.organizationId && user.role !== "superadmin") {
+        const organization = await Organization.create({ name: businessName || `${user.name}'s Business`, ownerUserId: user._id });
+        user.organizationId = organization._id;
+      }
+      return res.json(await authPayload(user));
+    }
+
+    if (!name) return res.status(400).json({ message: "Name is required for new accounts" });
+
+    const organization = await Organization.create({ name: businessName || `${name}'s Shop` });
+    user = await User.create({
+      name: String(name).trim(),
+      email: cleanEmail || undefined,
+      phone: cleanPhone || undefined,
+      role: "admin",
+      organizationId: organization._id,
+      authProvider: "firebase",
+      firebaseUid: uid,
+    });
+    organization.ownerUserId = user._id;
+    await organization.save();
+    res.status(201).json(await authPayload(user));
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
+    next(error);
+  }
+}
+
+async function refreshToken(req, res, next) {
+  try {
+    const { refreshToken: token } = req.body;
+    if (!token) return res.status(400).json({ message: "Refresh token is required" });
+
+    const jwt = require("jsonwebtoken");
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ message: "Invalid or expired session. Please log in again." });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user || user.isActive === false) {
+      return res.status(401).json({ message: "Account not found or blocked" });
+    }
+
+    res.json(await authPayload(user));
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message, reason: error.reason });
+    next(error);
+  }
+}
+
+async function updateFcmToken(req, res, next) {
+  try {
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ message: "Token is required" });
+    const { registerDeviceToken } = require("../services/notificationService");
+    await registerDeviceToken(req.user._id, token, platform);
+    res.json({ success: true, message: "Token registered" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteFcmToken(req, res, next) {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "Token is required" });
+    const { removeDeviceToken } = require("../services/notificationService");
+    await removeDeviceToken(req.user._id, token);
+    res.json({ success: true, message: "Token removed" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  lookupAccount,
+  register,
+  login,
+  googleLogin,
+  firebaseLogin,
+  refreshToken,
+  forgotPasswordStatus,
+  requestPasswordReset,
+  resetPassword,
+  updateFcmToken,
+  deleteFcmToken,
+};

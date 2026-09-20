@@ -4,12 +4,13 @@ const bcrypt = require("bcryptjs");
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: false, unique: true, sparse: true, lowercase: true, trim: true },
     password: { type: String, required: false },
     organizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", default: null, index: true },
     role: { type: String, enum: ["superadmin", "admin", "staff"], default: "admin" },
-    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    authProvider: { type: String, enum: ["local", "google", "firebase"], default: "local" },
     googleId: { type: String, unique: true, sparse: true },
+    firebaseUid: { type: String, unique: true, sparse: true },
     avatarUrl: String,
     phone: String,
     refreshToken: String,
@@ -18,6 +19,13 @@ const userSchema = new mongoose.Schema(
     blockedReason: { type: String, default: null },
     resetTokenHash: { type: String, default: null, select: false },
     resetTokenExpiry: { type: Date, default: null },
+    fcmTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, default: "android" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

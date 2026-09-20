@@ -1,5 +1,6 @@
 const Customer = require("../models/Customer");
 const Expense = require("../models/Expense");
+const HomeBanner = require("../models/HomeBanner");
 const Order = require("../models/Order");
 const OrderItem = require("../models/OrderItem");
 const Organization = require("../models/Organization");
@@ -193,4 +194,46 @@ async function unblockUser(req, res, next) {
   }
 }
 
-module.exports = { listOrganizations, createShopOwner, getOrganization, listOrganizationUsers, updateOrganization, blockUser, unblockUser };
+const { getOrCreateHomeBanner } = require("../services/homeBannerService");
+
+async function getHomeBanner(req, res, next) {
+  try {
+    const banner = await getOrCreateHomeBanner();
+    res.json(banner);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function updateHomeBanner(req, res, next) {
+  try {
+    const payload = {};
+    if (typeof req.body.enabled === "boolean") payload.enabled = req.body.enabled;
+    if (typeof req.body.title === "string") payload.title = req.body.title.trim().slice(0, 80);
+    if (typeof req.body.message === "string") payload.message = req.body.message.trim().slice(0, 200);
+    if (typeof req.body.ctaLabel === "string") payload.ctaLabel = req.body.ctaLabel.trim().slice(0, 40);
+    if (typeof req.body.ctaAction === "string") payload.ctaAction = req.body.ctaAction.trim().slice(0, 40);
+    if (["promo", "info", "warning"].includes(req.body.tone)) payload.tone = req.body.tone;
+
+    const banner = await HomeBanner.findOneAndUpdate(
+      { key: "home" },
+      { $set: payload, $setOnInsert: { key: "home" } },
+      { new: true, upsert: true }
+    );
+    res.json(banner);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  listOrganizations,
+  createShopOwner,
+  getOrganization,
+  listOrganizationUsers,
+  updateOrganization,
+  blockUser,
+  unblockUser,
+  getHomeBanner,
+  updateHomeBanner,
+};

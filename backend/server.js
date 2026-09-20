@@ -1,4 +1,6 @@
 require("dotenv").config();
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const http = require("http");
 const cors = require("cors");
 const express = require("express");
@@ -16,7 +18,15 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .filter(Boolean);
 
 function corsOrigin(origin, callback) {
-  if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+  if (
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    origin.includes("kadaikanakku.in") ||
+    origin.includes("app-kadaikanakku.web.app") ||
+    origin.includes("firebaseapp.com")
+  ) {
+    return callback(null, true);
+  }
   callback(new Error("Not allowed by CORS"));
 }
 
@@ -26,7 +36,26 @@ const io = new Server(server, { cors: { origin: corsOrigin } });
 
 app.set("io", io);
 app.set("trust proxy", 1);
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'", "https:", "data:", "blob:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://apis.google.com"],
+        scriptSrcElem: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://apis.google.com"],
+        scriptSrcAttr: ["'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:", "wss:", "ws:"],
+        frameSrc: ["'self'", "https://*.cashfree.com", "https://sdk.cashfree.com"],
+        frameAncestors: ["'self'", "https://app-kadaikanakku.web.app", "https://kadaikanakku.web.app", "https://kadaikanakku.firebaseapp.com", "https://www.kadaikanakku.in", "https://kadaikanakku.in", "https://app.kadaikanakku.in"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    xFrameOptions: false,
+  })
+);
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use(morgan("dev"));
@@ -34,6 +63,7 @@ app.use("/uploads", express.static("uploads"));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/store", require("./routes/storeRoutes"));
 app.use("/api/inventory", require("./routes/inventoryRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/manual-orders", require("./routes/manualOrders"));
@@ -45,6 +75,7 @@ app.use("/api/expenses", require("./routes/expenseRoutes"));
 app.use("/api/vendors", require("./routes/vendors"));
 app.use("/api/purchase-orders", require("./routes/purchaseOrders"));
 app.use("/api/inventory-adjustments", require("./routes/inventoryAdjustments"));
+app.use("/api/subscription", require("./routes/subscriptionRoutes"));
 app.use("/api/admin", require("./routes/admin"));
 app.use(notFound);
 app.use(errorHandler);
@@ -65,7 +96,7 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
   if (socket.user.role === "superadmin") socket.join("admin");
-  else if (socket.user.organizationId) socket.join(`org:${socket.user.organizationId}`);
+  else if (socket.user.organizationId) socket.join("org:" + socket.user.organizationId);
   socket.emit("connected", { id: socket.id });
 });
 
@@ -75,7 +106,7 @@ const host = process.env.HOST || "0.0.0.0";
 function startServer() {
   server.on("error", (error) => {
     if (error.code === "EADDRINUSE") {
-      console.error(`Port ${port} is already in use. Stop the existing API process or set a different PORT.`);
+      console.error('Port ' + port + ' is already in use. Stop the existing API process or set a different PORT.');
       process.exit(1);
     }
     console.error(error);
@@ -83,7 +114,7 @@ function startServer() {
   });
 
   return connectDB()
-    .then(() => server.listen(port, host, () => console.log(`API running on http://${host}:${port}`)))
+    .then(() => server.listen(port, host, () => console.log('API running on http://' + host + ':' + port)))
     .catch((error) => {
       console.error(error);
       process.exit(1);

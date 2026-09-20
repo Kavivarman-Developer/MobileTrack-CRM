@@ -1,13 +1,11 @@
-
 import { useMutation } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -57,6 +55,7 @@ const brand = {
   navyDark: "#09294E",
   orange: "#F59926",
   cream: "#FEF5E9",
+  white: "#FFFFFF",
   muted: "#5E748B",
   border: "#D2DCE7",
   inputBorder: "#C5D3E1",
@@ -67,23 +66,23 @@ const brand = {
 
 const fonts = {
   regular: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_400Regular",
   }),
   semibold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_600SemiBold",
   }),
   bold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_700Bold",
   }),
   extraBold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_800ExtraBold",
   }),
   medium: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_600SemiBold",
   }),
 };
@@ -99,24 +98,21 @@ function isPhone(value: string) {
 
 function toE164(value: string) {
   const digits = value.replace(/\D/g, "");
-  if (value.trim().startsWith("+")) return `+${digits}`;
-  if (digits.length === 10) return `+91${digits}`;
-  return `+${digits}`;
-}
 
-function formatDisplayPhone(value: string) {
-  const trimmed = value.trim();
-  if (isEmail(trimmed)) return trimmed;
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  if (value.trim().startsWith("+")) {
+    return `+${digits}`;
   }
-  if (trimmed.startsWith("+")) return trimmed;
-  return `+91 ${digits}`;
+
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+
+  return `+${digits}`;
 }
 
 function firebaseErrorMessage(error: unknown) {
   const code = (error as any)?.code as string | undefined;
+
   const map: Record<string, string> = {
     "auth/wrong-password": "Incorrect password.",
     "auth/invalid-credential": "Incorrect email or password.",
@@ -128,7 +124,11 @@ function firebaseErrorMessage(error: unknown) {
     "auth/too-many-requests": "Too many attempts. Try again later.",
     "auth/invalid-phone-number": "Enter a valid mobile number.",
   };
-  if (code && map[code]) return map[code];
+
+  if (code && map[code]) {
+    return map[code];
+  }
+
   return (
     (error as Error)?.message?.replace(/^Firebase:\s*/, "") ||
     "Something went wrong"
@@ -157,10 +157,6 @@ function PrimaryCTA({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{
-        busy: Boolean(loading),
-        disabled: Boolean(loading),
-      }}
       disabled={loading}
       onPress={onPress}
       style={({ pressed }) => [
@@ -169,16 +165,16 @@ function PrimaryCTA({
       ]}
     >
       <LinearGradient
-        colors={["#17558F", brand.navy]}
-        end={{ x: 1, y: 1 }}
+        colors={["#1A5B97", brand.navy]}
         start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.ctaGradient}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" size="small" />
         ) : (
           <>
-            <Ionicons color="#FFFFFF" name={icon} size={19} />
+            <Ionicons color="#FFFFFF" name={icon} size={18} />
             <Text style={styles.ctaText}>{title}</Text>
           </>
         )}
@@ -189,20 +185,32 @@ function PrimaryCTA({
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
+
   const recaptchaVerifier =
     useRef<FirebaseRecaptchaVerifierModal>(null);
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
-  const pendingIdTokenRef = useRef<string | null>(null);
 
-  const [step, setStep] = useState<AuthStep>("identifier");
+  const confirmationRef =
+    useRef<ConfirmationResult | null>(null);
+
+  const pendingIdTokenRef =
+    useRef<string | null>(null);
+
+  const [step, setStep] =
+    useState<AuthStep>("identifier");
+
   const [identifier, setIdentifier] = useState("");
-  const [lookup, setLookup] = useState<AuthLookupResult | null>(null);
+  const [lookup, setLookup] =
+    useState<AuthLookupResult | null>(null);
+
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [otpCode, setOtpCode] = useState("");
+
   const [rememberMe, setRememberMe] = useState(true);
 
   const [resetOpen, setResetOpen] = useState(false);
@@ -210,48 +218,55 @@ export default function LoginScreen() {
   const [resetSent, setResetSent] = useState(false);
 
   const accountEmail =
-    lookup?.kind === "email" ? identifier.trim().toLowerCase() : "";
+    lookup?.kind === "email"
+      ? identifier.trim().toLowerCase()
+      : "";
 
-  const stepCopy = useMemo(() => {
-    if (step === "identifier")
-      return {
-        n: 1,
-        title: "Enter Mobile Number",
-        hint: "We'll send you a secure OTP to continue.",
-      };
+  const stepCopy = (() => {
+    switch (step) {
+      case "email-password":
+        return {
+          n: 2,
+          title: lookup?.nameHint
+            ? `Welcome back, ${lookup.nameHint}`
+            : "Enter Password",
+          hint: "Login to your account",
+        };
 
-    if (step === "email-password")
-      return {
-        n: 2,
-        title: lookup?.nameHint
-          ? `Welcome back, ${lookup.nameHint}`
-          : "Enter Password",
-        hint: "Login to your account",
-      };
+      case "email-register":
+        return {
+          n: 2,
+          title: "Create shop account",
+          hint: "Just a few details to get started.",
+        };
 
-    if (step === "email-register")
-      return {
-        n: 2,
-        title: "Create shop account",
-        hint: "Soft signup — just a few details to get started.",
-      };
+      case "otp":
+        return {
+          n: 2,
+          title: "Enter OTP",
+          hint: `Code sent to ${identifier.trim()}`,
+        };
 
-    if (step === "otp")
-      return {
-        n: 2,
-        title: "Enter OTP",
-        hint: `We've sent a code to ${identifier.trim()}`,
-      };
+      case "phone-register":
+        return {
+          n: 2,
+          title: "Almost there",
+          hint: "Tell us a little about your shop.",
+        };
 
-    return {
-      n: 2,
-      title: "Almost there",
-      hint: "Tell us a bit about your shop.",
-    };
-  }, [identifier, lookup?.nameHint, step]);
+      default:
+        return {
+          n: 1,
+          title: "Enter Mobile Number",
+          hint: "We'll send you a secure OTP to continue.",
+        };
+    }
+  })();
 
   function goBack() {
-    if (step === "identifier") return;
+    if (step === "identifier") {
+      return;
+    }
 
     setStep("identifier");
     setLookup(null);
@@ -259,6 +274,7 @@ export default function LoginScreen() {
     setConfirmPassword("");
     setShowPassword(false);
     setOtpCode("");
+
     confirmationRef.current = null;
     pendingIdTokenRef.current = null;
   }
@@ -273,36 +289,47 @@ export default function LoginScreen() {
       nameValue,
       businessNameValue
     );
+
     dispatch(setCredentials(data));
   }
 
   const sendOtp = useMutation({
     mutationFn: async () => {
       const verifier = recaptchaVerifier.current;
-      if (!verifier)
-        throw new Error("Verification is not ready. Try again.");
 
-      const confirmation = await signInWithPhoneNumber(
-        firebaseAuth,
-        toE164(identifier),
-        verifier
-      );
+      if (!verifier) {
+        throw new Error(
+          "Verification is not ready. Try again."
+        );
+      }
+
+      const confirmation =
+        await signInWithPhoneNumber(
+          firebaseAuth,
+          toE164(identifier),
+          verifier
+        );
 
       confirmationRef.current = confirmation;
     },
+
     onSuccess: () => {
       setOtpCode("");
       setStep("otp");
     },
-    onError: (error) =>
+
+    onError: (error) => {
       showErrorToast(
         firebaseErrorMessage(error),
         "Could not send OTP"
-      ),
+      );
+    },
   });
 
   const checkAccount = useMutation({
-    mutationFn: () => lookupAccount(identifier.trim()),
+    mutationFn: () =>
+      lookupAccount(identifier.trim()),
+
     onSuccess: (data) => {
       setLookup(data);
       setPassword("");
@@ -310,27 +337,37 @@ export default function LoginScreen() {
 
       if (data.kind === "email") {
         setStep(
-          data.exists ? "email-password" : "email-register"
+          data.exists
+            ? "email-password"
+            : "email-register"
         );
       } else {
         sendOtp.mutate();
       }
     },
-    onError: (error: Error) =>
-      showErrorToast(apiErrorMessage(error), "Check failed"),
+
+    onError: (error: Error) => {
+      showErrorToast(
+        apiErrorMessage(error),
+        "Check failed"
+      );
+    },
   });
 
   const confirmOtp = useMutation({
     mutationFn: async () => {
-      if (!confirmationRef.current)
+      if (!confirmationRef.current) {
         throw new Error("Request a new OTP.");
+      }
 
-      const credential = await confirmationRef.current.confirm(
-        otpCode.trim()
-      );
+      const credential =
+        await confirmationRef.current.confirm(
+          otpCode.trim()
+        );
 
       return credential.user.getIdToken();
     },
+
     onSuccess: async (idToken) => {
       if (lookup?.exists) {
         try {
@@ -346,40 +383,49 @@ export default function LoginScreen() {
         setStep("phone-register");
       }
     },
-    onError: (error) =>
+
+    onError: (error) => {
       showErrorToast(
         firebaseErrorMessage(error),
         "Verification failed"
-      ),
+      );
+    },
   });
 
   const emailSignIn = useMutation({
     mutationFn: async () => {
-      const credential = await signInWithEmailAndPassword(
-        firebaseAuth,
-        identifier.trim().toLowerCase(),
-        password
-      );
+      const credential =
+        await signInWithEmailAndPassword(
+          firebaseAuth,
+          identifier.trim().toLowerCase(),
+          password
+        );
 
-      const idToken = await credential.user.getIdToken();
+      const idToken =
+        await credential.user.getIdToken();
+
       await finalizeLogin(idToken);
     },
-    onError: (error) =>
+
+    onError: (error) => {
       showErrorToast(
         firebaseErrorMessage(error),
         "Login failed"
-      ),
+      );
+    },
   });
 
   const emailRegister = useMutation({
     mutationFn: async () => {
-      const credential = await createUserWithEmailAndPassword(
-        firebaseAuth,
-        identifier.trim().toLowerCase(),
-        password
-      );
+      const credential =
+        await createUserWithEmailAndPassword(
+          firebaseAuth,
+          identifier.trim().toLowerCase(),
+          password
+        );
 
-      const idToken = await credential.user.getIdToken();
+      const idToken =
+        await credential.user.getIdToken();
 
       await finalizeLogin(
         idToken,
@@ -387,21 +433,29 @@ export default function LoginScreen() {
         businessName.trim() || undefined
       );
     },
-    onSuccess: () =>
-      showSuccessToast("Shop ready", "Welcome aboard"),
-    onError: (error) =>
+
+    onSuccess: () => {
+      showSuccessToast(
+        "Shop ready",
+        "Welcome aboard"
+      );
+    },
+
+    onError: (error) => {
       showErrorToast(
         firebaseErrorMessage(error),
         "Signup failed"
-      ),
+      );
+    },
   });
 
   const phoneRegister = useMutation({
     mutationFn: async () => {
-      if (!pendingIdTokenRef.current)
+      if (!pendingIdTokenRef.current) {
         throw new Error(
           "Session expired. Verify your mobile again."
         );
+      }
 
       await finalizeLogin(
         pendingIdTokenRef.current,
@@ -409,23 +463,31 @@ export default function LoginScreen() {
         businessName.trim() || undefined
       );
     },
-    onSuccess: () =>
-      showSuccessToast("Shop ready", "Welcome aboard"),
-    onError: (error: Error) =>
+
+    onSuccess: () => {
+      showSuccessToast(
+        "Shop ready",
+        "Welcome aboard"
+      );
+    },
+
+    onError: (error: Error) => {
       showErrorToast(
         apiErrorMessage(error),
         "Signup failed"
-      ),
+      );
+    },
   });
 
   function submitIdentifier() {
     const value = identifier.trim();
 
-    if (!value)
+    if (!value) {
       return Alert.alert(
         "Required",
         "Enter your email or mobile number."
       );
+    }
 
     if (!isEmail(value) && !isPhone(value)) {
       return Alert.alert(
@@ -438,53 +500,59 @@ export default function LoginScreen() {
   }
 
   function submitEmailPassword() {
-    if (password.length < 6)
+    if (password.length < 6) {
       return Alert.alert(
         "Password",
         "Enter your password."
       );
+    }
 
     emailSignIn.mutate();
   }
 
   function submitEmailRegister() {
-    if (!name.trim())
+    if (!name.trim()) {
       return Alert.alert(
         "Name required",
         "Enter your name."
       );
+    }
 
-    if (password.length < 6)
+    if (password.length < 6) {
       return Alert.alert(
         "Weak password",
         "Password must be at least 6 characters."
       );
+    }
 
-    if (password !== confirmPassword)
+    if (password !== confirmPassword) {
       return Alert.alert(
         "Mismatch",
         "Passwords do not match."
       );
+    }
 
     emailRegister.mutate();
   }
 
   function submitOtp() {
-    if (otpCode.trim().length < 6)
+    if (otpCode.trim().length < 6) {
       return Alert.alert(
         "OTP",
         "Enter the 6-digit code."
       );
+    }
 
     confirmOtp.mutate();
   }
 
   function submitPhoneRegister() {
-    if (!name.trim())
+    if (!name.trim()) {
       return Alert.alert(
         "Name required",
         "Enter your name."
       );
+    }
 
     phoneRegister.mutate();
   }
@@ -501,23 +569,29 @@ export default function LoginScreen() {
         firebaseAuth,
         resetEmail.trim().toLowerCase()
       ),
+
     onSuccess: () => {
       setResetSent(true);
+
       showSuccessToast(
         "Check your email",
         "We sent a password reset link."
       );
     },
-    onError: (error) =>
+
+    onError: (error) => {
       showErrorToast(
         firebaseErrorMessage(error),
         "Request failed"
-      ),
+      );
+    },
   });
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+      <StatusBar
+        style="light"
+      />
 
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
@@ -526,92 +600,110 @@ export default function LoginScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={
-          Platform.OS === "ios" ? "padding" : undefined
-        }
         style={styles.container}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : undefined
+        }
       >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+        {/* =====================================================
+            FIXED SHOP BACKGROUND
+            ===================================================== */}
+
+        <View style={styles.fixedHero}>
+          <Image
+            source={require("../../../assets/hero.jpeg")}
+            style={styles.heroImage}
+            contentFit="cover"
+            transition={300}
+          />
+
+          {/* Dark transparent top layer */}
+          <LinearGradient
+            colors={[
+              "rgba(0,0,0,0.25)",
+              "rgba(0,0,0,0.02)",
+              "rgba(0,0,0,0)",
+            ]}
+            locations={[0, 0.35, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+
+          {/* Bottom fade */}
+          <LinearGradient
+            colors={[
+              "rgba(254,245,233,0)",
+              "rgba(254,245,233,0.15)",
+              "rgba(254,245,233,0.90)",
+              brand.cream,
+            ]}
+            locations={[
+              0,
+              0.48,
+              0.82,
+              1,
+            ]}
+            style={styles.heroFade}
+            pointerEvents="none"
+          />
+
+          {/* Small shop label */}
+          <View style={styles.heroLabel}>
+            <View style={styles.heroLabelDot} />
+
+            <Text style={styles.heroLabelText}>
+              YOUR SHOP • YOUR BUSINESS
+            </Text>
+          </View>
+        </View>
+
+        {/* =====================================================
+            MAIN NON-SCROLLING CONTENT
+            ===================================================== */}
+
+        <View style={styles.mainContent}>
+
           {/* Back button */}
-          <View style={styles.topBar}>
-            {step !== "identifier" ? (
-              <Pressable
-                onPress={goBack}
-                style={styles.topBackRow}
-              >
-                <Ionicons
-                  color="#FFFFFF"
-                  name="arrow-back"
-                  size={18}
-                />
-                <Text style={styles.topBackText}>
-                  Back
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {/* =====================================================
-              LARGE FULL-WIDTH SHOP HERO
-              ===================================================== */}
-          <View style={styles.heroWrapper}>
-            <Image
-              source={require("../../../assets/hero.jpeg")}
-              style={styles.heroImage}
-              contentFit="cover"
-              contentPosition="top center"
-              transition={250}
-            />
-
-            {/* Soft bottom fade — image remains visually dominant */}
-            <LinearGradient
-              colors={[
-                "rgba(254,245,233,0)",
-                "rgba(254,245,233,0.02)",
-                "rgba(254,245,233,0.20)",
-                "rgba(254,245,233,0.90)",
-              ]}
-              locations={[0, 0.55, 0.78, 1]}
-              pointerEvents="none"
-              style={StyleSheet.absoluteFill}
-            />
-
-            {/* Bottom curved transition */}
-            <Svg
-              height="42"
-              style={styles.heroWave}
-              viewBox="0 0 400 42"
-              width="100%"
+          {step !== "identifier" ? (
+            <Pressable
+              onPress={goBack}
+              style={styles.backButton}
             >
-              <Path
-                d="M0 42 Q 80 13 170 25 Q 270 38 400 8 L400 42 Z"
-                fill={brand.cream}
+              <Ionicons
+                name="arrow-back"
+                size={17}
+                color="#FFFFFF"
               />
-            </Svg>
-          </View>
 
-          {/* =====================================================
-              BRAND / LOGO
-              ===================================================== */}
+              <Text style={styles.backText}>
+                Back
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {/* ===================================================
+              BRAND
+              =================================================== */}
+
           <View style={styles.brandBlock}>
-            <View style={styles.logoBadgeGlow}>
+
+            <View style={styles.logoOuter}>
               <View style={styles.logoBadge}>
                 <Ionicons
                   color="#FFFFFF"
                   name="home"
-                  size={32}
+                  size={29}
                 />
               </View>
             </View>
 
-            <Text style={styles.brand}>
+            <Text style={styles.brandName}>
               <Text style={styles.brandDark}>
                 Kadai{" "}
               </Text>
+
               <Text style={styles.brandOrange}>
                 Kanakku
               </Text>
@@ -624,29 +716,43 @@ export default function LoginScreen() {
             <View style={styles.brandUnderline} />
           </View>
 
-          {/* =====================================================
+          {/* ===================================================
               LOGIN CARD
-              ===================================================== */}
+              =================================================== */}
+
           <View style={styles.card}>
+
             <View style={styles.stepHeaderRow}>
               <StepBadge n={stepCopy.n} />
 
               <View style={styles.stepHeaderText}>
-                <Text style={styles.cardTitle}>
+                <Text
+                  style={styles.cardTitle}
+                  numberOfLines={1}
+                >
                   {stepCopy.title}
                 </Text>
 
-                <Text style={styles.cardHint}>
+                <Text
+                  style={styles.cardHint}
+                  numberOfLines={2}
+                >
                   {stepCopy.hint}
                 </Text>
               </View>
             </View>
 
-            {/* STEP 1 */}
+            {/* ================================================
+                STEP 1
+                ================================================ */}
+
             {step === "identifier" && (
-              <View style={styles.stepBody}>
+              <View>
+
                 <View style={styles.phoneInputContainer}>
+
                   <View style={styles.countryPickerBox}>
+
                     <View
                       style={styles.indiaFlag}
                       accessible
@@ -665,9 +771,13 @@ export default function LoginScreen() {
                           styles.flagWhite,
                         ]}
                       >
-                        <View style={styles.flagChakra}>
+                        <View
+                          style={styles.flagChakra}
+                        >
                           <View
-                            style={styles.flagChakraDot}
+                            style={
+                              styles.flagChakraDot
+                            }
                           />
                         </View>
                       </View>
@@ -680,7 +790,9 @@ export default function LoginScreen() {
                       />
                     </View>
 
-                    <Text style={styles.countryCodeText}>
+                    <Text
+                      style={styles.countryCodeText}
+                    >
                       +91
                     </Text>
 
@@ -688,7 +800,6 @@ export default function LoginScreen() {
                       color={brand.muted}
                       name="chevron-down"
                       size={13}
-                      style={{ marginLeft: 2 }}
                     />
                   </View>
 
@@ -701,10 +812,12 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     keyboardType="phone-pad"
                     onChangeText={setIdentifier}
-                    onSubmitEditing={submitIdentifier}
+                    onSubmitEditing={
+                      submitIdentifier
+                    }
                     placeholder="Mobile number"
                     placeholderTextColor="#94A3B8"
-                    returnKeyType="next"
+                    returnKeyType="done"
                     style={styles.phoneTextInput}
                     value={identifier}
                   />
@@ -719,26 +832,38 @@ export default function LoginScreen() {
                   onPress={submitIdentifier}
                   title="Send OTP"
                 />
+
               </View>
             )}
 
-            {/* EMAIL PASSWORD */}
+            {/* ================================================
+                EMAIL PASSWORD
+                ================================================ */}
+
             {step === "email-password" && (
-              <View style={styles.stepBody}>
+              <View>
+
                 <View
-                  style={styles.selectedIdentifierBox}
+                  style={
+                    styles.selectedIdentifierBox
+                  }
                 >
                   <View
-                    style={styles.selectedIdentifierLeft}
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
                   >
                     <Ionicons
                       color={brand.navy}
                       name="mail-outline"
-                      size={18}
+                      size={17}
                     />
 
                     <Text
-                      style={styles.selectedIdentifierText}
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
                     >
                       {identifier.trim()}
                     </Text>
@@ -749,7 +874,9 @@ export default function LoginScreen() {
                     style={styles.changeLink}
                   >
                     <Text
-                      style={styles.changeLinkText}
+                      style={
+                        styles.changeLinkText
+                      }
                     >
                       Change
                     </Text>
@@ -772,18 +899,17 @@ export default function LoginScreen() {
                     }
                     placeholder="Enter your password"
                     secureTextEntry={!showPassword}
-                    style={styles.inputWithIconRight}
+                    style={
+                      styles.inputWithIconRight
+                    }
                     value={password}
                   />
 
                   <Pressable
-                    accessibilityLabel={
-                      showPassword
-                        ? "Hide password"
-                        : "Show password"
-                    }
                     onPress={() =>
-                      setShowPassword((v) => !v)
+                      setShowPassword(
+                        (v) => !v
+                      )
                     }
                     style={styles.eyeButton}
                   >
@@ -800,9 +926,12 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.rememberRow}>
+
                   <Pressable
                     onPress={() =>
-                      setRememberMe((v) => !v)
+                      setRememberMe(
+                        (v) => !v
+                      )
                     }
                     style={styles.rememberLeft}
                   >
@@ -810,7 +939,7 @@ export default function LoginScreen() {
                       style={[
                         styles.checkbox,
                         rememberMe &&
-                          styles.checkboxOn,
+                        styles.checkboxOn,
                       ]}
                     >
                       {rememberMe && (
@@ -822,7 +951,9 @@ export default function LoginScreen() {
                       )}
                     </View>
 
-                    <Text style={styles.rememberText}>
+                    <Text
+                      style={styles.rememberText}
+                    >
                       Remember me
                     </Text>
                   </Pressable>
@@ -830,22 +961,29 @@ export default function LoginScreen() {
                   <Pressable
                     onPress={() => {
                       setResetEmail(
-                        accountEmail || identifier
+                        accountEmail ||
+                        identifier
                       );
+
                       setResetSent(false);
                       setResetOpen(true);
                     }}
                   >
-                    <Text style={styles.forgotText}>
+                    <Text
+                      style={styles.forgotText}
+                    >
                       Forgot password?
                     </Text>
                   </Pressable>
+
                 </View>
 
                 <PrimaryCTA
                   icon="log-in-outline"
                   loading={emailSignIn.isPending}
-                  onPress={submitEmailPassword}
+                  onPress={
+                    submitEmailPassword
+                  }
                   title="Login"
                 />
 
@@ -853,25 +991,38 @@ export default function LoginScreen() {
                   onPress={goBack}
                   style={styles.createPanel}
                 >
-                  <Text style={styles.createPanelText}>
+                  <Text
+                    style={styles.createPanelText}
+                  >
                     Don't have an account?
                   </Text>
 
-                  <Text style={styles.createPanelLink}>
+                  <Text
+                    style={styles.createPanelLink}
+                  >
                     Create one →
                   </Text>
                 </Pressable>
+
               </View>
             )}
 
-            {/* EMAIL REGISTER */}
+            {/* ================================================
+                EMAIL REGISTER
+                ================================================ */}
+
             {step === "email-register" && (
-              <View style={styles.stepBody}>
+              <View>
+
                 <View
-                  style={styles.selectedIdentifierBox}
+                  style={
+                    styles.selectedIdentifierBox
+                  }
                 >
                   <View
-                    style={styles.selectedIdentifierLeft}
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
                   >
                     <Ionicons
                       color={brand.navy}
@@ -880,9 +1031,13 @@ export default function LoginScreen() {
                     />
 
                     <Text
-                      style={styles.selectedIdentifierText}
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
                     >
-                      New shop · {identifier.trim()}
+                      New shop ·{" "}
+                      {identifier.trim()}
                     </Text>
                   </View>
                 </View>
@@ -923,13 +1078,17 @@ export default function LoginScreen() {
                     onChangeText={setPassword}
                     placeholder="Min 6 characters"
                     secureTextEntry={!showPassword}
-                    style={styles.inputWithIconRight}
+                    style={
+                      styles.inputWithIconRight
+                    }
                     value={password}
                   />
 
                   <Pressable
                     onPress={() =>
-                      setShowPassword((v) => !v)
+                      setShowPassword(
+                        (v) => !v
+                      )
                     }
                     style={styles.eyeButton}
                   >
@@ -950,7 +1109,9 @@ export default function LoginScreen() {
                 </Text>
 
                 <Field
-                  onChangeText={setConfirmPassword}
+                  onChangeText={
+                    setConfirmPassword
+                  }
                   placeholder="Re-enter password"
                   secureTextEntry={!showPassword}
                   value={confirmPassword}
@@ -958,21 +1119,34 @@ export default function LoginScreen() {
 
                 <PrimaryCTA
                   icon="checkmark-circle-outline"
-                  loading={emailRegister.isPending}
-                  onPress={submitEmailRegister}
-                  title="Create account & enter"
+                  loading={
+                    emailRegister.isPending
+                  }
+                  onPress={
+                    submitEmailRegister
+                  }
+                  title="Create account"
                 />
+
               </View>
             )}
 
-            {/* OTP */}
+            {/* ================================================
+                OTP
+                ================================================ */}
+
             {step === "otp" && (
-              <View style={styles.stepBody}>
+              <View>
+
                 <View
-                  style={styles.selectedIdentifierBox}
+                  style={
+                    styles.selectedIdentifierBox
+                  }
                 >
                   <View
-                    style={styles.selectedIdentifierLeft}
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
                   >
                     <Ionicons
                       color={brand.navy}
@@ -981,7 +1155,10 @@ export default function LoginScreen() {
                     />
 
                     <Text
-                      style={styles.selectedIdentifierText}
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
                     >
                       {identifier.trim()}
                     </Text>
@@ -992,7 +1169,9 @@ export default function LoginScreen() {
                     style={styles.changeLink}
                   >
                     <Text
-                      style={styles.changeLinkText}
+                      style={
+                        styles.changeLinkText
+                      }
                     >
                       Change
                     </Text>
@@ -1026,26 +1205,39 @@ export default function LoginScreen() {
                 />
 
                 <Pressable
-                  onPress={() => sendOtp.mutate()}
+                  onPress={() =>
+                    sendOtp.mutate()
+                  }
                   style={styles.forgotButton}
                 >
-                  <Text style={styles.forgotText}>
+                  <Text
+                    style={styles.forgotText}
+                  >
                     {sendOtp.isPending
                       ? "Sending..."
                       : "Resend code"}
                   </Text>
                 </Pressable>
+
               </View>
             )}
 
-            {/* PHONE REGISTER */}
+            {/* ================================================
+                PHONE REGISTER
+                ================================================ */}
+
             {step === "phone-register" && (
-              <View style={styles.stepBody}>
+              <View>
+
                 <View
-                  style={styles.selectedIdentifierBox}
+                  style={
+                    styles.selectedIdentifierBox
+                  }
                 >
                   <View
-                    style={styles.selectedIdentifierLeft}
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
                   >
                     <Ionicons
                       color={brand.navy}
@@ -1054,9 +1246,13 @@ export default function LoginScreen() {
                     />
 
                     <Text
-                      style={styles.selectedIdentifierText}
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
                     >
-                      New shop · {identifier.trim()}
+                      New shop ·{" "}
+                      {identifier.trim()}
                     </Text>
                   </View>
                 </View>
@@ -1083,119 +1279,167 @@ export default function LoginScreen() {
 
                 <PrimaryCTA
                   icon="checkmark-circle-outline"
-                  loading={phoneRegister.isPending}
-                  onPress={submitPhoneRegister}
+                  loading={
+                    phoneRegister.isPending
+                  }
+                  onPress={
+                    submitPhoneRegister
+                  }
                   title="Create account & enter"
                 />
+
               </View>
             )}
+
           </View>
 
-          {/* =====================================================
-              TRUST / BENEFITS
-              ===================================================== */}
-          <View style={styles.featureCard}>
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons
-                  color={brand.orange}
-                  name="shield-checkmark"
-                  size={16}
-                />
+          {/* ===================================================
+              TRUST FEATURES
+              =================================================== */}
+
+          {step === "identifier" && (
+            <View style={styles.featureCard}>
+
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="shield-checkmark"
+                    size={15}
+                  />
+                </View>
+
+                <Text
+                  style={styles.featureText}
+                >
+                  Secure
+                </Text>
+
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Protected
+                </Text>
               </View>
 
-              <Text style={styles.featureText}>
-                Safe & Secure
-              </Text>
+              <View
+                style={styles.featureDivider}
+              />
 
-              <Text style={styles.featureSubText}>
-                Your data is protected
-              </Text>
-            </View>
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="flash"
+                    size={15}
+                  />
+                </View>
 
-            <View style={styles.featureDivider} />
+                <Text
+                  style={styles.featureText}
+                >
+                  Fast
+                </Text>
 
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons
-                  color={brand.orange}
-                  name="flash"
-                  size={16}
-                />
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Quick access
+                </Text>
               </View>
 
-              <Text style={styles.featureText}>
-                Fast Access
-              </Text>
+              <View
+                style={styles.featureDivider}
+              />
 
-              <Text style={styles.featureSubText}>
-                Quick & Easy
-              </Text>
-            </View>
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="cube-outline"
+                    size={15}
+                  />
+                </View>
 
-            <View style={styles.featureDivider} />
+                <Text
+                  style={styles.featureText}
+                >
+                  Simple
+                </Text>
 
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons
-                  color={brand.orange}
-                  name="cube-outline"
-                  size={16}
-                />
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Easy business
+                </Text>
               </View>
 
-              <Text style={styles.featureText}>
-                Wide Range
-              </Text>
+              <View
+                style={styles.featureDivider}
+              />
 
-              <Text style={styles.featureSubText}>
-                All Your Needs
-              </Text>
-            </View>
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="headset"
+                    size={15}
+                  />
+                </View>
 
-            <View style={styles.featureDivider} />
+                <Text
+                  style={styles.featureText}
+                >
+                  Support
+                </Text>
 
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconBadge}>
-                <Ionicons
-                  color={brand.orange}
-                  name="headset"
-                  size={16}
-                />
+                <Text
+                  style={styles.featureSubText}
+                >
+                  We're here
+                </Text>
               </View>
 
-              <Text style={styles.featureText}>
-                Support
-              </Text>
-
-              <Text style={styles.featureSubText}>
-                We're Here
-              </Text>
             </View>
-          </View>
+          )}
 
-          {/* Footer */}
-          <View style={styles.footerWave}>
+          {/* ===================================================
+              FOOTER
+              =================================================== */}
+
+          <View style={styles.footer}>
             <Svg
-              height="58"
-              viewBox="0 0 400 58"
+              height="42"
               width="100%"
+              viewBox="0 0 400 42"
             >
               <Path
-                d="M0 22 Q 75 48 155 23 Q 250 -5 400 22 L400 58 L0 58 Z"
+                d="M0 15 Q 80 37 170 16 Q 270 -3 400 16 L400 42 L0 42 Z"
                 fill={brand.navy}
               />
 
               <Path
-                d="M0 21 Q 75 47 155 22 Q 250 -6 400 21"
+                d="M0 14 Q 80 36 170 15 Q 270 -4 400 15"
                 fill="none"
                 stroke={brand.orange}
-                strokeWidth="4"
+                strokeWidth="3"
               />
             </Svg>
 
-            <View style={styles.footerTextRow}>
-              <Text style={styles.footerFlourish}>
+            <View
+              style={styles.footerTextRow}
+            >
+              <Text
+                style={styles.footerFlourish}
+              >
                 »
               </Text>
 
@@ -1203,15 +1447,21 @@ export default function LoginScreen() {
                 Shop Smart
               </Text>
 
-              <Text style={styles.footerFlourish}>
+              <Text
+                style={styles.footerFlourish}
+              >
                 «
               </Text>
             </View>
           </View>
-        </ScrollView>
+
+        </View>
       </KeyboardAvoidingView>
 
-      {/* Reset Password */}
+      {/* =====================================================
+          RESET PASSWORD
+          ===================================================== */}
+
       <Sheet
         hint={
           resetSent
@@ -1230,13 +1480,16 @@ export default function LoginScreen() {
             />
           ) : (
             <Button
-              loading={requestReset.isPending}
+              loading={
+                requestReset.isPending
+              }
               onPress={() => {
-                if (!isEmail(resetEmail))
+                if (!isEmail(resetEmail)) {
                   return Alert.alert(
                     "Email",
                     "Enter a valid email."
                   );
+                }
 
                 requestReset.mutate();
               }}
@@ -1267,6 +1520,10 @@ export default function LoginScreen() {
   );
 }
 
+/* ============================================================
+   STYLES
+   ============================================================ */
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1278,112 +1535,224 @@ const styles = StyleSheet.create({
     backgroundColor: brand.cream,
   },
 
-  content: {
-    flexGrow: 1,
-    alignItems: "center",
-    paddingBottom: 0,
-  },
+  /* ----------------------------------------------------------
+     FIXED HERO IMAGE
+     ---------------------------------------------------------- */
 
-  /* ---------------------------------------------------------
-     TOP BAR
-     --------------------------------------------------------- */
-  topBar: {
-    width: "100%",
-    maxWidth: 460,
-    paddingHorizontal: spacing.md,
-    paddingTop:
-      Platform.OS === "android" ? spacing.xs : 0,
-    zIndex: 30,
-    minHeight: 36,
-    justifyContent: "center",
+  fixedHero: {
     position: "absolute",
-  },
+    top: 0,
+    left: 0,
+    right: 0,
 
-  topBackRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 5,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    alignSelf: "flex-start",
-  },
+    /*
+      Mobile-la image height konjam large.
+      Shop clearly visible.
+    */
+    height:
+      Platform.OS === "web"
+        ? 390
+        : 285,
 
-  topBackText: {
-    color: "#FFFFFF",
-    fontFamily: fonts.bold,
-    fontSize: 13,
-    fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.25)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-
-  /* ---------------------------------------------------------
-     LARGE HERO
-     --------------------------------------------------------- */
-  heroWrapper: {
-    width: "100%",
-    height: Platform.OS === "web" ? 310 : 285,
-    position: "relative",
     overflow: "hidden",
-    backgroundColor: "#F5EBDD",
+
+    backgroundColor: "#EEDFCB",
+
+    zIndex: 0,
   },
 
   heroImage: {
     width: "100%",
     height: "100%",
+
+    /*
+      IMPORTANT:
+
+      62% means image focus konjam
+      top-la irunthu கீழே வரும்.
+
+      Shop building / road area
+      clear-aa visible ஆகும்.
+    */
   },
 
-  heroWave: {
-    bottom: -1,
+  heroFade: {
     position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+
+    height: "72%",
   },
 
-  /* ---------------------------------------------------------
+  heroLabel: {
+    position: "absolute",
+
+    top:
+      Platform.OS === "web"
+        ? 26
+        : 30,
+
+    alignSelf: "center",
+
+    flexDirection: "row",
+    alignItems: "center",
+
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+
+    borderRadius: 999,
+
+    backgroundColor:
+      "rgba(13,54,102,0.78)",
+
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.30)",
+  },
+
+  heroLabelDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 99,
+
+    backgroundColor: brand.orange,
+
+    marginRight: 6,
+  },
+
+  heroLabelText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.bold,
+
+    fontSize: 8.5,
+
+    letterSpacing: 0.8,
+  },
+
+  /* ----------------------------------------------------------
+     MAIN CONTENT
+     ---------------------------------------------------------- */
+  mainContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+
+    paddingTop: Platform.OS === "web" ? 100 : 180,
+    paddingBottom: 50,
+
+    zIndex: 5,
+  },
+  /* ----------------------------------------------------------
+     BACK
+     ---------------------------------------------------------- */
+
+  backButton: {
+    position: "absolute",
+
+    top:
+      Platform.OS === "web"
+        ? 18
+        : 18,
+
+    left: 16,
+
+    zIndex: 50,
+
+    flexDirection: "row",
+    alignItems: "center",
+
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+
+    borderRadius: 10,
+
+    backgroundColor:
+      "rgba(13,54,102,0.78)",
+
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.25)",
+  },
+
+  backText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.bold,
+
+    fontSize: 12,
+
+    marginLeft: 5,
+  },
+
+  /* ----------------------------------------------------------
      BRAND
-     --------------------------------------------------------- */
+     ---------------------------------------------------------- */
+
   brandBlock: {
     alignItems: "center",
-    marginTop: -42,
-    paddingHorizontal: spacing.md,
-    zIndex: 8,
+
     width: "100%",
+
+    paddingHorizontal: 16,
   },
 
-  logoBadgeGlow: {
+  logoOuter: {
     alignItems: "center",
-    backgroundColor: "rgba(245, 153, 38, 0.22)",
-    borderRadius: 38,
-    height: 72,
     justifyContent: "center",
-    marginBottom: 5,
-    width: 72,
+
+    width: 64,
+    height: 64,
+
+    borderRadius: 32,
+
+    backgroundColor:
+      "rgba(245,153,38,0.24)",
+
+    marginBottom: 3,
   },
 
   logoBadge: {
-    alignItems: "center",
+    width: 55,
+    height: 55,
+
+    borderRadius: 17,
+
     backgroundColor: brand.navy,
-    borderRadius: 19,
-    height: 62,
+
+    alignItems: "center",
     justifyContent: "center",
-    width: 62,
+
     borderWidth: 3,
+
     borderColor: "#FFFDF8",
+
     shadowColor: brand.navy,
+
     shadowOffset: {
       width: 0,
-      height: 6,
+      height: 5,
     },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 7,
+
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+
+    elevation: 6,
   },
 
-  brand: {
-    color: brand.navy,
+  brandName: {
     fontFamily: fonts.extraBold,
-    fontSize: 28,
+
+    fontSize:
+      Platform.OS === "web"
+        ? 29
+        : 26,
+
     letterSpacing: -0.8,
+
+    lineHeight: 31,
+
     textAlign: "center",
   },
 
@@ -1397,71 +1766,106 @@ const styles = StyleSheet.create({
 
   subtitle: {
     color: brand.muted,
+
     fontFamily: fonts.semibold,
-    fontSize: 10.5,
-    marginTop: 2,
+
+    fontSize: 9.5,
+
+    marginTop: 1,
+
     textAlign: "center",
-    lineHeight: 15,
   },
 
   brandUnderline: {
+    width: 58,
     height: 3,
-    width: 64,
-    borderRadius: 2,
-    backgroundColor: brand.orange,
-    marginTop: 6,
+
+    borderRadius: 99,
+
+    backgroundColor:
+      brand.orange,
+
+    marginTop: 5,
   },
 
-  /* ---------------------------------------------------------
-     MAIN CARD
-     --------------------------------------------------------- */
+  /* ----------------------------------------------------------
+     CARD
+     ---------------------------------------------------------- */
+
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 16,
-    marginTop: 13,
     width: "92%",
     maxWidth: 430,
+
+    backgroundColor:
+      "rgba(255,255,255,0.98)",
+
+    borderRadius: 20,
+
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+
+    marginTop: 11,
+
     borderWidth: 1,
-    borderColor: "rgba(210,220,231,0.65)",
-    shadowColor: brand.navy,
+
+    borderColor:
+      "rgba(210,220,231,0.85)",
+
+    shadowColor: "#09294E",
+
     shadowOffset: {
       width: 0,
       height: 9,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 22,
-    elevation: 5,
+
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+
+    elevation: 6,
   },
 
   stepHeaderRow: {
     flexDirection: "row",
-    marginBottom: 13,
+
     alignItems: "center",
+
+    marginBottom: 10,
   },
 
   stepBadge: {
-    alignItems: "center",
-    backgroundColor: brand.orange,
+    width: 30,
+    height: 30,
+
     borderRadius: 999,
-    height: 31,
+
+    backgroundColor:
+      brand.orange,
+
+    alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
-    width: 31,
-    shadowColor: brand.orange,
+
+    marginRight: 9,
+
+    shadowColor:
+      brand.orange,
+
     shadowOffset: {
       width: 0,
       height: 3,
     },
-    shadowOpacity: 0.28,
+
+    shadowOpacity: 0.25,
     shadowRadius: 5,
-    elevation: 2,
+
+    elevation: 3,
   },
 
   stepBadgeText: {
     color: "#FFFFFF",
+
     fontFamily: fonts.extraBold,
-    fontSize: 14,
+
+    fontSize: 13,
   },
 
   stepHeaderText: {
@@ -1470,61 +1874,71 @@ const styles = StyleSheet.create({
 
   cardTitle: {
     color: brand.navy,
+
     fontFamily: fonts.extraBold,
-    fontSize: 16,
+
+    fontSize: 15,
+
     letterSpacing: -0.2,
   },
 
   cardHint: {
     color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 10.5,
-    lineHeight: 15,
-    marginTop: 2,
-  },
 
-  stepBody: {
+    fontFamily: fonts.medium,
+
+    fontSize: 9.5,
+
+    lineHeight: 13,
+
     marginTop: 1,
   },
 
-  /* ---------------------------------------------------------
-     INPUTS
-     --------------------------------------------------------- */
-  label: {
-    color: brand.navy,
-    fontFamily: fonts.semibold,
-    fontSize: 11.5,
-    marginBottom: 5,
-    marginTop: 5,
-  },
+  /* ----------------------------------------------------------
+     PHONE INPUT
+     ---------------------------------------------------------- */
 
   phoneInputContainer: {
+    minHeight: 47,
+
     alignItems: "center",
-    backgroundColor: "#F7FAFD",
-    borderColor: "#C8D7E7",
-    borderRadius: 13,
-    borderWidth: 1,
+
     flexDirection: "row",
-    minHeight: 50,
-    paddingHorizontal: 11,
-    marginBottom: 11,
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderWidth: 1,
+
+    borderColor:
+      "#C8D7E7",
+
+    borderRadius: 12,
+
+    paddingHorizontal: 10,
+
+    marginBottom: 9,
   },
 
   countryPickerBox: {
-    alignItems: "center",
     flexDirection: "row",
+
+    alignItems: "center",
+
     gap: 4,
   },
 
   indiaFlag: {
     width: 22,
     height: 15,
-    borderRadius: 2.5,
+
     overflow: "hidden",
-    marginRight: 2,
+
+    borderRadius: 2,
+
     borderWidth: 0.5,
+
     borderColor: "#D5D5D5",
-    backgroundColor: "#FFFFFF",
   },
 
   flagStripe: {
@@ -1538,6 +1952,7 @@ const styles = StyleSheet.create({
 
   flagWhite: {
     backgroundColor: "#FFFFFF",
+
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1549,9 +1964,13 @@ const styles = StyleSheet.create({
   flagChakra: {
     width: 7,
     height: 7,
-    borderRadius: 4,
+
+    borderRadius: 99,
+
     borderWidth: 0.8,
+
     borderColor: "#000080",
+
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1559,137 +1978,222 @@ const styles = StyleSheet.create({
   flagChakraDot: {
     width: 2,
     height: 2,
-    borderRadius: 1,
+
+    borderRadius: 99,
+
     backgroundColor: "#000080",
   },
 
   countryCodeText: {
     color: brand.navy,
+
     fontFamily: fonts.bold,
-    fontSize: 14,
+
+    fontSize: 13,
   },
 
   phoneInputDivider: {
-    backgroundColor: "#D6E0EA",
-    height: 25,
-    marginHorizontal: 9,
     width: 1,
+    height: 23,
+
+    backgroundColor:
+      "#D6E0EA",
+
+    marginHorizontal: 8,
   },
 
   phoneTextInput: {
-    color: brand.navy,
     flex: 1,
+
+    minHeight: 43,
+
+    color: brand.navy,
+
     fontFamily: fonts.medium,
-    fontSize: 14,
-    minHeight: 46,
+
+    fontSize: 13.5,
+
     paddingVertical: 0,
   },
 
+  /* ----------------------------------------------------------
+     INPUTS
+     ---------------------------------------------------------- */
+
   inputWrap: {
-    justifyContent: "center",
     position: "relative",
-    marginBottom: 10,
+
+    justifyContent: "center",
+
+    marginBottom: 8,
   },
 
   inputIcon: {
-    left: 13,
     position: "absolute",
-    zIndex: 2,
+
+    left: 13,
+
+    zIndex: 5,
   },
 
   inputWithIcon: {
-    paddingLeft: 42,
-    backgroundColor: "#F7FAFD",
-    borderRadius: 13,
-    borderColor: "#C8D7E7",
-    minHeight: 48,
-    fontSize: 13.5,
+    paddingLeft: 41,
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderRadius: 12,
+
+    borderColor:
+      "#C8D7E7",
+
+    minHeight: 47,
+
+    fontSize: 13,
   },
 
   inputWithIconRight: {
-    paddingLeft: 42,
-    paddingRight: 45,
-    backgroundColor: "#F7FAFD",
-    borderRadius: 13,
-    borderColor: "#C8D7E7",
-    minHeight: 48,
-    fontSize: 13.5,
+    paddingLeft: 41,
+    paddingRight: 42,
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderRadius: 12,
+
+    borderColor:
+      "#C8D7E7",
+
+    minHeight: 47,
+
+    fontSize: 13,
   },
 
   eyeButton: {
-    alignItems: "center",
-    height: 48,
-    justifyContent: "center",
     position: "absolute",
+
     right: 2,
-    width: 40,
-    zIndex: 2,
+
+    width: 39,
+    height: 46,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    zIndex: 5,
   },
 
-  /* ---------------------------------------------------------
+  label: {
+    color: brand.navy,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 10.5,
+
+    marginBottom: 4,
+
+    marginTop: 3,
+  },
+
+  /* ----------------------------------------------------------
      CTA
-     --------------------------------------------------------- */
+     ---------------------------------------------------------- */
+
   ctaWrapper: {
-    borderRadius: 13,
+    borderRadius: 12,
+
     shadowColor: brand.navy,
+
     shadowOffset: {
       width: 0,
-      height: 5,
+      height: 4,
     },
-    shadowOpacity: 0.23,
-    shadowRadius: 9,
+
+    shadowOpacity: 0.22,
+
+    shadowRadius: 8,
+
     elevation: 4,
   },
 
   ctaPressed: {
     opacity: 0.9,
-    transform: [{ scale: 0.99 }],
+
+    transform: [
+      {
+        scale: 0.99,
+      },
+    ],
   },
 
   ctaGradient: {
-    alignItems: "center",
-    borderRadius: 13,
+    minHeight: 48,
+
+    borderRadius: 12,
+
     flexDirection: "row",
-    gap: 8,
+
+    alignItems: "center",
     justifyContent: "center",
-    minHeight: 50,
+
+    gap: 7,
   },
 
   ctaText: {
     color: "#FFFFFF",
+
     fontFamily: fonts.extraBold,
-    fontSize: 14,
+
+    fontSize: 13.5,
   },
 
-  /* ---------------------------------------------------------
-     SELECTED IDENTIFIER
-     --------------------------------------------------------- */
+  /* ----------------------------------------------------------
+     SELECTED ACCOUNT
+     ---------------------------------------------------------- */
+
   selectedIdentifierBox: {
-    alignItems: "center",
-    backgroundColor: "#F4F8FC",
-    borderColor: "#D4DFEA",
-    borderRadius: 12,
-    borderWidth: 1,
+    minHeight: 42,
+
     flexDirection: "row",
+
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
+
+    backgroundColor:
+      "#F4F8FC",
+
+    borderWidth: 1,
+
+    borderColor:
+      "#D4DFEA",
+
+    borderRadius: 11,
+
+    paddingHorizontal: 10,
+
+    paddingVertical: 7,
+
+    marginBottom: 8,
   },
 
   selectedIdentifierLeft: {
-    alignItems: "center",
     flexDirection: "row",
-    gap: 8,
+
+    alignItems: "center",
+
     flex: 1,
+
+    gap: 7,
   },
 
   selectedIdentifierText: {
+    flex: 1,
+
     color: brand.navy,
+
     fontFamily: fonts.bold,
-    fontSize: 12.5,
-    fontWeight: "700",
-    flexShrink: 1,
+
+    fontSize: 11.5,
   },
 
   changeLink: {
@@ -1699,169 +2203,248 @@ const styles = StyleSheet.create({
 
   changeLinkText: {
     color: brand.blueLink,
+
     fontFamily: fonts.semibold,
-    fontSize: 12.5,
+
+    fontSize: 11.5,
   },
 
-  /* ---------------------------------------------------------
-     REMEMBER / FORGOT
-     --------------------------------------------------------- */
+  /* ----------------------------------------------------------
+     REMEMBER
+     ---------------------------------------------------------- */
+
   rememberRow: {
-    alignItems: "center",
     flexDirection: "row",
+
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+
+    marginBottom: 8,
   },
 
   rememberLeft: {
-    alignItems: "center",
     flexDirection: "row",
+
+    alignItems: "center",
+
     gap: 6,
   },
 
   checkbox: {
-    alignItems: "center",
-    borderColor: brand.navy,
+    width: 17,
+    height: 17,
+
     borderRadius: 5,
+
     borderWidth: 1.5,
-    height: 18,
+
+    borderColor:
+      brand.navy,
+
+    alignItems: "center",
     justifyContent: "center",
-    width: 18,
   },
 
   checkboxOn: {
-    backgroundColor: brand.navy,
+    backgroundColor:
+      brand.navy,
   },
 
   rememberText: {
     color: brand.navy,
-    fontFamily: fonts.medium,
-    fontSize: 11.5,
-  },
 
-  forgotButton: {
-    alignItems: "center",
-    minHeight: 34,
-    justifyContent: "center",
-    marginTop: 2,
+    fontFamily: fonts.medium,
+
+    fontSize: 10.5,
   },
 
   forgotText: {
     color: brand.blueLink,
+
     fontFamily: fonts.semibold,
-    fontSize: 11.5,
+
+    fontSize: 10.5,
   },
 
-  createPanel: {
+  forgotButton: {
     alignItems: "center",
-    backgroundColor: "#F4F8FC",
-    borderRadius: 11,
-    flexDirection: "row",
-    gap: 5,
     justifyContent: "center",
-    marginTop: 10,
-    paddingVertical: 10,
+
+    minHeight: 31,
+
+    marginTop: 1,
+  },
+
+  /* ----------------------------------------------------------
+     CREATE PANEL
+     ---------------------------------------------------------- */
+
+  createPanel: {
+    flexDirection: "row",
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    gap: 5,
+
+    backgroundColor:
+      "#F4F8FC",
+
+    borderRadius: 10,
+
+    paddingVertical: 8,
+
+    marginTop: 8,
   },
 
   createPanelText: {
     color: brand.muted,
+
     fontFamily: fonts.medium,
-    fontSize: 11.5,
+
+    fontSize: 10.5,
   },
 
   createPanelLink: {
     color: brand.blueLink,
+
     fontFamily: fonts.semibold,
-    fontSize: 11.5,
+
+    fontSize: 10.5,
   },
 
-  /* ---------------------------------------------------------
+  /* ----------------------------------------------------------
      FEATURES
-     --------------------------------------------------------- */
+     ---------------------------------------------------------- */
+
   featureCard: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.68)",
-    borderColor: "rgba(210,220,231,0.55)",
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 13,
-    paddingVertical: 12,
-    paddingHorizontal: 5,
     width: "92%",
     maxWidth: 430,
+
+    minHeight: 66,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    marginTop: 9,
+
+    paddingHorizontal: 5,
+    paddingVertical: 7,
+
+    backgroundColor:
+      "rgba(255,255,255,0.84)",
+
+    borderRadius: 15,
+
+    borderWidth: 1,
+
+    borderColor:
+      "rgba(210,220,231,0.65)",
   },
 
   featureItem: {
-    alignItems: "center",
     flex: 1,
+
+    alignItems: "center",
+
     minWidth: 0,
   },
 
   featureIconBadge: {
+    width: 27,
+    height: 27,
+
+    borderRadius: 9,
+
     alignItems: "center",
-    backgroundColor: brand.featureIconBg,
-    borderRadius: 10,
-    height: 31,
     justifyContent: "center",
-    marginBottom: 4,
-    width: 31,
+
+    backgroundColor:
+      brand.featureIconBg,
+
+    marginBottom: 3,
   },
 
   featureText: {
     color: brand.navy,
+
     fontFamily: fonts.bold,
-    fontSize: 9.5,
+
+    fontSize: 8.5,
+
+    lineHeight: 10,
+
     textAlign: "center",
-    lineHeight: 12,
   },
 
   featureSubText: {
     color: brand.muted,
+
     fontFamily: fonts.medium,
-    fontSize: 7.5,
+
+    fontSize: 6.8,
+
+    lineHeight: 9,
+
     textAlign: "center",
-    lineHeight: 10,
-    marginTop: 1,
   },
 
   featureDivider: {
-    backgroundColor: "#D8E1EA",
-    height: 32,
     width: 1,
+    height: 29,
+
+    backgroundColor:
+      "#D8E1EA",
   },
 
-  /* ---------------------------------------------------------
+  /* ----------------------------------------------------------
      FOOTER
-     --------------------------------------------------------- */
-  footerWave: {
+     ---------------------------------------------------------- */
+
+  footer: {
     width: "100%",
-    height: 58,
-    marginTop: 9,
-    position: "relative",
+    height: 42,
+    position: "absolute",
+    bottom: -3,
+    left: 0,
+    right: 0,
     overflow: "hidden",
+    zIndex: 20,
   },
 
   footerTextRow: {
     position: "absolute",
-    bottom: 8,
-    alignSelf: "center",
+
+    left: 0,
+    right: 0,
+
+    bottom: 5,
+
     flexDirection: "row",
+
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
+
+    gap: 7,
   },
 
   footerText: {
     color: "#FFFFFF",
+
     fontFamily: fonts.extraBold,
-    fontSize: 13,
+
+    fontSize: 11.5,
+
     letterSpacing: 0.3,
   },
 
   footerFlourish: {
     color: brand.orange,
+
     fontFamily: fonts.bold,
-    fontSize: 12,
+
+    fontSize: 11,
   },
 });

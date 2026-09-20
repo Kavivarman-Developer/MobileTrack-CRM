@@ -1,6 +1,7 @@
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
+const { getMessaging } = require("firebase-admin/messaging");
 
 const projectId = process.env.FIREBASE_PROJECT_ID || "kadaikanakku";
 
@@ -11,4 +12,4 @@ if (!getApps().length) {
   });
 }
 
-module.exports = { auth: getAuth, storage: getStorage };
+module.exports = { auth: getAuth, storage: getStorage, messaging: getMessaging };

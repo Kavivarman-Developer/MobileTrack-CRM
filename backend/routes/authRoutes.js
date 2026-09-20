@@ -10,7 +10,10 @@ const {
   refreshToken,
   requestPasswordReset,
   resetPassword,
+  updateFcmToken,
+  deleteFcmToken,
 } = require("../controllers/authController");
+const { protect } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -32,5 +35,7 @@ router.post("/firebase", authLimiter, firebaseLogin);
 router.get("/forgot-password/status", forgotPasswordStatus);
 router.post("/forgot-password/request", authLimiter, requestPasswordReset);
 router.post("/forgot-password/reset", authLimiter, resetPassword);
+router.post("/fcm-token", protect, updateFcmToken);
+router.delete("/fcm-token", protect, deleteFcmToken);
 
 module.exports = router;

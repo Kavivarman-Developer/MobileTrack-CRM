@@ -393,4 +393,40 @@ async function refreshToken(req, res, next) {
   }
 }
 
-module.exports = { lookupAccount, register, login, googleLogin, firebaseLogin, refreshToken, forgotPasswordStatus, requestPasswordReset, resetPassword };
+async function updateFcmToken(req, res, next) {
+  try {
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ message: "Token is required" });
+    const { registerDeviceToken } = require("../services/notificationService");
+    await registerDeviceToken(req.user._id, token, platform);
+    res.json({ success: true, message: "Token registered" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteFcmToken(req, res, next) {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "Token is required" });
+    const { removeDeviceToken } = require("../services/notificationService");
+    await removeDeviceToken(req.user._id, token);
+    res.json({ success: true, message: "Token removed" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  lookupAccount,
+  register,
+  login,
+  googleLogin,
+  firebaseLogin,
+  refreshToken,
+  forgotPasswordStatus,
+  requestPasswordReset,
+  resetPassword,
+  updateFcmToken,
+  deleteFcmToken,
+};

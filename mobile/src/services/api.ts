@@ -740,3 +740,13 @@ export async function verifyActivationOrder(orderId: string) {
   }>("/subscription/verify-activation", { orderId });
   return data;
 }
+
+export async function registerFcmToken(token: string, platform: string = "android") {
+  const { data } = await api.post("/auth/fcm-token", { token, platform });
+  return data;
+}
+
+export async function removeFcmToken(token: string) {
+  const { data } = await api.delete("/auth/fcm-token", { data: { token } });
+  return data;
+}

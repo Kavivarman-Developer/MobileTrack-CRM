@@ -5,6 +5,7 @@ const Payment = require("../models/Payment");
 const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
 const { emitToOrg } = require("../utils/emitEvent");
+const { sendLowStockAlert } = require("../services/notificationService");
 
 function scoped(orgId, extra = {}) {
   return orgId ? { ...extra, organizationId: orgId } : { ...extra, _id: null };
@@ -93,11 +94,24 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
   }], { session });
   const orderItems = [];
   const movements = [];
+  const lowStockAlerts = [];
 
   for (const item of normalizedItems) {
     const product = byId.get(item.product);
     product.stockQty -= item.qty;
     await product.save({ session });
+
+    const threshold = product.lowStockThreshold ?? 5;
+    if (product.stockQty <= threshold) {
+      lowStockAlerts.push({
+        _id: product._id,
+        name: product.name,
+        sku: product.sku,
+        stockQty: product.stockQty,
+        lowStockThreshold: threshold,
+      });
+    }
+
     const [orderItem] = await OrderItem.create([{
       order: order._id,
       organizationId,
@@ -128,18 +142,29 @@ async function createSaleOrder({ customer, items = [], discount = 0, gst = 0, pa
     await Customer.findOneAndUpdate(scoped(organizationId, { _id: customer }), { $inc: { pendingBalance: payment.due } }, { session });
   }
 
-  return order;
+  return { order, lowStockAlerts };
+}
+
+function dispatchLowStockAlerts(req, lowStockAlerts) {
+  if (!lowStockAlerts || !lowStockAlerts.length) return;
+  for (const prod of lowStockAlerts) {
+    emitToOrg(req, "inventory:low-stock", prod);
+    sendLowStockAlert(req.orgId, prod).catch((err) => {
+      console.warn("FCM Low Stock Push Warning:", err.message);
+    });
+  }
 }
 
 async function createOrder(req, res, next) {
   const session = await Order.startSession();
   try {
-    let order;
+    let result;
     await session.withTransaction(async () => {
-      order = await createSaleOrder({ ...req.body, createdBy: req.user?._id, organizationId: req.orgId }, session);
+      result = await createSaleOrder({ ...req.body, createdBy: req.user?._id, organizationId: req.orgId }, session);
     });
-    const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
+    const saved = await Order.findOne(scoped(req.orgId, { _id: result.order._id })).populate("customer items").populate({ path: "items", populate: "product" });
     emitToOrg(req, "order:created", saved);
+    dispatchLowStockAlerts(req, result.lowStockAlerts);
     res.status(201).json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
@@ -152,9 +177,9 @@ async function createOrder(req, res, next) {
 async function quickSale(req, res, next) {
   const session = await Order.startSession();
   try {
-    let order;
+    let result;
     await session.withTransaction(async () => {
-      order = await createSaleOrder({
+      result = await createSaleOrder({
         customer: req.body.customerId,
         items: req.body.items,
         paymentStatus: "paid",
@@ -164,8 +189,9 @@ async function quickSale(req, res, next) {
         organizationId: req.orgId,
       }, session);
     });
-    const saved = await Order.findOne(scoped(req.orgId, { _id: order._id })).populate("customer items").populate({ path: "items", populate: "product" });
+    const saved = await Order.findOne(scoped(req.orgId, { _id: result.order._id })).populate("customer items").populate({ path: "items", populate: "product" });
     emitToOrg(req, "order:created", saved);
+    dispatchLowStockAlerts(req, result.lowStockAlerts);
     res.status(201).json(saved);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });

@@ -24,6 +24,7 @@ import { logout, restoreCredentials } from "./src/redux/authSlice";
 import { store } from "./src/redux/store";
 import { useAppDispatch, useAppSelector } from "./src/hooks/redux";
 import { connectSocket, disconnectSocket } from "./src/services/socket";
+import { displayLowStockAlert, initializeNotifications } from "./src/services/notifications";
 
 const queryClient = new QueryClient();
 const navigationRef = createNavigationContainerRef();
@@ -73,6 +74,7 @@ const errStyles = StyleSheet.create({
 
 function SocketBridge() {
   useEffect(() => {
+    initializeNotifications();
     let currentToken: string | null = null;
     const unsubscribe = store.subscribe(() => {
       const state = store.getState();
@@ -90,6 +92,14 @@ function SocketBridge() {
         queryClient.invalidateQueries({ queryKey: ["products"] });
         queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
+      });
+      socket.on("inventory:low-stock", (product) => {
+        if (product) {
+          queryClient.invalidateQueries({ queryKey: ["products"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
+          displayLowStockAlert(product);
+        }
       });
       socket.on("order:created", () => {
         queryClient.invalidateQueries({ queryKey: ["dashboard"] });

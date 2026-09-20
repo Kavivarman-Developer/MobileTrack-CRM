@@ -19,6 +19,13 @@ const userSchema = new mongoose.Schema(
     blockedReason: { type: String, default: null },
     resetTokenHash: { type: String, default: null, select: false },
     resetTokenExpiry: { type: Date, default: null },
+    fcmTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, default: "android" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -132,6 +132,17 @@ async function updateProduct(req, res, next) {
     const product = await Product.findOneAndUpdate(scoped(req, { _id: req.params.id }), await productPayload(req.body, req.orgId), { returnDocument: "after" }).populate("category brand preferredVendor");
     if (!product) return res.status(404).json({ message: "Product not found" });
     emitToOrg(req, "product:updated", product);
+    if (product.stockQty <= (product.lowStockThreshold ?? 5)) {
+      emitToOrg(req, "inventory:low-stock", {
+        productId: product._id,
+        name: product.name,
+        sku: product.sku,
+        stockQty: product.stockQty,
+        lowStockThreshold: product.lowStockThreshold ?? 5,
+      });
+      const { sendLowStockAlert } = require("../services/notificationService");
+      sendLowStockAlert(req.orgId, product).catch(() => {});
+    }
     res.json(product);
   } catch (error) {
     sendProductError(error, res, next);

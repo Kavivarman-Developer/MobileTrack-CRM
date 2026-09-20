@@ -14,7 +14,16 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    // Alert.alert doesn't work on web — use window.confirm instead
+    if (Platform.OS === "web") {
+      const ok = window.confirm("Are you sure you want to sign out?");
+      if (!ok) return;
+      try { await signOut(firebaseAuth); } catch (_) {}
+      dispatch(logout());
+      return;
+    }
+
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {

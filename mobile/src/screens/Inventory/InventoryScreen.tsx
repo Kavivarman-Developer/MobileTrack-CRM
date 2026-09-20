@@ -294,21 +294,14 @@ export default function InventoryScreen() {
   return (
     <Screen style={styles.screen}>
       <IosScreenHeader
-        eyebrow="Stock control"
-        left={
-          !isDesktop ? (
-            <TouchableOpacity accessibilityLabel="Open menu" onPress={() => navigation.getParent()?.openDrawer?.()} style={styles.menuBtn}>
-              <Ionicons color={ios.label} name="menu" size={22} />
-            </TouchableOpacity>
-          ) : undefined
-        }
+        eyebrow="Stock Control"
         right={(
           <TouchableOpacity
             accessibilityLabel="Barcode generator"
             onPress={() => navigation.navigate("BarcodeGenerator")}
             style={styles.barcodeButton}
           >
-            <Ionicons color={ios.navy} name="scan-outline" size={20} />
+            <Ionicons color="#0F172A" name="scan-outline" size={20} />
           </TouchableOpacity>
         )}
         title="Items"
@@ -750,11 +743,15 @@ const styles = StyleSheet.create({
   },
   barcodeButton: {
     alignItems: "center",
-    backgroundColor: ios.card,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
     borderRadius: 12,
+    borderWidth: 1,
     height: 40,
     justifyContent: "center",
     width: 40,
+    ...shadows.card,
+    elevation: 2,
   },
 
   listContent: { paddingBottom: 40 },

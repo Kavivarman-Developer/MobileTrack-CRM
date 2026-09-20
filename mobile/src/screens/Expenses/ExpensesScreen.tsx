@@ -437,15 +437,19 @@ const styles = StyleSheet.create({
 
   addHeaderBtn: {
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: 999,
+    backgroundColor: "#0079F2",
+    borderRadius: 10,
     flexDirection: "row",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    ...shadows.sm,
+    gap: 5,
+    height: 38,
+    paddingHorizontal: 14,
+    shadowColor: "#0079F2",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  addHeaderBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13 },
+  addHeaderBtnText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600" },
 
   // Metric Cards
   metricsRow: { flexDirection: "row", gap: 8, marginTop: spacing.xs, marginBottom: spacing.md },

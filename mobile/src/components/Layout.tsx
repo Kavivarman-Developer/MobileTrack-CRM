@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,10 +10,13 @@ import {
   TextInput,
   TextInputProps,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
 import { ios } from "../constants/ios";
 import { colors, fonts, radius, shadows, spacing, typography } from "../constants/theme";
 
@@ -44,21 +48,33 @@ export function Eyebrow({ children, icon }: { children: ReactNode; icon?: keyof 
 export function PageHeader({
   eyebrow,
   title,
+  subtitle,
   left,
   right,
 }: {
   eyebrow?: string;
   title?: string;
+  subtitle?: string;
   left?: ReactNode;
   right?: ReactNode;
 }) {
   return (
     <View style={styles.pageHeader}>
       {left ? <View style={styles.pageHeaderLeft}>{left}</View> : null}
-      {(eyebrow || title) ? (
+      {eyebrow || title ? (
         <View style={styles.pageHeaderCopy}>
-          {eyebrow ? <Text style={styles.pageEyebrow}>{eyebrow}</Text> : null}
+          {eyebrow ? (
+            <View style={styles.headerEyebrowRow}>
+              <View style={styles.headerEyebrowBadge}>
+                <View style={styles.headerEyebrowDot} />
+                <Text numberOfLines={1} style={styles.headerEyebrowText}>
+                  {eyebrow}
+                </Text>
+              </View>
+            </View>
+          ) : null}
           {title ? <Text style={styles.pageTitle}>{title}</Text> : null}
+          {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
         </View>
       ) : <View style={styles.pageHeaderCopy} />}
       {right}
@@ -70,6 +86,7 @@ export function PageHeader({
 export function IosScreenHeader({
   eyebrow,
   title,
+  subtitle,
   onAdd,
   addLabel = "Add",
   left,
@@ -77,22 +94,79 @@ export function IosScreenHeader({
 }: {
   eyebrow?: string;
   title: string;
+  subtitle?: string;
   onAdd?: () => void;
   addLabel?: string;
   left?: ReactNode;
   right?: ReactNode;
 }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
+  const navigation = useNavigation<any>();
+
+  const renderedLeft =
+    left !== undefined
+      ? left
+      : !isDesktop ? (
+          <TouchableOpacity
+            accessibilityLabel="Open menu"
+            activeOpacity={0.7}
+            onPress={() => {
+              const drawer = navigation.getParent?.();
+              if (drawer?.openDrawer) {
+                drawer.openDrawer();
+              } else if (navigation.openDrawer) {
+                navigation.openDrawer();
+              }
+            }}
+            style={styles.headerMenuBtn}
+          >
+            <Ionicons color="#0F172A" name="menu-outline" size={22} />
+          </TouchableOpacity>
+        ) : null;
+
   return (
     <View style={styles.iosHeader}>
-      {left ? <View style={styles.iosHeaderSide}>{left}</View> : null}
+      {renderedLeft ? <View style={styles.iosHeaderSide}>{renderedLeft}</View> : null}
       <View style={styles.iosHeaderCopy}>
-        {eyebrow ? <Text style={styles.iosGreeting}>{eyebrow}</Text> : null}
-        <Text style={styles.iosTitle}>{title}</Text>
+        {eyebrow ? (
+          <View style={styles.headerEyebrowRow}>
+            <View style={styles.headerEyebrowBadge}>
+              <View style={styles.headerEyebrowDot} />
+              <Text numberOfLines={1} style={styles.headerEyebrowText}>
+                {eyebrow}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+        <Text numberOfLines={1} style={[styles.iosTitle, isDesktop && styles.iosTitleDesktop]}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text numberOfLines={1} style={styles.headerSubtitle}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-      {right}
+      {right ? <View style={styles.iosHeaderRight}>{right}</View> : null}
       {!right && onAdd ? (
-        <TouchableOpacity accessibilityLabel={addLabel} onPress={onAdd} style={styles.iosAdd}>
-          <Ionicons color="#FFFFFF" name="add" size={22} />
+        <TouchableOpacity
+          accessibilityLabel={addLabel}
+          activeOpacity={0.85}
+          onPress={onAdd}
+          style={[styles.headerAddBtn, isDesktop && styles.headerAddBtnDesktop]}
+        >
+          <LinearGradient
+            colors={["#0079F2", "#005AC2"]}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={[styles.headerAddGradient, isDesktop && styles.headerAddGradientDesktop]}
+          >
+            <Ionicons color="#FFFFFF" name="add" size={isDesktop ? 17 : 20} />
+            {isDesktop && addLabel ? (
+              <Text style={styles.headerAddLabel}>{addLabel}</Text>
+            ) : null}
+          </LinearGradient>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -646,11 +720,102 @@ const styles = StyleSheet.create({
   pageEyebrow: { color: ios.purpleEyebrow, fontFamily: fonts.semibold, fontSize: 11, fontWeight: "600", letterSpacing: 0.8, textTransform: "uppercase" },
   pageTitle: { color: ios.label, ...typography.h1, marginTop: 2 },
 
-  iosHeader: { alignItems: "flex-start", flexDirection: "row", marginBottom: spacing.md },
-  iosHeaderSide: { marginRight: spacing.sm, marginTop: 4 },
-  iosHeaderCopy: { flex: 1, paddingRight: spacing.sm },
+  iosHeader: {
+    alignItems: "center",
+    borderBottomColor: "#E2E8F0",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    paddingBottom: 12,
+    paddingTop: 4,
+  },
+  iosHeaderSide: { marginRight: 10 },
+  headerMenuBtn: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+    ...shadows.card,
+    elevation: 2,
+  },
+  iosHeaderCopy: { flex: 1, justifyContent: "center", minWidth: 0, paddingRight: spacing.sm },
+  headerEyebrowRow: { alignItems: "center", flexDirection: "row", marginBottom: 3 },
+  headerEyebrowBadge: {
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    borderColor: "#E0E7FF",
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  headerEyebrowDot: { backgroundColor: "#4F46E5", borderRadius: 3, height: 6, width: 6 },
+  headerEyebrowText: {
+    color: "#4338CA",
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
   iosGreeting: { color: ios.purpleEyebrow, fontFamily: fonts.semibold, fontSize: 11, fontWeight: "600", letterSpacing: 0.8, textTransform: "uppercase" },
-  iosTitle: { color: ios.label, fontFamily: fonts.bold, fontSize: 24, fontWeight: "700", letterSpacing: -0.5, marginTop: 2 },
+  iosTitle: {
+    color: "#0F172A",
+    fontFamily: fonts.bold,
+    fontSize: 21,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    lineHeight: 26,
+  },
+  iosTitleDesktop: {
+    fontSize: 25,
+    letterSpacing: -0.6,
+    lineHeight: 32,
+  },
+  headerSubtitle: {
+    color: "#64748B",
+    fontFamily: fonts.medium,
+    fontSize: 12.5,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  iosHeaderRight: { alignItems: "center", flexDirection: "row", justifyContent: "flex-end" },
+  headerAddBtn: {
+    borderRadius: 12,
+    elevation: 3,
+    overflow: "hidden",
+    shadowColor: "#0079F2",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  headerAddBtnDesktop: { borderRadius: 10 },
+  headerAddGradient: {
+    alignItems: "center",
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  headerAddGradientDesktop: {
+    flexDirection: "row",
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 14,
+    width: "auto",
+  },
+  headerAddLabel: {
+    color: "#FFFFFF",
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   iosAdd: {
     alignItems: "center",
     backgroundColor: ios.blue,
@@ -904,11 +1069,15 @@ const styles = StyleSheet.create({
 
   iconButton: {
     alignItems: "center",
-    backgroundColor: ios.fill,
-    borderRadius: radius.pill,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    borderWidth: 1,
     height: 38,
     justifyContent: "center",
     width: 38,
+    ...shadows.card,
+    elevation: 2,
   },
   searchFieldWrap: { justifyContent: "center", position: "relative" },
   searchFieldIcon: { left: spacing.md, position: "absolute", zIndex: 2 },

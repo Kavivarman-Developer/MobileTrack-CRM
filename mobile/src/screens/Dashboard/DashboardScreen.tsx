@@ -625,9 +625,12 @@ const styles = StyleSheet.create({
   /* 1. Header */
   header: {
     alignItems: "center",
+    borderBottomColor: "#E2E8F0",
+    borderBottomWidth: 1,
     flexDirection: "row",
     marginBottom: 16,
-    paddingVertical: 4,
+    paddingBottom: 12,
+    paddingTop: 4,
   },
   menuBtn: {
     alignItems: "center",

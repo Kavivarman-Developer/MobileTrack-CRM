@@ -1,21 +1,18 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import Toast from "react-native-toast-message";
 import Svg, { Path } from "react-native-svg";
@@ -32,16 +29,33 @@ import { spacing } from "../../constants/theme";
 import { firebaseApp, firebaseAuth } from "../../config/firebase";
 import { useAppDispatch } from "../../hooks/redux";
 import { setCredentials } from "../../redux/authSlice";
-import { FirebasePhoneAuthBridge, FirebasePhoneAuthBridgeRef } from "../../components/FirebasePhoneAuthBridge";
-import { apiErrorMessage, AuthLookupResult, firebaseLogin, lookupAccount } from "../../services/api";
-import { showErrorToast, showSuccessToast, toastConfig } from "../../utils/toast";
+import {
+  apiErrorMessage,
+  AuthLookupResult,
+  firebaseLogin,
+  lookupAccount,
+} from "../../services/api";
+import {
+  showErrorToast,
+  showSuccessToast,
+  toastConfig,
+} from "../../utils/toast";
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
+import { Ionicons } from "@expo/vector-icons";
 
-type AuthStep = "identifier" | "email-password" | "email-register" | "otp" | "phone-register";
+type AuthStep =
+  | "identifier"
+  | "email-password"
+  | "email-register"
+  | "otp"
+  | "phone-register";
 
 const brand = {
   navy: "#0D3666",
+  navyDark: "#09294E",
   orange: "#F59926",
   cream: "#FEF5E9",
+  white: "#FFFFFF",
   muted: "#5E748B",
   border: "#D2DCE7",
   inputBorder: "#C5D3E1",
@@ -52,23 +66,23 @@ const brand = {
 
 const fonts = {
   regular: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_400Regular",
   }),
   semibold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_600SemiBold",
   }),
   bold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_700Bold",
   }),
   extraBold: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_800ExtraBold",
   }),
   medium: Platform.select({
-    web: "'Nunito Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    web: "'Nunito Sans', 'Inter', sans-serif",
     default: "NunitoSans_600SemiBold",
   }),
 };
@@ -84,24 +98,21 @@ function isPhone(value: string) {
 
 function toE164(value: string) {
   const digits = value.replace(/\D/g, "");
-  if (value.trim().startsWith("+")) return `+${digits}`;
-  if (digits.length === 10) return `+91${digits}`;
-  return `+${digits}`;
-}
 
-function formatDisplayPhone(value: string) {
-  const trimmed = value.trim();
-  if (isEmail(trimmed)) return trimmed;
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  if (value.trim().startsWith("+")) {
+    return `+${digits}`;
   }
-  if (trimmed.startsWith("+")) return trimmed;
-  return `+91 ${digits}`;
+
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+
+  return `+${digits}`;
 }
 
 function firebaseErrorMessage(error: unknown) {
   const code = (error as any)?.code as string | undefined;
+
   const map: Record<string, string> = {
     "auth/wrong-password": "Incorrect password.",
     "auth/invalid-credential": "Incorrect email or password.",
@@ -113,48 +124,58 @@ function firebaseErrorMessage(error: unknown) {
     "auth/too-many-requests": "Too many attempts. Try again later.",
     "auth/invalid-phone-number": "Enter a valid mobile number.",
   };
-  if (code && map[code]) return map[code];
-  return (error as Error)?.message?.replace(/^Firebase:\s*/, "") || "Something went wrong";
+
+  if (code && map[code]) {
+    return map[code];
+  }
+
+  return (
+    (error as Error)?.message?.replace(/^Firebase:\s*/, "") ||
+    "Something went wrong"
+  );
 }
 
+function StepBadge({ n }: { n: number }) {
+  return (
+    <View style={styles.stepBadge}>
+      <Text style={styles.stepBadgeText}>{n}</Text>
+    </View>
+  );
+}
 
 function PrimaryCTA({
   title,
   onPress,
   loading,
   icon,
-  isDesktop,
 }: {
   title: string;
   onPress: () => void;
   loading?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
-  isDesktop?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ busy: Boolean(loading), disabled: Boolean(loading) }}
       disabled={loading}
       onPress={onPress}
       style={({ pressed }) => [
         styles.ctaWrapper,
-        isDesktop && styles.desktopCtaWrapper,
         pressed && styles.ctaPressed,
       ]}
     >
       <LinearGradient
-        colors={["#134A85", brand.navy]}
-        end={{ x: 1, y: 1 }}
+        colors={["#1A5B97", brand.navy]}
         start={{ x: 0, y: 0 }}
-        style={[styles.ctaGradient, isDesktop && styles.desktopCtaGradient]}
+        end={{ x: 1, y: 1 }}
+        style={styles.ctaGradient}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" size="small" />
         ) : (
           <>
-            <Text style={[styles.ctaText, isDesktop && styles.desktopCtaText]}>{title}</Text>
-            <Ionicons color="#FFFFFF" name={icon} size={isDesktop ? 22 : 19} />
+            <Ionicons color="#FFFFFF" name={icon} size={18} />
+            <Text style={styles.ctaText}>{title}</Text>
           </>
         )}
       </LinearGradient>
@@ -162,198 +183,377 @@ function PrimaryCTA({
   );
 }
 
-async function sendPhoneOtpWeb(phone: string): Promise<any> {
-  const formattedPhone = toE164(phone);
-  const fb = require("firebase/compat/app").default || require("firebase/compat/app");
-  require("firebase/compat/auth");
-
-  let container = document.getElementById("recaptcha-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "recaptcha-container";
-    document.body.appendChild(container);
-  }
-
-  if ((window as any).recaptchaVerifier) {
-    try {
-      (window as any).recaptchaVerifier.clear();
-    } catch (e) {}
-  }
-
-  const verifier = new fb.auth.RecaptchaVerifier("recaptcha-container", {
-    size: "invisible",
-  });
-  (window as any).recaptchaVerifier = verifier;
-
-  return await fb.auth().signInWithPhoneNumber(formattedPhone, verifier);
-}
-
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
-  const confirmationRef = useRef<any>(null);
-  const pendingIdTokenRef = useRef<string | null>(null);
-  const phoneInputRef = useRef<TextInput>(null);
-  const phoneAuthBridgeRef = useRef<FirebasePhoneAuthBridgeRef>(null);
 
-  const [step, setStep] = useState<AuthStep>("identifier");
+  const recaptchaVerifier =
+    useRef<FirebaseRecaptchaVerifierModal>(null);
+
+  const confirmationRef =
+    useRef<ConfirmationResult | null>(null);
+
+  const pendingIdTokenRef =
+    useRef<string | null>(null);
+
+  const [step, setStep] =
+    useState<AuthStep>("identifier");
+
   const [identifier, setIdentifier] = useState("");
-  const [lookup, setLookup] = useState<AuthLookupResult | null>(null);
+  const [lookup, setLookup] =
+    useState<AuthLookupResult | null>(null);
+
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [otpCode, setOtpCode] = useState("");
+
   const [rememberMe, setRememberMe] = useState(true);
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
 
-  const accountEmail = lookup?.kind === "email" ? identifier.trim().toLowerCase() : "";
+  const accountEmail =
+    lookup?.kind === "email"
+      ? identifier.trim().toLowerCase()
+      : "";
 
-  const stepCopy = useMemo(() => {
-    if (step === "identifier") return { n: 1, title: "Enter Mobile Number", hint: "We’ll send you a secure OTP to continue." };
-    if (step === "email-password")
-      return { n: 2, title: lookup?.nameHint ? `Welcome back, ${lookup.nameHint}` : "Enter Password", hint: "Login to your account" };
-    if (step === "email-register") return { n: 2, title: "Create shop account", hint: "Soft signup — just a few details to get started." };
-    if (step === "otp") return { n: 2, title: "Enter OTP", hint: `We’ve sent a code to ${identifier.trim()}` };
-    return { n: 2, title: "Almost there", hint: "Tell us a bit about your shop." };
-  }, [identifier, lookup?.nameHint, step]);
+  const stepCopy = (() => {
+    switch (step) {
+      case "email-password":
+        return {
+          n: 2,
+          title: lookup?.nameHint
+            ? `Welcome back, ${lookup.nameHint}`
+            : "Enter Password",
+          hint: "Login to your account",
+        };
+
+      case "email-register":
+        return {
+          n: 2,
+          title: "Create shop account",
+          hint: "Just a few details to get started.",
+        };
+
+      case "otp":
+        return {
+          n: 2,
+          title: "Enter OTP",
+          hint: `Code sent to ${identifier.trim()}`,
+        };
+
+      case "phone-register":
+        return {
+          n: 2,
+          title: "Almost there",
+          hint: "Tell us a little about your shop.",
+        };
+
+      default:
+        return {
+          n: 1,
+          title: "Enter Mobile Number",
+          hint: "We'll send you a secure OTP to continue.",
+        };
+    }
+  })();
 
   function goBack() {
-    if (step === "identifier") return;
+    if (step === "identifier") {
+      return;
+    }
+
     setStep("identifier");
     setLookup(null);
     setPassword("");
     setConfirmPassword("");
     setShowPassword(false);
     setOtpCode("");
+
     confirmationRef.current = null;
     pendingIdTokenRef.current = null;
   }
 
-  async function finalizeLogin(idToken: string, nameValue?: string, businessNameValue?: string) {
-    const data = await firebaseLogin(idToken, nameValue, businessNameValue);
+  async function finalizeLogin(
+    idToken: string,
+    nameValue?: string,
+    businessNameValue?: string
+  ) {
+    const data = await firebaseLogin(
+      idToken,
+      nameValue,
+      businessNameValue
+    );
+
     dispatch(setCredentials(data));
   }
 
-  const checkAccount = useMutation({
-    mutationFn: () => lookupAccount(identifier.trim()),
-    onSuccess: (data) => {
-      setLookup(data);
-      setPassword("");
-      setConfirmPassword("");
-      if (data.kind === "email") {
-        setStep(data.exists ? "email-password" : "email-register");
-      } else {
-        sendOtp.mutate();
-      }
-    },
-    onError: (error: Error) => showErrorToast(apiErrorMessage(error), "Check failed"),
-  });
-
   const sendOtp = useMutation({
     mutationFn: async () => {
-      const formattedPhone = toE164(identifier);
-      if (Platform.OS === "web") {
-        const confirmation = await sendPhoneOtpWeb(identifier);
-        confirmationRef.current = confirmation;
-      } else {
-        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
-        const verificationId = await phoneAuthBridgeRef.current.sendOtp(formattedPhone);
-        confirmationRef.current = verificationId;
+      const verifier = recaptchaVerifier.current;
+
+      if (!verifier) {
+        throw new Error(
+          "Verification is not ready. Try again."
+        );
       }
+
+      const confirmation =
+        await signInWithPhoneNumber(
+          firebaseAuth,
+          toE164(identifier),
+          verifier
+        );
+
+      confirmationRef.current = confirmation;
     },
+
     onSuccess: () => {
       setOtpCode("");
       setStep("otp");
     },
-    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Could not send OTP"),
+
+    onError: (error) => {
+      showErrorToast(
+        firebaseErrorMessage(error),
+        "Could not send OTP"
+      );
+    },
+  });
+
+  const checkAccount = useMutation({
+    mutationFn: () =>
+      lookupAccount(identifier.trim()),
+
+    onSuccess: (data) => {
+      setLookup(data);
+      setPassword("");
+      setConfirmPassword("");
+
+      if (data.kind === "email") {
+        setStep(
+          data.exists
+            ? "email-password"
+            : "email-register"
+        );
+      } else {
+        sendOtp.mutate();
+      }
+    },
+
+    onError: (error: Error) => {
+      showErrorToast(
+        apiErrorMessage(error),
+        "Check failed"
+      );
+    },
   });
 
   const confirmOtp = useMutation({
     mutationFn: async () => {
-      if (Platform.OS === "web") {
-        if (!confirmationRef.current) throw new Error("Request a new OTP.");
-        const credential = await confirmationRef.current.confirm(otpCode.trim());
-        return credential.user.getIdToken();
-      } else {
-        if (!phoneAuthBridgeRef.current) throw new Error("Security verification bridge is starting, please try again");
-        return await phoneAuthBridgeRef.current.confirmOtp(otpCode.trim());
+      if (!confirmationRef.current) {
+        throw new Error("Request a new OTP.");
       }
+
+      const credential =
+        await confirmationRef.current.confirm(
+          otpCode.trim()
+        );
+
+      return credential.user.getIdToken();
     },
+
     onSuccess: async (idToken) => {
       if (lookup?.exists) {
         try {
           await finalizeLogin(idToken);
         } catch (error) {
-          showErrorToast(apiErrorMessage(error), "Login failed");
+          showErrorToast(
+            apiErrorMessage(error),
+            "Login failed"
+          );
         }
       } else {
         pendingIdTokenRef.current = idToken;
         setStep("phone-register");
       }
     },
-    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Verification failed"),
+
+    onError: (error) => {
+      showErrorToast(
+        firebaseErrorMessage(error),
+        "Verification failed"
+      );
+    },
   });
 
   const emailSignIn = useMutation({
     mutationFn: async () => {
-      const credential = await signInWithEmailAndPassword(firebaseAuth, identifier.trim().toLowerCase(), password);
-      const idToken = await credential.user.getIdToken();
+      const credential =
+        await signInWithEmailAndPassword(
+          firebaseAuth,
+          identifier.trim().toLowerCase(),
+          password
+        );
+
+      const idToken =
+        await credential.user.getIdToken();
+
       await finalizeLogin(idToken);
     },
-    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Login failed"),
+
+    onError: (error) => {
+      showErrorToast(
+        firebaseErrorMessage(error),
+        "Login failed"
+      );
+    },
   });
 
   const emailRegister = useMutation({
     mutationFn: async () => {
-      const credential = await createUserWithEmailAndPassword(firebaseAuth, identifier.trim().toLowerCase(), password);
-      const idToken = await credential.user.getIdToken();
-      await finalizeLogin(idToken, name.trim(), businessName.trim() || undefined);
+      const credential =
+        await createUserWithEmailAndPassword(
+          firebaseAuth,
+          identifier.trim().toLowerCase(),
+          password
+        );
+
+      const idToken =
+        await credential.user.getIdToken();
+
+      await finalizeLogin(
+        idToken,
+        name.trim(),
+        businessName.trim() || undefined
+      );
     },
-    onSuccess: () => showSuccessToast("Shop ready", "Welcome aboard"),
-    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Signup failed"),
+
+    onSuccess: () => {
+      showSuccessToast(
+        "Shop ready",
+        "Welcome aboard"
+      );
+    },
+
+    onError: (error) => {
+      showErrorToast(
+        firebaseErrorMessage(error),
+        "Signup failed"
+      );
+    },
   });
 
   const phoneRegister = useMutation({
     mutationFn: async () => {
-      if (!pendingIdTokenRef.current) throw new Error("Session expired. Verify your mobile again.");
-      await finalizeLogin(pendingIdTokenRef.current, name.trim(), businessName.trim() || undefined);
+      if (!pendingIdTokenRef.current) {
+        throw new Error(
+          "Session expired. Verify your mobile again."
+        );
+      }
+
+      await finalizeLogin(
+        pendingIdTokenRef.current,
+        name.trim(),
+        businessName.trim() || undefined
+      );
     },
-    onSuccess: () => showSuccessToast("Shop ready", "Welcome aboard"),
-    onError: (error: Error) => showErrorToast(apiErrorMessage(error), "Signup failed"),
+
+    onSuccess: () => {
+      showSuccessToast(
+        "Shop ready",
+        "Welcome aboard"
+      );
+    },
+
+    onError: (error: Error) => {
+      showErrorToast(
+        apiErrorMessage(error),
+        "Signup failed"
+      );
+    },
   });
 
   function submitIdentifier() {
     const value = identifier.trim();
-    if (!value) return Alert.alert("Required", "Enter your email or mobile number.");
-    if (!isEmail(value) && !isPhone(value)) {
-      return Alert.alert("Invalid", "Use a valid email or 10-digit mobile number.");
+
+    if (!value) {
+      return Alert.alert(
+        "Required",
+        "Enter your email or mobile number."
+      );
     }
+
+    if (!isEmail(value) && !isPhone(value)) {
+      return Alert.alert(
+        "Invalid",
+        "Use a valid email or 10-digit mobile number."
+      );
+    }
+
     checkAccount.mutate();
   }
 
   function submitEmailPassword() {
-    if (password.length < 6) return Alert.alert("Password", "Enter your password.");
+    if (password.length < 6) {
+      return Alert.alert(
+        "Password",
+        "Enter your password."
+      );
+    }
+
     emailSignIn.mutate();
   }
 
   function submitEmailRegister() {
-    if (!name.trim()) return Alert.alert("Name required", "Enter your name.");
-    if (password.length < 6) return Alert.alert("Weak password", "Password must be at least 6 characters.");
-    if (password !== confirmPassword) return Alert.alert("Mismatch", "Passwords do not match.");
+    if (!name.trim()) {
+      return Alert.alert(
+        "Name required",
+        "Enter your name."
+      );
+    }
+
+    if (password.length < 6) {
+      return Alert.alert(
+        "Weak password",
+        "Password must be at least 6 characters."
+      );
+    }
+
+    if (password !== confirmPassword) {
+      return Alert.alert(
+        "Mismatch",
+        "Passwords do not match."
+      );
+    }
+
     emailRegister.mutate();
   }
 
   function submitOtp() {
-    if (otpCode.trim().length < 6) return Alert.alert("OTP", "Enter the 6-digit code.");
+    if (otpCode.trim().length < 6) {
+      return Alert.alert(
+        "OTP",
+        "Enter the 6-digit code."
+      );
+    }
+
     confirmOtp.mutate();
   }
 
   function submitPhoneRegister() {
-    if (!name.trim()) return Alert.alert("Name required", "Enter your name.");
+    if (!name.trim()) {
+      return Alert.alert(
+        "Name required",
+        "Enter your name."
+      );
+    }
+
     phoneRegister.mutate();
   }
 
@@ -364,471 +564,933 @@ export default function LoginScreen() {
   }
 
   const requestReset = useMutation({
-    mutationFn: () => sendPasswordResetEmail(firebaseAuth, resetEmail.trim().toLowerCase()),
+    mutationFn: () =>
+      sendPasswordResetEmail(
+        firebaseAuth,
+        resetEmail.trim().toLowerCase()
+      ),
+
     onSuccess: () => {
       setResetSent(true);
-      showSuccessToast("Check your email", "We sent a password reset link.");
+
+      showSuccessToast(
+        "Check your email",
+        "We sent a password reset link."
+      );
     },
-    onError: (error) => showErrorToast(firebaseErrorMessage(error), "Request failed"),
+
+    onError: (error) => {
+      showErrorToast(
+        firebaseErrorMessage(error),
+        "Request failed"
+      );
+    },
   });
-
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === "web" && width >= 860;
-
-  function renderFormSteps() {
-    return (
-      <>
-        {/* STEP 1: Phone / Email Entry */}
-        {step === "identifier" && (
-          <View style={styles.stepBody}>
-            <Pressable
-              onPress={() => phoneInputRef.current?.focus()}
-              style={[styles.phoneInputContainer, isDesktop && styles.desktopPhoneInputContainer]}
-            >
-              <View pointerEvents="none" style={styles.countryPickerBox}>
-                <Text style={[styles.countryCodeText, isDesktop && styles.desktopCountryCodeText]}>+91</Text>
-                <Ionicons color={brand.muted} name="chevron-down" size={12} style={{ marginLeft: 2 }} />
-              </View>
-              <View pointerEvents="none" style={[styles.phoneInputDivider, isDesktop && { height: 22 }]} />
-              <TextInput
-                ref={phoneInputRef}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                textContentType="telephoneNumber"
-                onChangeText={setIdentifier}
-                onSubmitEditing={submitIdentifier}
-                placeholder="Mobile number"
-                placeholderTextColor="#94A3B8"
-                returnKeyType="done"
-                selectionColor={brand.navy}
-                cursorColor={brand.navy}
-                style={[styles.phoneTextInput, isDesktop && styles.desktopPhoneTextInput]}
-                value={identifier}
-              />
-            </Pressable>
-
-            <PrimaryCTA
-              icon="arrow-forward"
-              isDesktop={isDesktop}
-              loading={checkAccount.isPending || sendOtp.isPending}
-              onPress={submitIdentifier}
-              title="Get OTP"
-            />
-          </View>
-        )}
-
-        {/* STEP 2: Password Step (Existing Email Users) */}
-        {step === "email-password" && (
-          <View style={styles.stepBody}>
-            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
-              <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="phone-portrait-outline" size={isDesktop ? 20 : 18} />
-                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{formatDisplayPhone(identifier)}</Text>
-              </View>
-              <Pressable onPress={goBack} style={styles.changeLink}>
-                <Text style={styles.changeLinkText}>Change</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
-              <Field
-                autoComplete="password"
-                onChangeText={setPassword}
-                onSubmitEditing={submitEmailPassword}
-                placeholder="Enter your password"
-                secureTextEntry={!showPassword}
-                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
-                value={password}
-              />
-              <Pressable
-                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                onPress={() => setShowPassword((v) => !v)}
-                style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}
-              >
-                <Ionicons
-                  color={brand.muted}
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={isDesktop ? 20 : 18}
-                />
-              </Pressable>
-            </View>
-
-            <View style={styles.rememberRow}>
-              <Pressable onPress={() => setRememberMe((v) => !v)} style={styles.rememberLeft}>
-                <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
-                  {rememberMe && <Ionicons color="#FFFFFF" name="checkmark" size={11} />}
-                </View>
-                <Text style={styles.rememberText}>Remember me</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setResetEmail(accountEmail || identifier);
-                  setResetSent(false);
-                  setResetOpen(true);
-                }}
-              >
-                <Text style={styles.forgotText}>Forgot password?</Text>
-              </Pressable>
-            </View>
-
-            <PrimaryCTA
-              icon="log-in-outline"
-              isDesktop={isDesktop}
-              loading={emailSignIn.isPending}
-              onPress={submitEmailPassword}
-              title="Login"
-            />
-
-            <Pressable onPress={goBack} style={styles.createPanel}>
-              <Text style={styles.createPanelText}>Don’t have an account?</Text>
-              <Text style={styles.createPanelLink}>Create one →</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* STEP 3: Email Register */}
-        {step === "email-register" && (
-          <View style={styles.stepBody}>
-            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
-              <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
-                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.label}>Your name</Text>
-            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
-
-            <Text style={styles.label}>Shop name</Text>
-            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
-
-            <Text style={styles.label}>Create password</Text>
-            <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="lock-closed-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
-              <Field
-                onChangeText={setPassword}
-                placeholder="Min 6 characters"
-                secureTextEntry={!showPassword}
-                style={[styles.inputWithIconRight, isDesktop && styles.desktopInput]}
-                value={password}
-              />
-              <Pressable onPress={() => setShowPassword((v) => !v)} style={[styles.eyeButton, isDesktop && { height: 56, width: 44 }]}>
-                <Ionicons
-                  color={brand.muted}
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={isDesktop ? 20 : 18}
-                />
-              </Pressable>
-            </View>
-
-            <Text style={styles.label}>Confirm password</Text>
-            <Field
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter password"
-              secureTextEntry={!showPassword}
-              style={isDesktop ? styles.desktopInput : undefined}
-              value={confirmPassword}
-            />
-
-            <PrimaryCTA
-              icon="checkmark-circle-outline"
-              isDesktop={isDesktop}
-              loading={emailRegister.isPending}
-              onPress={submitEmailRegister}
-              title="Create account & enter"
-            />
-          </View>
-        )}
-
-        {/* STEP 4: OTP Verification */}
-        {step === "otp" && (
-          <View style={styles.stepBody}>
-            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
-              <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="call-outline" size={isDesktop ? 20 : 16} />
-                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>{identifier.trim()}</Text>
-              </View>
-              <Pressable onPress={goBack} style={styles.changeLink}>
-                <Text style={styles.changeLinkText}>Change</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.inputWrap}>
-              <Ionicons color={brand.muted} name="keypad-outline" size={isDesktop ? 20 : 18} style={[styles.inputIcon, isDesktop && { left: 16 }]} />
-              <Field
-                keyboardType="number-pad"
-                maxLength={6}
-                onChangeText={setOtpCode}
-                onSubmitEditing={submitOtp}
-                placeholder="Enter 6-digit OTP"
-                style={[styles.inputWithIcon, isDesktop && styles.desktopInput]}
-                value={otpCode}
-              />
-            </View>
-
-            <PrimaryCTA
-              icon="checkmark-circle-outline"
-              isDesktop={isDesktop}
-              loading={confirmOtp.isPending}
-              onPress={submitOtp}
-              title="Verify & continue"
-            />
-
-            <Pressable onPress={() => sendOtp.mutate()} style={styles.forgotButton}>
-              <Text style={styles.forgotText}>
-                {sendOtp.isPending ? "Sending..." : "Resend code"}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* STEP 5: Phone Onboarding / Shop Details */}
-        {step === "phone-register" && (
-          <View style={styles.stepBody}>
-            <View style={[styles.selectedIdentifierBox, isDesktop && { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12 }]}>
-              <View style={styles.selectedIdentifierLeft}>
-                <Ionicons color={brand.navy} name="person-add-outline" size={isDesktop ? 20 : 16} />
-                <Text style={[styles.selectedIdentifierText, isDesktop && { fontSize: 14 }]}>New shop · {identifier.trim()}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.label}>Your name</Text>
-            <Field onChangeText={setName} placeholder="Owner name" style={isDesktop ? styles.desktopInput : undefined} value={name} />
-
-            <Text style={styles.label}>Shop name</Text>
-            <Field onChangeText={setBusinessName} placeholder="e.g. Metro Mobiles" style={isDesktop ? styles.desktopInput : undefined} value={businessName} />
-
-            <PrimaryCTA
-              icon="checkmark-circle-outline"
-              isDesktop={isDesktop}
-              loading={phoneRegister.isPending}
-              onPress={submitPhoneRegister}
-              title="Create account & enter"
-            />
-          </View>
-        )}
-      </>
-    );
-  }
-
-  function renderTrustBar() {
-    return (
-      <View style={[styles.featureRow, isDesktop && styles.desktopFeatureRow]}>
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
-            <Ionicons color={brand.orange} name="shield-checkmark" size={isDesktop ? 18 : 16} />
-          </View>
-          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Safe & Secure</Text>
-          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Bank-grade privacy</Text>
-        </View>
-        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
-            <Ionicons color={brand.orange} name="flash" size={isDesktop ? 18 : 16} />
-          </View>
-          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Fast Access</Text>
-          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Instant OTP login</Text>
-        </View>
-        <View style={[styles.featureDivider, isDesktop && styles.desktopFeatureDivider]} />
-        <View style={styles.featureItem}>
-          <View style={[styles.featureIconBadge, isDesktop && styles.desktopFeatureIconBadge]}>
-            <Ionicons color={brand.orange} name="cube" size={isDesktop ? 18 : 16} />
-          </View>
-          <Text style={[styles.featureTitle, isDesktop && styles.desktopFeatureTitle]}>Manage Stock</Text>
-          <Text style={[styles.featureSubtitle, isDesktop && styles.desktopFeatureSubtitle]}>Live inventory</Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+      <StatusBar
+        style="light"
+      />
 
-      {isDesktop ? (
-        /* ================= DESKTOP SPLIT VIEW (100% Full Viewport) ================= */
-        <View style={styles.desktopContainer}>
-          {/* Left Column: Full-Height Hero Showcase */}
-          <View style={styles.desktopHeroColumn}>
-            <Image
-              resizeMode="cover"
-              source={require("../../../assets/hero.jpeg")}
-              style={StyleSheet.absoluteFill}
-            />
-            <LinearGradient
-              colors={["rgba(6, 24, 48, 0.90)", "rgba(10, 37, 71, 0.82)", "rgba(5, 18, 36, 0.95)"]}
-              locations={[0, 0.45, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.desktopHeroContent}>
-              {/* Brand Header */}
-              <View style={styles.desktopBrandHeader}>
-                <View style={styles.desktopLogoBadge}>
-                  <Ionicons color="#FFFFFF" name="storefront" size={26} />
-                </View>
-                <View>
-                  <Text style={styles.desktopBrandTitle}>Kadai Kanakku</Text>
-                  <Text style={styles.desktopBrandTagline}>Smart Retail POS & Billing</Text>
-                </View>
-              </View>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseApp.options as any}
+        attemptInvisibleVerification
+      />
 
-              {/* Value Proposition */}
-              <View style={styles.desktopHeroCenter}>
-                <Text style={styles.desktopHeroSlogan}>
-                  Smart Retail POS & Billing Platform
-                </Text>
-                <Svg height="10" width="130" viewBox="0 0 130 10" style={{ marginTop: 8, marginBottom: 14 }}>
-                  <Path d="M 4 3 Q 65 9 126 3" fill="none" stroke={brand.orange} strokeWidth="3.5" strokeLinecap="round" />
-                </Svg>
-                <Text style={styles.desktopHeroDescription}>
-                  Manage billing, barcode scanner, live stock alerts, customer khata, and daily profit totals seamlessly from your phone or desktop.
-                </Text>
-              </View>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : undefined
+        }
+      >
+        {/* =====================================================
+            FIXED SHOP BACKGROUND
+            ===================================================== */}
 
-              {/* Bottom Trust Cards on Left Showcase */}
-              <View style={styles.desktopTrustRow}>
-                <View style={styles.desktopTrustCard}>
-                  <View style={styles.featureIconBadge}>
-                    <Ionicons color={brand.orange} name="shield-checkmark" size={17} />
-                  </View>
-                  <Text style={styles.desktopTrustTitle}>Safe & Secure</Text>
-                  <Text style={styles.desktopTrustSubtitle}>Encrypted cloud store</Text>
-                </View>
+        <View style={styles.fixedHero}>
+          <Image
+            source={require("../../../assets/hero.jpeg")}
+            style={styles.heroImage}
+            contentFit="cover"
+            transition={300}
+          />
 
-                <View style={styles.desktopTrustCard}>
-                  <View style={styles.featureIconBadge}>
-                    <Ionicons color={brand.orange} name="flash" size={17} />
-                  </View>
-                  <Text style={styles.desktopTrustTitle}>Fast Access</Text>
-                  <Text style={styles.desktopTrustSubtitle}>1-Click instant login</Text>
-                </View>
+          {/* Dark transparent top layer */}
+          <LinearGradient
+            colors={[
+              "rgba(0,0,0,0.25)",
+              "rgba(0,0,0,0.02)",
+              "rgba(0,0,0,0)",
+            ]}
+            locations={[0, 0.35, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
 
-                <View style={styles.desktopTrustCard}>
-                  <View style={styles.featureIconBadge}>
-                    <Ionicons color={brand.orange} name="cube" size={17} />
-                  </View>
-                  <Text style={styles.desktopTrustTitle}>Manage Stock</Text>
-                  <Text style={styles.desktopTrustSubtitle}>Realtime inventory</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+          {/* Bottom fade */}
+          <LinearGradient
+            colors={[
+              "rgba(254,245,233,0)",
+              "rgba(254,245,233,0.15)",
+              "rgba(254,245,233,0.90)",
+              brand.cream,
+            ]}
+            locations={[
+              0,
+              0.48,
+              0.82,
+              1,
+            ]}
+            style={styles.heroFade}
+            pointerEvents="none"
+          />
 
-          {/* Right Column: Centered Form Card */}
-          <View style={styles.desktopFormColumn}>
-            <ScrollView
-              contentContainerStyle={styles.desktopFormScroll}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {step !== "identifier" && (
-                <Pressable onPress={goBack} style={styles.desktopBackRow}>
-                  <Ionicons color={brand.navy} name="arrow-back" size={16} />
-                  <Text style={styles.desktopBackText}>Back to Mobile / Email</Text>
-                </Pressable>
-              )}
+          {/* Small shop label */}
+          <View style={styles.heroLabel}>
+            <View style={styles.heroLabelDot} />
 
-              <View style={styles.desktopCard}>
-                <View style={[styles.stepHeaderRow, styles.desktopStepHeaderRow]}>
-                  <Text style={styles.desktopCardTitle}>{stepCopy.title}</Text>
-                  <Text style={styles.desktopCardHint}>{stepCopy.hint}</Text>
-                </View>
-
-                {renderFormSteps()}
-              </View>
-
-              {/* Trust Bar below form */}
-              {renderTrustBar()}
-
-              <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
-            </ScrollView>
+            <Text style={styles.heroLabelText}>
+              YOUR SHOP • YOUR BUSINESS
+            </Text>
           </View>
         </View>
-      ) : (
-        /* ================= MOBILE VIEW (Full Height Scrollable) ================= */
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.container}
-        >
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Hero Storefront Banner */}
-            <View style={styles.heroWrapper}>
-              <Image
-                resizeMode="cover"
-                source={require("../../../assets/hero.jpeg")}
-                style={styles.heroImage}
+
+        {/* =====================================================
+            MAIN NON-SCROLLING CONTENT
+            ===================================================== */}
+
+        <View style={styles.mainContent}>
+
+          {/* Back button */}
+          {step !== "identifier" ? (
+            <Pressable
+              onPress={goBack}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={17}
+                color="#FFFFFF"
               />
-              <LinearGradient
-                colors={["rgba(13,54,102,0.35)", "rgba(13,54,102,0.02)", "rgba(254,245,233,0.85)", brand.cream]}
-                locations={[0, 0.45, 0.88, 1]}
-                style={StyleSheet.absoluteFill}
-              />
-              {step !== "identifier" && (
-                <View style={styles.floatingTopBar}>
-                  <Pressable onPress={goBack} style={styles.topBackPill}>
-                    <Ionicons color="#FFFFFF" name="arrow-back" size={16} />
-                    <Text style={styles.topBackPillText}>Back</Text>
+
+              <Text style={styles.backText}>
+                Back
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {/* ===================================================
+              BRAND
+              =================================================== */}
+
+          <View style={styles.brandBlock}>
+
+            <View style={styles.logoOuter}>
+              <View style={styles.logoBadge}>
+                <Ionicons
+                  color="#FFFFFF"
+                  name="home"
+                  size={29}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.brandName}>
+              <Text style={styles.brandDark}>
+                Kadai{" "}
+              </Text>
+
+              <Text style={styles.brandOrange}>
+                Kanakku
+              </Text>
+            </Text>
+
+            <Text style={styles.subtitle}>
+              Ungal Nambikkai, Engal Kadamai
+            </Text>
+
+            <View style={styles.brandUnderline} />
+          </View>
+
+          {/* ===================================================
+              LOGIN CARD
+              =================================================== */}
+
+          <View style={styles.card}>
+
+            <View style={styles.stepHeaderRow}>
+              <StepBadge n={stepCopy.n} />
+
+              <View style={styles.stepHeaderText}>
+                <Text
+                  style={styles.cardTitle}
+                  numberOfLines={1}
+                >
+                  {stepCopy.title}
+                </Text>
+
+                <Text
+                  style={styles.cardHint}
+                  numberOfLines={2}
+                >
+                  {stepCopy.hint}
+                </Text>
+              </View>
+            </View>
+
+            {/* ================================================
+                STEP 1
+                ================================================ */}
+
+            {step === "identifier" && (
+              <View>
+
+                <View style={styles.phoneInputContainer}>
+
+                  <View style={styles.countryPickerBox}>
+
+                    <View
+                      style={styles.indiaFlag}
+                      accessible
+                      accessibilityLabel="India"
+                    >
+                      <View
+                        style={[
+                          styles.flagStripe,
+                          styles.flagSaffron,
+                        ]}
+                      />
+
+                      <View
+                        style={[
+                          styles.flagStripe,
+                          styles.flagWhite,
+                        ]}
+                      >
+                        <View
+                          style={styles.flagChakra}
+                        >
+                          <View
+                            style={
+                              styles.flagChakraDot
+                            }
+                          />
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.flagStripe,
+                          styles.flagGreen,
+                        ]}
+                      />
+                    </View>
+
+                    <Text
+                      style={styles.countryCodeText}
+                    >
+                      +91
+                    </Text>
+
+                    <Ionicons
+                      color={brand.muted}
+                      name="chevron-down"
+                      size={13}
+                    />
+                  </View>
+
+                  <View
+                    style={styles.phoneInputDivider}
+                  />
+
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="phone-pad"
+                    onChangeText={setIdentifier}
+                    onSubmitEditing={
+                      submitIdentifier
+                    }
+                    placeholder="Mobile number"
+                    placeholderTextColor="#94A3B8"
+                    returnKeyType="done"
+                    style={styles.phoneTextInput}
+                    value={identifier}
+                  />
+                </View>
+
+                <PrimaryCTA
+                  icon="arrow-forward"
+                  loading={
+                    checkAccount.isPending ||
+                    sendOtp.isPending
+                  }
+                  onPress={submitIdentifier}
+                  title="Send OTP"
+                />
+
+              </View>
+            )}
+
+            {/* ================================================
+                EMAIL PASSWORD
+                ================================================ */}
+
+            {step === "email-password" && (
+              <View>
+
+                <View
+                  style={
+                    styles.selectedIdentifierBox
+                  }
+                >
+                  <View
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
+                  >
+                    <Ionicons
+                      color={brand.navy}
+                      name="mail-outline"
+                      size={17}
+                    />
+
+                    <Text
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
+                    >
+                      {identifier.trim()}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={goBack}
+                    style={styles.changeLink}
+                  >
+                    <Text
+                      style={
+                        styles.changeLinkText
+                      }
+                    >
+                      Change
+                    </Text>
                   </Pressable>
                 </View>
-              )}
-              <Svg height="24" style={styles.heroWave} viewBox="0 0 400 24" width="100%">
-                <Path d="M0 24 Q 100 0 200 10 Q 300 20 400 4 L400 24 Z" fill={brand.cream} />
-              </Svg>
-            </View>
 
-            {/* Brand Identity Block */}
-            <View style={styles.brandBlock}>
-              <View style={styles.logoBadgeGlow}>
-                <View style={styles.logoBadge}>
-                  <Ionicons color="#FFFFFF" name="storefront" size={24} />
+                <View style={styles.inputWrap}>
+                  <Ionicons
+                    color={brand.muted}
+                    name="lock-closed-outline"
+                    size={18}
+                    style={styles.inputIcon}
+                  />
+
+                  <Field
+                    autoComplete="password"
+                    onChangeText={setPassword}
+                    onSubmitEditing={
+                      submitEmailPassword
+                    }
+                    placeholder="Enter your password"
+                    secureTextEntry={!showPassword}
+                    style={
+                      styles.inputWithIconRight
+                    }
+                    value={password}
+                  />
+
+                  <Pressable
+                    onPress={() =>
+                      setShowPassword(
+                        (v) => !v
+                      )
+                    }
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      color={brand.muted}
+                      name={
+                        showPassword
+                          ? "eye-off-outline"
+                          : "eye-outline"
+                      }
+                      size={18}
+                    />
+                  </Pressable>
                 </View>
+
+                <View style={styles.rememberRow}>
+
+                  <Pressable
+                    onPress={() =>
+                      setRememberMe(
+                        (v) => !v
+                      )
+                    }
+                    style={styles.rememberLeft}
+                  >
+                    <View
+                      style={[
+                        styles.checkbox,
+                        rememberMe &&
+                        styles.checkboxOn,
+                      ]}
+                    >
+                      {rememberMe && (
+                        <Ionicons
+                          color="#FFFFFF"
+                          name="checkmark"
+                          size={11}
+                        />
+                      )}
+                    </View>
+
+                    <Text
+                      style={styles.rememberText}
+                    >
+                      Remember me
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setResetEmail(
+                        accountEmail ||
+                        identifier
+                      );
+
+                      setResetSent(false);
+                      setResetOpen(true);
+                    }}
+                  >
+                    <Text
+                      style={styles.forgotText}
+                    >
+                      Forgot password?
+                    </Text>
+                  </Pressable>
+
+                </View>
+
+                <PrimaryCTA
+                  icon="log-in-outline"
+                  loading={emailSignIn.isPending}
+                  onPress={
+                    submitEmailPassword
+                  }
+                  title="Login"
+                />
+
+                <Pressable
+                  onPress={goBack}
+                  style={styles.createPanel}
+                >
+                  <Text
+                    style={styles.createPanelText}
+                  >
+                    Don't have an account?
+                  </Text>
+
+                  <Text
+                    style={styles.createPanelLink}
+                  >
+                    Create one →
+                  </Text>
+                </Pressable>
+
               </View>
-              <Text style={styles.brand}>Kadai Kanakku</Text>
-              <Text style={styles.subtitle}>
-                Smart Retail POS & Store Management
+            )}
+
+            {/* ================================================
+                EMAIL REGISTER
+                ================================================ */}
+
+            {step === "email-register" && (
+              <View>
+
+                <View
+                  style={
+                    styles.selectedIdentifierBox
+                  }
+                >
+                  <View
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
+                  >
+                    <Ionicons
+                      color={brand.navy}
+                      name="person-add-outline"
+                      size={16}
+                    />
+
+                    <Text
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
+                    >
+                      New shop ·{" "}
+                      {identifier.trim()}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.label}>
+                  Your name
+                </Text>
+
+                <Field
+                  onChangeText={setName}
+                  placeholder="Owner name"
+                  value={name}
+                />
+
+                <Text style={styles.label}>
+                  Shop name
+                </Text>
+
+                <Field
+                  onChangeText={setBusinessName}
+                  placeholder="e.g. Metro Mobiles"
+                  value={businessName}
+                />
+
+                <Text style={styles.label}>
+                  Create password
+                </Text>
+
+                <View style={styles.inputWrap}>
+                  <Ionicons
+                    color={brand.muted}
+                    name="lock-closed-outline"
+                    size={18}
+                    style={styles.inputIcon}
+                  />
+
+                  <Field
+                    onChangeText={setPassword}
+                    placeholder="Min 6 characters"
+                    secureTextEntry={!showPassword}
+                    style={
+                      styles.inputWithIconRight
+                    }
+                    value={password}
+                  />
+
+                  <Pressable
+                    onPress={() =>
+                      setShowPassword(
+                        (v) => !v
+                      )
+                    }
+                    style={styles.eyeButton}
+                  >
+                    <Ionicons
+                      color={brand.muted}
+                      name={
+                        showPassword
+                          ? "eye-off-outline"
+                          : "eye-outline"
+                      }
+                      size={18}
+                    />
+                  </Pressable>
+                </View>
+
+                <Text style={styles.label}>
+                  Confirm password
+                </Text>
+
+                <Field
+                  onChangeText={
+                    setConfirmPassword
+                  }
+                  placeholder="Re-enter password"
+                  secureTextEntry={!showPassword}
+                  value={confirmPassword}
+                />
+
+                <PrimaryCTA
+                  icon="checkmark-circle-outline"
+                  loading={
+                    emailRegister.isPending
+                  }
+                  onPress={
+                    submitEmailRegister
+                  }
+                  title="Create account"
+                />
+
+              </View>
+            )}
+
+            {/* ================================================
+                OTP
+                ================================================ */}
+
+            {step === "otp" && (
+              <View>
+
+                <View
+                  style={
+                    styles.selectedIdentifierBox
+                  }
+                >
+                  <View
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
+                  >
+                    <Ionicons
+                      color={brand.navy}
+                      name="call-outline"
+                      size={16}
+                    />
+
+                    <Text
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
+                    >
+                      {identifier.trim()}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={goBack}
+                    style={styles.changeLink}
+                  >
+                    <Text
+                      style={
+                        styles.changeLinkText
+                      }
+                    >
+                      Change
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.inputWrap}>
+                  <Ionicons
+                    color={brand.muted}
+                    name="keypad-outline"
+                    size={18}
+                    style={styles.inputIcon}
+                  />
+
+                  <Field
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    onChangeText={setOtpCode}
+                    onSubmitEditing={submitOtp}
+                    placeholder="Enter 6-digit OTP"
+                    style={styles.inputWithIcon}
+                    value={otpCode}
+                  />
+                </View>
+
+                <PrimaryCTA
+                  icon="checkmark-circle-outline"
+                  loading={confirmOtp.isPending}
+                  onPress={submitOtp}
+                  title="Verify & continue"
+                />
+
+                <Pressable
+                  onPress={() =>
+                    sendOtp.mutate()
+                  }
+                  style={styles.forgotButton}
+                >
+                  <Text
+                    style={styles.forgotText}
+                  >
+                    {sendOtp.isPending
+                      ? "Sending..."
+                      : "Resend code"}
+                  </Text>
+                </Pressable>
+
+              </View>
+            )}
+
+            {/* ================================================
+                PHONE REGISTER
+                ================================================ */}
+
+            {step === "phone-register" && (
+              <View>
+
+                <View
+                  style={
+                    styles.selectedIdentifierBox
+                  }
+                >
+                  <View
+                    style={
+                      styles.selectedIdentifierLeft
+                    }
+                  >
+                    <Ionicons
+                      color={brand.navy}
+                      name="person-add-outline"
+                      size={16}
+                    />
+
+                    <Text
+                      style={
+                        styles.selectedIdentifierText
+                      }
+                      numberOfLines={1}
+                    >
+                      New shop ·{" "}
+                      {identifier.trim()}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.label}>
+                  Your name
+                </Text>
+
+                <Field
+                  onChangeText={setName}
+                  placeholder="Owner name"
+                  value={name}
+                />
+
+                <Text style={styles.label}>
+                  Shop name
+                </Text>
+
+                <Field
+                  onChangeText={setBusinessName}
+                  placeholder="e.g. Metro Mobiles"
+                  value={businessName}
+                />
+
+                <PrimaryCTA
+                  icon="checkmark-circle-outline"
+                  loading={
+                    phoneRegister.isPending
+                  }
+                  onPress={
+                    submitPhoneRegister
+                  }
+                  title="Create account & enter"
+                />
+
+              </View>
+            )}
+
+          </View>
+
+          {/* ===================================================
+              TRUST FEATURES
+              =================================================== */}
+
+          {step === "identifier" && (
+            <View style={styles.featureCard}>
+
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="shield-checkmark"
+                    size={15}
+                  />
+                </View>
+
+                <Text
+                  style={styles.featureText}
+                >
+                  Secure
+                </Text>
+
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Protected
+                </Text>
+              </View>
+
+              <View
+                style={styles.featureDivider}
+              />
+
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="flash"
+                    size={15}
+                  />
+                </View>
+
+                <Text
+                  style={styles.featureText}
+                >
+                  Fast
+                </Text>
+
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Quick access
+                </Text>
+              </View>
+
+              <View
+                style={styles.featureDivider}
+              />
+
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="cube-outline"
+                    size={15}
+                  />
+                </View>
+
+                <Text
+                  style={styles.featureText}
+                >
+                  Simple
+                </Text>
+
+                <Text
+                  style={styles.featureSubText}
+                >
+                  Easy business
+                </Text>
+              </View>
+
+              <View
+                style={styles.featureDivider}
+              />
+
+              <View style={styles.featureItem}>
+                <View
+                  style={styles.featureIconBadge}
+                >
+                  <Ionicons
+                    color={brand.orange}
+                    name="headset"
+                    size={15}
+                  />
+                </View>
+
+                <Text
+                  style={styles.featureText}
+                >
+                  Support
+                </Text>
+
+                <Text
+                  style={styles.featureSubText}
+                >
+                  We're here
+                </Text>
+              </View>
+
+            </View>
+          )}
+
+          {/* ===================================================
+              FOOTER
+              =================================================== */}
+
+          <View style={styles.footer}>
+            <Svg
+              height="42"
+              width="100%"
+              viewBox="0 0 400 42"
+            >
+              <Path
+                d="M0 15 Q 80 37 170 16 Q 270 -3 400 16 L400 42 L0 42 Z"
+                fill={brand.navy}
+              />
+
+              <Path
+                d="M0 14 Q 80 36 170 15 Q 270 -4 400 15"
+                fill="none"
+                stroke={brand.orange}
+                strokeWidth="3"
+              />
+            </Svg>
+
+            <View
+              style={styles.footerTextRow}
+            >
+              <Text
+                style={styles.footerFlourish}
+              >
+                »
+              </Text>
+
+              <Text style={styles.footerText}>
+                Shop Smart
+              </Text>
+
+              <Text
+                style={styles.footerFlourish}
+              >
+                «
               </Text>
             </View>
+          </View>
 
-            {/* Primary Form Card */}
-            <View style={styles.card}>
-              <View style={styles.stepHeaderRow}>
-                <Text style={styles.cardTitle}>{stepCopy.title}</Text>
-                <Text style={styles.cardHint}>{stepCopy.hint}</Text>
-              </View>
+        </View>
+      </KeyboardAvoidingView>
 
-              {renderFormSteps()}
-            </View>
+      {/* =====================================================
+          RESET PASSWORD
+          ===================================================== */}
 
-            {/* Trust Bar */}
-            {renderTrustBar()}
-
-            <Text style={styles.footerNote}>© 2026 Kadai Kanakku · Retail POS & Store Management</Text>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      )}
-
-      {/* Reset Password Sheet */}
       <Sheet
-        hint={resetSent ? "Check your inbox for the reset link" : "We’ll email a reset link to your inbox"}
+        hint={
+          resetSent
+            ? "Check your inbox for the reset link"
+            : "We'll email a reset link to your inbox"
+        }
         icon="key-outline"
         onClose={closeReset}
         title="Reset password"
         visible={resetOpen}
         footer={
           resetSent ? (
-            <Button onPress={closeReset} title="Done" />
+            <Button
+              onPress={closeReset}
+              title="Done"
+            />
           ) : (
             <Button
-              loading={requestReset.isPending}
+              loading={
+                requestReset.isPending
+              }
               onPress={() => {
-                if (!isEmail(resetEmail)) return Alert.alert("Email", "Enter a valid email.");
+                if (!isEmail(resetEmail)) {
+                  return Alert.alert(
+                    "Email",
+                    "Enter a valid email."
+                  );
+                }
+
                 requestReset.mutate();
               }}
               title="Send reset link"
@@ -838,7 +1500,10 @@ export default function LoginScreen() {
       >
         {!resetSent ? (
           <>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>
+              Email
+            </Text>
+
             <Field
               autoCapitalize="none"
               keyboardType="email-address"
@@ -849,605 +1514,924 @@ export default function LoginScreen() {
           </>
         ) : null}
       </Sheet>
-      <FirebasePhoneAuthBridge ref={phoneAuthBridgeRef} />
+
       <Toast config={toastConfig} />
     </SafeAreaView>
   );
 }
 
+/* ============================================================
+   STYLES
+   ============================================================ */
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: brand.cream },
-  container: { flex: 1 },
-  content: {
-    flexGrow: 1,
-    paddingBottom: 8,
-    alignItems: "center",
-    justifyContent: "space-between",
+  safeArea: {
+    flex: 1,
+    backgroundColor: brand.cream,
   },
 
-  /* ================= DESKTOP STYLES ================= */
-  desktopContainer: {
+  container: {
     flex: 1,
-    flexDirection: "row",
-    height: "100%",
-    minHeight: "100vh" as any,
-    width: "100%",
     backgroundColor: brand.cream,
   },
-  desktopHeroColumn: {
-    flex: 1.15,
-    height: "100%",
-    position: "relative",
+
+  /* ----------------------------------------------------------
+     FIXED HERO IMAGE
+     ---------------------------------------------------------- */
+
+  fixedHero: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+
+    height:
+      Platform.OS === "web"
+        ? 390
+        : 285,
+
     overflow: "hidden",
-    backgroundColor: brand.navy,
+
+    backgroundColor: "#EEDFCB",
+
+    zIndex: 0,
   },
-  desktopHeroContent: {
-    flex: 1,
-    padding: 36,
-    justifyContent: "space-between",
-    zIndex: 10,
-  },
-  desktopBrandHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  desktopLogoBadge: {
-    alignItems: "center",
-    backgroundColor: brand.navy,
-    borderRadius: 14,
-    height: 48,
-    justifyContent: "center",
-    width: 48,
-    borderWidth: 2,
-    borderColor: brand.orange,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  desktopBrandTitle: {
-    color: "#FFFFFF",
-    fontFamily: fonts.extraBold,
-    fontSize: 25,
-    letterSpacing: -0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.75)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  desktopBrandTagline: {
-    color: "#FED7AA",
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    marginTop: 2,
-    fontWeight: "600",
-    textShadowColor: "rgba(0, 0, 0, 0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  desktopHeroCenter: {
-    marginVertical: 18,
-    maxWidth: 500,
-  },
-  desktopHeroSlogan: {
-    color: "#FFFFFF",
-    fontFamily: fonts.extraBold,
-    fontSize: 32,
-    lineHeight: 40,
-    letterSpacing: -0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.8)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
-  desktopHeroDescription: {
-    color: "#F8FAFC",
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    lineHeight: 24,
-    fontWeight: "500",
-    textShadowColor: "rgba(0, 0, 0, 0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  desktopTrustRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  desktopTrustCard: {
-    flex: 1,
-    backgroundColor: "rgba(6, 24, 48, 0.85)",
-    borderColor: "rgba(245, 153, 38, 0.45)",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  desktopTrustTitle: {
-    color: "#FFFFFF",
-    fontFamily: fonts.bold,
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 4,
-    marginBottom: 2,
-    textShadowColor: "rgba(0, 0, 0, 0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  desktopTrustSubtitle: {
-    color: "#CBD5E1",
-    fontFamily: fonts.medium,
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  desktopFormColumn: {
-    flex: 1,
-    height: "100%",
-    backgroundColor: brand.cream,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  desktopFormScroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
+
+  heroImage: {
     width: "100%",
-    paddingVertical: 16,
+    height: "100%",
   },
-  desktopBackRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+
+  heroFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+
+    height: "72%",
+  },
+
+  heroLabel: {
+    position: "absolute",
+
+    top:
+      Platform.OS === "web"
+        ? 26
+        : 30,
+
     alignSelf: "center",
-    marginBottom: 10,
-    width: "100%",
-    maxWidth: 440,
-  },
-  desktopBackText: {
-    color: brand.navy,
-    fontFamily: fonts.bold,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  desktopCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    paddingHorizontal: 44,
-    paddingVertical: 44,
-    width: "100%",
-    maxWidth: 580,
-    shadowColor: "#0D3666",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.12,
-    shadowRadius: 32,
-    elevation: 8,
-  },
-  desktopStepHeaderRow: {
-    marginBottom: 24,
-  },
-  desktopStepBadge: {
-    height: 38,
-    width: 38,
-    marginBottom: 10,
-    borderRadius: 19,
-  },
-  desktopStepBadgeText: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-  },
-  desktopCardTitle: {
-    color: brand.navy,
-    fontFamily: fonts.extraBold,
-    fontSize: 24,
-    letterSpacing: -0.3,
-    textAlign: "center",
-  },
-  desktopCardHint: {
-    color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  desktopPhoneInputContainer: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    marginBottom: 14,
-  },
-  desktopCountryCodeText: {
-    fontSize: 15,
-  },
-  desktopPhoneTextInput: {
-    fontSize: 15,
-    minHeight: 44,
-  },
-  desktopInput: {
-    minHeight: 48,
-    fontSize: 15,
-    borderRadius: 12,
-    paddingLeft: 44,
-  },
-  desktopCtaWrapper: {
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  desktopCtaGradient: {
-    minHeight: 48,
-    borderRadius: 12,
-  },
-  desktopCtaText: {
-    fontSize: 16,
-  },
-  desktopFeatureRow: {
-    maxWidth: 580,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 18,
-    borderRadius: 18,
-  },
-  desktopFeatureIconBadge: {
-    height: 34,
-    width: 34,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  desktopFeatureTitle: {
-    fontSize: 13,
-  },
-  desktopFeatureSubtitle: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  desktopFeatureDivider: {
-    height: 32,
-  },
 
-  /* ================= MOBILE STYLES ================= */
-
-  heroWrapper: {
-    height: 145,
-    width: "100%",
-    position: "relative",
-    overflow: "hidden",
-  },
-  heroImage: { height: "100%", width: "100%" },
-  floatingTopBar: {
-    position: "absolute",
-    top: Platform.OS === "android" ? 12 : 8,
-    left: 12,
-    zIndex: 20,
-  },
-  topBackPill: {
-    alignItems: "center",
-    backgroundColor: "rgba(13, 54, 102, 0.78)",
-    borderRadius: 20,
     flexDirection: "row",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    alignItems: "center",
+
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+
+    borderRadius: 999,
+
+    backgroundColor:
+      "rgba(13,54,102,0.78)",
+
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.30)",
   },
-  topBackPillText: { color: "#FFFFFF", fontFamily: fonts.bold, fontSize: 12, fontWeight: "700" },
-  heroWave: {
-    bottom: -1,
+
+  heroLabelDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 99,
+
+    backgroundColor: brand.orange,
+
+    marginRight: 6,
+  },
+
+  heroLabelText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.bold,
+
+    fontSize: 8.5,
+
+    letterSpacing: 0.8,
+  },
+
+  /* ----------------------------------------------------------
+     MAIN CONTENT
+     ---------------------------------------------------------- */
+  mainContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+
+    paddingTop: Platform.OS === "web" ? 100 : 180,
+    paddingBottom: 50,
+
+    zIndex: 5,
+  },
+
+  /* ----------------------------------------------------------
+     BACK
+     ---------------------------------------------------------- */
+
+  backButton: {
     position: "absolute",
+
+    top:
+      Platform.OS === "web"
+        ? 18
+        : 18,
+
+    left: 16,
+
+    zIndex: 50,
+
+    flexDirection: "row",
+    alignItems: "center",
+
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+
+    borderRadius: 10,
+
+    backgroundColor:
+      "rgba(13,54,102,0.78)",
+
+    borderWidth: 1,
+    borderColor:
+      "rgba(255,255,255,0.25)",
   },
+
+  backText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.bold,
+
+    fontSize: 12,
+
+    marginLeft: 5,
+  },
+
+  /* ----------------------------------------------------------
+     BRAND
+     ---------------------------------------------------------- */
 
   brandBlock: {
     alignItems: "center",
-    marginTop: -22,
-    marginBottom: 4,
-    paddingHorizontal: spacing.md,
-    zIndex: 5,
-  },
-  logoBadgeGlow: {
-    alignItems: "center",
-    backgroundColor: "rgba(245, 153, 38, 0.16)",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    marginBottom: 2,
-    width: 44,
-  },
-  logoBadge: {
-    alignItems: "center",
-    backgroundColor: brand.navy,
-    borderRadius: 10,
-    height: 36,
-    justifyContent: "center",
-    width: 36,
-    borderWidth: 2,
-    borderColor: brand.cream,
-    shadowColor: brand.navy,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  brand: {
-    color: brand.navy,
-    fontFamily: fonts.extraBold,
-    fontSize: 20,
-    letterSpacing: -0.3,
-    textAlign: "center",
-  },
-  subtitle: {
-    color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 11,
-    marginTop: 2,
-    marginBottom: 4,
-    textAlign: "center",
-    lineHeight: 14,
+
+    width: "100%",
+
+    paddingHorizontal: 16,
   },
 
+  logoOuter: {
+    alignItems: "center",
+    justifyContent: "center",
+
+    width: 64,
+    height: 64,
+
+    borderRadius: 32,
+
+    backgroundColor:
+      "rgba(245,153,38,0.24)",
+
+    marginBottom: 3,
+  },
+
+  logoBadge: {
+    width: 55,
+    height: 55,
+
+    borderRadius: 17,
+
+    backgroundColor: brand.navy,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderWidth: 3,
+
+    borderColor: "#FFFDF8",
+
+    shadowColor: brand.navy,
+
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+
+    elevation: 6,
+  },
+
+  brandName: {
+    fontFamily: fonts.extraBold,
+
+    fontSize:
+      Platform.OS === "web"
+        ? 29
+        : 26,
+
+    letterSpacing: -0.8,
+
+    lineHeight: 31,
+
+    textAlign: "center",
+  },
+
+  brandDark: {
+    color: brand.navy,
+  },
+
+  brandOrange: {
+    color: brand.orange,
+  },
+
+  subtitle: {
+    color: brand.muted,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 9.5,
+
+    marginTop: 1,
+
+    textAlign: "center",
+  },
+
+  brandUnderline: {
+    width: 58,
+    height: 3,
+
+    borderRadius: 99,
+
+    backgroundColor:
+      brand.orange,
+
+    marginTop: 5,
+  },
+
+  /* ----------------------------------------------------------
+     CARD
+     ---------------------------------------------------------- */
+
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    marginTop: 6,
     width: "92%",
-    maxWidth: 440,
-    shadowColor: "#0D3666",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 4,
+    maxWidth: 430,
+
+    backgroundColor:
+      "rgba(255,255,255,0.98)",
+
+    borderRadius: 20,
+
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+
+    marginTop: 11,
+
+    borderWidth: 1,
+
+    borderColor:
+      "rgba(210,220,231,0.85)",
+
+    shadowColor: "#09294E",
+
+    shadowOffset: {
+      width: 0,
+      height: 9,
+    },
+
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+
+    elevation: 6,
   },
 
   stepHeaderRow: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  stepBadge: {
-    alignItems: "center",
-    backgroundColor: brand.orange,
-    borderRadius: 999,
-    height: 26,
-    justifyContent: "center",
-    marginBottom: 6,
-    width: 26,
-    shadowColor: brand.orange,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  stepBadgeText: { color: "#FDFCF9", fontFamily: fonts.bold, fontSize: 12 },
-  cardTitle: {
-    color: brand.navy,
-    fontFamily: fonts.extraBold,
-    fontSize: 16,
-    letterSpacing: -0.2,
-    textAlign: "center",
-  },
-  cardHint: {
-    color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 2,
-    textAlign: "center",
-  },
-
-  stepBody: { marginTop: 2 },
-
-  label: {
-    color: brand.muted,
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 4,
-    marginTop: 4,
-  },
-
-  phoneInputContainer: {
-    alignItems: "center",
-    backgroundColor: brand.inputBg,
-    borderColor: brand.inputBorder,
-    borderRadius: 12,
-    borderWidth: 1.5,
     flexDirection: "row",
-    minHeight: 50,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  countryPickerBox: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 3,
-  },
-  flagEmoji: { fontSize: 16, marginRight: 2 },
-  countryCodeText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 14, fontWeight: "700" },
-  phoneInputDivider: {
-    backgroundColor: brand.border,
-    height: 22,
-    marginHorizontal: 8,
-    width: 1,
-  },
-  phoneTextInput: {
-    color: brand.navy,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    minHeight: 46,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    includeFontPadding: false,
-  },
 
-  inputWrap: {
-    justifyContent: "center",
-    position: "relative",
+    alignItems: "center",
+
     marginBottom: 10,
   },
-  inputIcon: { left: 12, position: "absolute", zIndex: 2 },
-  inputWithIcon: {
-    paddingLeft: 40,
-    backgroundColor: brand.inputBg,
-    borderRadius: 12,
-    borderColor: brand.inputBorder,
-    minHeight: 46,
-    fontSize: 14,
-  },
-  inputWithIconRight: {
-    paddingLeft: 40,
-    paddingRight: 42,
-    backgroundColor: brand.inputBg,
-    borderRadius: 12,
-    borderColor: brand.inputBorder,
-    minHeight: 46,
-    fontSize: 14,
-  },
-  eyeButton: {
+
+  stepBadge: {
+    width: 30,
+    height: 30,
+
+    borderRadius: 999,
+
+    backgroundColor:
+      brand.orange,
+
     alignItems: "center",
-    height: 46,
     justifyContent: "center",
-    position: "absolute",
-    right: 4,
-    width: 38,
-    zIndex: 2,
+
+    marginRight: 9,
+
+    shadowColor:
+      brand.orange,
+
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+
+    elevation: 3,
   },
+
+  stepBadgeText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.extraBold,
+
+    fontSize: 13,
+  },
+
+  stepHeaderText: {
+    flex: 1,
+  },
+
+  cardTitle: {
+    color: brand.navy,
+
+    fontFamily: fonts.extraBold,
+
+    fontSize: 15,
+
+    letterSpacing: -0.2,
+  },
+
+  cardHint: {
+    color: brand.muted,
+
+    fontFamily: fonts.medium,
+
+    fontSize: 9.5,
+
+    lineHeight: 13,
+
+    marginTop: 1,
+  },
+
+  /* ----------------------------------------------------------
+     PHONE INPUT
+     ---------------------------------------------------------- */
+
+  phoneInputContainer: {
+    minHeight: 47,
+
+    alignItems: "center",
+
+    flexDirection: "row",
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderWidth: 1,
+
+    borderColor:
+      "#C8D7E7",
+
+    borderRadius: 12,
+
+    paddingHorizontal: 10,
+
+    marginBottom: 9,
+  },
+
+  countryPickerBox: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    gap: 4,
+  },
+
+  indiaFlag: {
+    width: 22,
+    height: 15,
+
+    overflow: "hidden",
+
+    borderRadius: 2,
+
+    borderWidth: 0.5,
+
+    borderColor: "#D5D5D5",
+  },
+
+  flagStripe: {
+    flex: 1,
+    width: "100%",
+  },
+
+  flagSaffron: {
+    backgroundColor: "#FF9933",
+  },
+
+  flagWhite: {
+    backgroundColor: "#FFFFFF",
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  flagGreen: {
+    backgroundColor: "#138808",
+  },
+
+  flagChakra: {
+    width: 7,
+    height: 7,
+
+    borderRadius: 99,
+
+    borderWidth: 0.8,
+
+    borderColor: "#000080",
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  flagChakraDot: {
+    width: 2,
+    height: 2,
+
+    borderRadius: 99,
+
+    backgroundColor: "#000080",
+  },
+
+  countryCodeText: {
+    color: brand.navy,
+
+    fontFamily: fonts.bold,
+
+    fontSize: 13,
+  },
+
+  phoneInputDivider: {
+    width: 1,
+    height: 23,
+
+    backgroundColor:
+      "#D6E0EA",
+
+    marginHorizontal: 8,
+  },
+
+  phoneTextInput: {
+    flex: 1,
+
+    minHeight: 43,
+
+    color: brand.navy,
+
+    fontFamily: fonts.medium,
+
+    fontSize: 13.5,
+
+    paddingVertical: 0,
+  },
+
+  /* ----------------------------------------------------------
+     INPUTS
+     ---------------------------------------------------------- */
+
+  inputWrap: {
+    position: "relative",
+
+    justifyContent: "center",
+
+    marginBottom: 8,
+  },
+
+  inputIcon: {
+    position: "absolute",
+
+    left: 13,
+
+    zIndex: 5,
+  },
+
+  inputWithIcon: {
+    paddingLeft: 41,
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderRadius: 12,
+
+    borderColor:
+      "#C8D7E7",
+
+    minHeight: 47,
+
+    fontSize: 13,
+  },
+
+  inputWithIconRight: {
+    paddingLeft: 41,
+    paddingRight: 42,
+
+    backgroundColor:
+      "#F7FAFD",
+
+    borderRadius: 12,
+
+    borderColor:
+      "#C8D7E7",
+
+    minHeight: 47,
+
+    fontSize: 13,
+  },
+
+  eyeButton: {
+    position: "absolute",
+
+    right: 2,
+
+    width: 39,
+    height: 46,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    zIndex: 5,
+  },
+
+  label: {
+    color: brand.navy,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 10.5,
+
+    marginBottom: 4,
+
+    marginTop: 3,
+  },
+
+  /* ----------------------------------------------------------
+     CTA
+     ---------------------------------------------------------- */
 
   ctaWrapper: {
     borderRadius: 12,
+
     shadowColor: brand.navy,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-    marginTop: 2,
+
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+
+    shadowOpacity: 0.22,
+
+    shadowRadius: 8,
+
+    elevation: 4,
   },
-  ctaPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+
+  ctaPressed: {
+    opacity: 0.9,
+
+    transform: [
+      {
+        scale: 0.99,
+      },
+    ],
+  },
+
   ctaGradient: {
-    alignItems: "center",
+    minHeight: 48,
+
     borderRadius: 12,
+
     flexDirection: "row",
-    gap: 8,
+
+    alignItems: "center",
     justifyContent: "center",
-    minHeight: 46,
+
+    gap: 7,
   },
+
   ctaText: {
     color: "#FFFFFF",
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    fontWeight: "700",
+
+    fontFamily: fonts.extraBold,
+
+    fontSize: 13.5,
   },
+
+  /* ----------------------------------------------------------
+     SELECTED ACCOUNT
+     ---------------------------------------------------------- */
 
   selectedIdentifierBox: {
-    alignItems: "center",
-    backgroundColor: brand.inputBg,
-    borderColor: brand.inputBorder,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.xs,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  selectedIdentifierLeft: { alignItems: "center", flexDirection: "row", gap: 8 },
-  selectedIdentifierText: { color: brand.navy, fontFamily: fonts.bold, fontSize: 12.5, fontWeight: "700" },
-  changeLink: { paddingHorizontal: 4, paddingVertical: 2 },
-  changeLinkText: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 12, fontWeight: "600" },
+    minHeight: 42,
 
-  createPanel: {
-    alignItems: "center",
-    backgroundColor: brand.inputBg,
-    borderRadius: 10,
     flexDirection: "row",
-    gap: 5,
-    justifyContent: "center",
-    marginTop: spacing.xs,
+
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    backgroundColor:
+      "#F4F8FC",
+
+    borderWidth: 1,
+
+    borderColor:
+      "#D4DFEA",
+
+    borderRadius: 11,
+
+    paddingHorizontal: 10,
+
     paddingVertical: 7,
+
+    marginBottom: 8,
   },
-  createPanelText: { color: brand.muted, fontFamily: fonts.medium, fontSize: 11.5 },
-  createPanelLink: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 11.5, fontWeight: "600" },
+
+  selectedIdentifierLeft: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    flex: 1,
+
+    gap: 7,
+  },
+
+  selectedIdentifierText: {
+    flex: 1,
+
+    color: brand.navy,
+
+    fontFamily: fonts.bold,
+
+    fontSize: 11.5,
+  },
+
+  changeLink: {
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+
+  changeLinkText: {
+    color: brand.blueLink,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 11.5,
+  },
+
+  /* ----------------------------------------------------------
+     REMEMBER
+     ---------------------------------------------------------- */
 
   rememberRow: {
-    alignItems: "center",
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.xs,
-  },
-  rememberLeft: { alignItems: "center", flexDirection: "row", gap: 6 },
-  checkbox: {
+
     alignItems: "center",
-    borderColor: brand.navy,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    height: 16,
-    justifyContent: "center",
-    width: 16,
+    justifyContent: "space-between",
+
+    marginBottom: 8,
   },
-  checkboxOn: { backgroundColor: brand.navy },
-  rememberText: { color: brand.navy, fontFamily: fonts.medium, fontSize: 11.5 },
+
+  rememberLeft: {
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    gap: 6,
+  },
+
+  checkbox: {
+    width: 17,
+    height: 17,
+
+    borderRadius: 5,
+
+    borderWidth: 1.5,
+
+    borderColor:
+      brand.navy,
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  checkboxOn: {
+    backgroundColor:
+      brand.navy,
+  },
+
+  rememberText: {
+    color: brand.navy,
+
+    fontFamily: fonts.medium,
+
+    fontSize: 10.5,
+  },
+
+  forgotText: {
+    color: brand.blueLink,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 10.5,
+  },
 
   forgotButton: {
     alignItems: "center",
-    minHeight: 28,
     justifyContent: "center",
-    marginTop: 2,
-  },
-  forgotText: { color: brand.blueLink, fontFamily: fonts.semibold, fontSize: 11.5, fontWeight: "600" },
 
-  featureRow: {
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: brand.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-    width: "92%",
-    maxWidth: 500,
-    shadowColor: brand.navy,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  featureItem: { alignItems: "center", flex: 1, paddingHorizontal: 2 },
-  featureIconBadge: {
-    alignItems: "center",
-    backgroundColor: brand.featureIconBg,
-    borderRadius: 8,
-    height: 26,
-    justifyContent: "center",
-    marginBottom: 2,
-    width: 26,
-  },
-  featureTitle: {
-    color: brand.navy,
-    fontFamily: fonts.bold,
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  featureSubtitle: {
-    color: brand.muted,
-    fontFamily: fonts.regular,
-    fontSize: 9,
-    textAlign: "center",
+    minHeight: 31,
+
     marginTop: 1,
-    lineHeight: 11,
   },
-  featureDivider: {
-    backgroundColor: brand.border,
-    height: 22,
-    width: 1,
-  },
-  footerNote: {
-    color: brand.muted,
-    fontFamily: fonts.medium,
-    fontSize: 10,
+
+  /* ----------------------------------------------------------
+     CREATE PANEL
+     ---------------------------------------------------------- */
+
+  createPanel: {
+    flexDirection: "row",
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    gap: 5,
+
+    backgroundColor:
+      "#F4F8FC",
+
+    borderRadius: 10,
+
+    paddingVertical: 8,
+
     marginTop: 8,
-    marginBottom: 4,
+  },
+
+  createPanelText: {
+    color: brand.muted,
+
+    fontFamily: fonts.medium,
+
+    fontSize: 10.5,
+  },
+
+  createPanelLink: {
+    color: brand.blueLink,
+
+    fontFamily: fonts.semibold,
+
+    fontSize: 10.5,
+  },
+
+  /* ----------------------------------------------------------
+     FEATURES
+     ---------------------------------------------------------- */
+
+  featureCard: {
+    width: "92%",
+    maxWidth: 430,
+
+    minHeight: 66,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    marginTop: 9,
+
+    paddingHorizontal: 5,
+    paddingVertical: 7,
+
+    backgroundColor:
+      "rgba(255,255,255,0.84)",
+
+    borderRadius: 15,
+
+    borderWidth: 1,
+
+    borderColor:
+      "rgba(210,220,231,0.65)",
+  },
+
+  featureItem: {
+    flex: 1,
+
+    alignItems: "center",
+
+    minWidth: 0,
+  },
+
+  featureIconBadge: {
+    width: 27,
+    height: 27,
+
+    borderRadius: 9,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor:
+      brand.featureIconBg,
+
+    marginBottom: 3,
+  },
+
+  featureText: {
+    color: brand.navy,
+
+    fontFamily: fonts.bold,
+
+    fontSize: 8.5,
+
+    lineHeight: 10,
+
     textAlign: "center",
+  },
+
+  featureSubText: {
+    color: brand.muted,
+
+    fontFamily: fonts.medium,
+
+    fontSize: 6.8,
+
+    lineHeight: 9,
+
+    textAlign: "center",
+  },
+
+  featureDivider: {
+    width: 1,
+    height: 29,
+
+    backgroundColor:
+      "#D8E1EA",
+  },
+
+  /* ----------------------------------------------------------
+     FOOTER
+     ---------------------------------------------------------- */
+
+  footer: {
+    width: "100%",
+    height: 42,
+    position: "absolute",
+    bottom: -3,
+    left: 0,
+    right: 0,
+    overflow: "hidden",
+    zIndex: 20,
+  },
+
+  footerTextRow: {
+    position: "absolute",
+
+    left: 0,
+    right: 0,
+
+    bottom: 5,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    gap: 7,
+  },
+
+  footerText: {
+    color: "#FFFFFF",
+
+    fontFamily: fonts.extraBold,
+
+    fontSize: 11.5,
+
+    letterSpacing: 0.3,
+  },
+
+  footerFlourish: {
+    color: brand.orange,
+
+    fontFamily: fonts.bold,
+
+    fontSize: 11,
   },
 });

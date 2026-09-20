@@ -3,6 +3,13 @@ import React, { Component, ErrorInfo, ReactNode, useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from "@expo-google-fonts/plus-jakarta-sans";
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from "@expo-google-fonts/inter";
 import {
   NunitoSans_400Regular,
@@ -187,21 +194,22 @@ function AuthHydrator({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [fontsLoaded, fontError] = useFonts(
-    Platform.OS === "web"
-      ? {}
-      : {
-          ...Ionicons.font,
-          Inter_400Regular,
-          Inter_500Medium,
-          Inter_600SemiBold,
-          Inter_700Bold,
-          NunitoSans_400Regular,
-          NunitoSans_600SemiBold,
-          NunitoSans_700Bold,
-          NunitoSans_800ExtraBold,
-        }
-  );
+  const [fontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    NunitoSans_400Regular,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
+  });
 
   useEffect(() => {
     if (Platform.OS !== "android") return;

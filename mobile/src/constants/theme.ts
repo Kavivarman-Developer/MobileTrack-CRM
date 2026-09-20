@@ -135,20 +135,24 @@ export const layout = {
 
 export const fonts = {
   regular: Platform.select({
-    web: 'Inter, "Inter_400Regular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    default: "Inter_400Regular",
+    web: '"Plus Jakarta Sans", "PlusJakartaSans_400Regular", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: "PlusJakartaSans_400Regular",
   }),
   medium: Platform.select({
-    web: 'Inter, "Inter_500Medium", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    default: "Inter_500Medium",
+    web: '"Plus Jakarta Sans", "PlusJakartaSans_500Medium", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: "PlusJakartaSans_500Medium",
   }),
   semibold: Platform.select({
-    web: 'Inter, "Inter_600SemiBold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    default: "Inter_600SemiBold",
+    web: '"Plus Jakarta Sans", "PlusJakartaSans_600SemiBold", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: "PlusJakartaSans_600SemiBold",
   }),
   bold: Platform.select({
-    web: 'Inter, "Inter_700Bold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    default: "Inter_700Bold",
+    web: '"Plus Jakarta Sans", "PlusJakartaSans_700Bold", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: "PlusJakartaSans_700Bold",
+  }),
+  extrabold: Platform.select({
+    web: '"Plus Jakarta Sans", "PlusJakartaSans_800ExtraBold", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    default: "PlusJakartaSans_800ExtraBold",
   }),
 };
 

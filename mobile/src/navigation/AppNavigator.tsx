@@ -81,7 +81,7 @@ function DrawerShell() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
 
-  const drawerWidth = isDesktop ? 250 : Math.min(Math.round(width * 0.76), 260);
+  const drawerWidth = isDesktop ? 260 : Math.min(Math.round(width * 0.76), 260);
 
   return (
     <Drawer.Navigator
@@ -100,24 +100,94 @@ function DrawerShell() {
         drawerInactiveTintColor: colors.text,
         drawerActiveBackgroundColor: colors.primaryLight,
         drawerInactiveBackgroundColor: "transparent",
-        drawerItemStyle: { borderRadius: 8, height: 38, justifyContent: "center", marginHorizontal: 8, marginVertical: 1, paddingHorizontal: 6 },
-        drawerLabelStyle: { fontFamily: fonts.semibold, fontSize: 13, fontWeight: "600", marginLeft: -12 },
+        drawerItemStyle: {
+          borderRadius: isDesktop ? 10 : 8,
+          height: isDesktop ? 42 : 38,
+          justifyContent: "center",
+          marginHorizontal: isDesktop ? 12 : 8,
+          marginVertical: isDesktop ? 3 : 1,
+          paddingHorizontal: isDesktop ? 12 : 6,
+        },
+        drawerLabelStyle: {
+          fontFamily: fonts.semibold,
+          fontSize: isDesktop ? 14 : 13,
+          fontWeight: "600",
+          marginLeft: isDesktop ? -2 : -12,
+        },
       }}
     >
-      {isSuperAdmin && <Drawer.Screen name="Admin" component={OrganizationsScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="shield-checkmark-outline" size={18} /> }} />}
-      <Drawer.Screen name="Home" component={Tabs} options={{ headerShown: false, drawerIcon: ({ color }) => <Ionicons color={color} name="home-outline" size={18} /> }} />
-      <Drawer.Screen name="Items" component={InventoryScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="cube-outline" size={18} /> }} />
-      <Drawer.Screen name="Inventory Adjustments" component={InventoryAdjustmentsScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="options-outline" size={18} /> }} />
-      <Drawer.Screen name="Barcode Generator" component={BarcodeGeneratorScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="barcode-outline" size={18} /> }} />
-      <Drawer.Screen name="Sales" component={SalesScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="bag-outline" size={18} /> }} />
-      <Drawer.Screen name="Billing" component={BillingScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="card-outline" size={18} /> }} />
-      <Drawer.Screen name="Customers" component={CustomersScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="people-outline" size={18} /> }} />
-      <Drawer.Screen name="Purchases" component={PurchasesScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="cart-outline" size={18} /> }} />
-      <Drawer.Screen name="Vendors" component={VendorsScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="business-outline" size={18} /> }} />
-      <Drawer.Screen name="Expenses" component={ExpensesScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="wallet-outline" size={18} /> }} />
-      <Drawer.Screen name="Orders" component={OrdersScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="receipt-outline" size={18} /> }} />
-      <Drawer.Screen name="Reports" component={ReportsScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="bar-chart-outline" size={18} /> }} />
-      <Drawer.Screen name="Settings" component={SettingsScreen} options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="settings-outline" size={18} /> }} />
+      {isSuperAdmin && (
+        <Drawer.Screen
+          name="Admin"
+          component={OrganizationsScreen}
+          options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="shield-checkmark-outline" size={isDesktop ? 20 : 18} /> }}
+        />
+      )}
+      <Drawer.Screen
+        name="Home"
+        component={Tabs}
+        options={{ headerShown: false, drawerIcon: ({ color }) => <Ionicons color={color} name="home-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Items"
+        component={InventoryScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="cube-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Inventory Adjustments"
+        component={InventoryAdjustmentsScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="options-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Barcode Generator"
+        component={BarcodeGeneratorScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="barcode-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Sales"
+        component={SalesScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="bag-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Billing"
+        component={BillingScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="card-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Customers"
+        component={CustomersScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="people-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Purchases"
+        component={PurchasesScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="cart-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Vendors"
+        component={VendorsScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="business-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="wallet-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Orders"
+        component={OrdersScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="receipt-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Reports"
+        component={ReportsScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="bar-chart-outline" size={isDesktop ? 20 : 18} /> }}
+      />
+      <Drawer.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ drawerIcon: ({ color }) => <Ionicons color={color} name="settings-outline" size={isDesktop ? 20 : 18} /> }}
+      />
     </Drawer.Navigator>
   );
 }

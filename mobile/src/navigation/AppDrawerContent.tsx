@@ -1,23 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerContentScrollView, DrawerItemList, type DrawerContentComponentProps } from "@react-navigation/drawer";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { colors, fonts, radius, spacing, typography } from "../constants/theme";
 import { useAppSelector } from "../hooks/redux";
 
 export function AppDrawerContent(props: DrawerContentComponentProps) {
   const user = useAppSelector((state) => state.auth.user);
   const initials = (user?.name || "Shop").slice(0, 2).toUpperCase();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
 
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.container}>
-      <View style={styles.brand}>
+      <View style={[styles.brand, isDesktop && styles.brandDesktop]}>
         <View style={styles.brandRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View style={[styles.avatar, isDesktop && styles.avatarDesktop]}>
+            <Text style={[styles.avatarText, isDesktop && styles.avatarTextDesktop]}>{initials}</Text>
           </View>
           <View style={styles.brandInfo}>
             <Text numberOfLines={1} style={styles.shop}>KADAI KANAKKU</Text>
-            <Text numberOfLines={1} style={styles.name}>{user?.name || "Shop owner"}</Text>
+            <Text numberOfLines={1} style={[styles.name, isDesktop && styles.nameDesktop]}>{user?.name || "Shop owner"}</Text>
           </View>
           {user?.role ? (
             <View style={styles.rolePill}>
@@ -27,7 +29,7 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
           ) : null}
         </View>
       </View>
-      <View style={styles.list}>
+      <View style={[styles.list, isDesktop && styles.listDesktop]}>
         <DrawerItemList {...props} />
       </View>
     </DrawerContentScrollView>
@@ -42,6 +44,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  brandDesktop: {
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -55,7 +62,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 36,
   },
+  avatarDesktop: {
+    borderRadius: 10,
+    height: 40,
+    width: 40,
+  },
   avatarText: { color: "#ffffff", fontFamily: fonts.bold, fontSize: 13, fontWeight: "700" },
+  avatarTextDesktop: { fontSize: 14 },
   brandInfo: {
     flex: 1,
     justifyContent: "center",
@@ -75,6 +88,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 1,
   },
+  nameDesktop: {
+    fontSize: 14,
+  },
   rolePill: {
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.15)",
@@ -86,4 +102,8 @@ const styles = StyleSheet.create({
   },
   roleText: { color: "#FFFFFF", fontFamily: fonts.semibold, fontSize: 10, fontWeight: "600", textTransform: "capitalize" },
   list: { paddingTop: 2 },
+  listDesktop: {
+    paddingBottom: 20,
+    paddingTop: 6,
+  },
 });

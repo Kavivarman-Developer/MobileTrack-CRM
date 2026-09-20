@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,6 +34,8 @@ const periodCopy: Record<DatePreset, string> = {
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
   const user = useAppSelector((state) => state.auth.user);
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [refreshing, setRefreshing] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
@@ -122,14 +125,16 @@ export default function DashboardScreen() {
         {/* 1. APP HEADER & PROFILE BAR                */}
         {/* ========================================== */}
         <View style={styles.header}>
-          <TouchableOpacity
-            accessibilityLabel="Open menu"
-            onPress={() => navigation.getParent()?.openDrawer?.()}
-            style={styles.menuBtn}
-            activeOpacity={0.7}
-          >
-            <Ionicons color="#0F172A" name="menu-outline" size={22} />
-          </TouchableOpacity>
+          {!isDesktop && (
+            <TouchableOpacity
+              accessibilityLabel="Open menu"
+              onPress={() => navigation.getParent()?.openDrawer?.()}
+              style={styles.menuBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons color="#0F172A" name="menu-outline" size={22} />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.headerCopy}>
             <View style={styles.greetingRow}>

@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts, typography } from "../constants/theme";
 import { useAppSelector } from "../hooks/redux";
@@ -34,7 +35,10 @@ const Stack = createNativeStackNavigator();
 function Tabs({ route }: any) {
   const initialRouteName = route?.params?.initialTab || "Dashboard";
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
   const tabBarHeight = 60 + Math.max(insets.bottom, 10);
+
   return (
     <Tab.Navigator
       initialRouteName={initialRouteName}
@@ -43,20 +47,22 @@ function Tabs({ route }: any) {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 11, fontWeight: "600", marginTop: 2 },
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: tabBarHeight,
-          minHeight: tabBarHeight,
-          paddingBottom: Math.max(insets.bottom, 10),
-          paddingTop: 6,
-          elevation: 8,
-          shadowColor: "#0F172A",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 8,
-        },
+        tabBarStyle: isDesktop
+          ? { display: "none" }
+          : {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+              borderTopWidth: 1,
+              height: tabBarHeight,
+              minHeight: tabBarHeight,
+              paddingBottom: Math.max(insets.bottom, 10),
+              paddingTop: 6,
+              elevation: 8,
+              shadowColor: "#0F172A",
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.04,
+              shadowRadius: 8,
+            },
       }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ tabBarLabel: "Home", tabBarIcon: ({ color, focused }) => <Ionicons color={color} name={focused ? "home" : "home-outline"} size={22} /> }} />
@@ -72,11 +78,24 @@ function Tabs({ route }: any) {
 function DrawerShell() {
   const user = useAppSelector((state) => state.auth.user);
   const isSuperAdmin = user?.role === "superadmin";
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
+
   return (
     <Drawer.Navigator
       drawerContent={(props) => <AppDrawerContent {...props} />}
       initialRouteName="Home"
       screenOptions={{
+        drawerType: isDesktop ? "permanent" : "front",
+        drawerStyle: isDesktop
+          ? {
+              width: 250,
+              backgroundColor: "#FFFFFF",
+              borderRightWidth: 1,
+              borderRightColor: "#E2E8F0",
+            }
+          : { width: 280 },
+        headerShown: !isDesktop,
         headerTintColor: colors.text,
         headerTitleStyle: { ...typography.h3, color: colors.text },
         headerStyle: { backgroundColor: colors.surface, elevation: 0, shadowOpacity: 0, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -95,9 +114,11 @@ function DrawerShell() {
       <Drawer.Screen name="Barcode Generator" component={BarcodeGeneratorScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="barcode-outline" size={size} /> }} />
       <Drawer.Screen name="Sales" component={SalesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="bag-outline" size={size} /> }} />
       <Drawer.Screen name="Billing" component={BillingScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="card-outline" size={size} /> }} />
+      <Drawer.Screen name="Customers" component={CustomersScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="people-outline" size={size} /> }} />
       <Drawer.Screen name="Purchases" component={PurchasesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="cart-outline" size={size} /> }} />
-      <Drawer.Screen name="Vendors" component={VendorsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="people-outline" size={size} /> }} />
-      <Drawer.Screen name="Orders" component={Tabs} initialParams={{ initialTab: "Orders" }} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="receipt-outline" size={size} /> }} />
+      <Drawer.Screen name="Vendors" component={VendorsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="business-outline" size={size} /> }} />
+      <Drawer.Screen name="Expenses" component={ExpensesScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="wallet-outline" size={size} /> }} />
+      <Drawer.Screen name="Orders" component={OrdersScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="receipt-outline" size={size} /> }} />
       <Drawer.Screen name="Reports" component={ReportsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="bar-chart-outline" size={size} /> }} />
       <Drawer.Screen name="Settings" component={SettingsScreen} options={{ drawerIcon: ({ color, size }) => <Ionicons color={color} name="settings-outline" size={size} /> }} />
     </Drawer.Navigator>

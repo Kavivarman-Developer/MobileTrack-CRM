@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { z } from "zod";
 import { Badge, Button, Empty, FabButton, Field, FilterChipRow, IconButton, IosFormSheet, IosScreenHeader, IosSearchBar, Screen, SelectOption, StatStrip } from "../../components/Layout";
 import { SubscriptionModal } from "../../components/SubscriptionModal";
@@ -66,6 +66,8 @@ type ScanField = "sku" | "upc" | "mpn" | "ean" | "isbn";
 
 export default function InventoryScreen() {
   const user = useAppSelector((state) => state.auth.user);
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
   const [subModalOpen, setSubModalOpen] = useState(false);
   const isActivated = user?.subscriptionStatus === "active";
 
@@ -293,11 +295,13 @@ export default function InventoryScreen() {
     <Screen style={styles.screen}>
       <IosScreenHeader
         eyebrow="Stock control"
-        left={(
-          <TouchableOpacity accessibilityLabel="Open menu" onPress={() => navigation.getParent()?.openDrawer?.()} style={styles.menuBtn}>
-            <Ionicons color={ios.label} name="menu" size={22} />
-          </TouchableOpacity>
-        )}
+        left={
+          !isDesktop ? (
+            <TouchableOpacity accessibilityLabel="Open menu" onPress={() => navigation.getParent()?.openDrawer?.()} style={styles.menuBtn}>
+              <Ionicons color={ios.label} name="menu" size={22} />
+            </TouchableOpacity>
+          ) : undefined
+        }
         right={(
           <TouchableOpacity
             accessibilityLabel="Barcode generator"

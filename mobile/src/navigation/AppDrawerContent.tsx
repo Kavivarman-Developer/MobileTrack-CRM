@@ -1,14 +1,34 @@
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerContentScrollView, DrawerItemList, type DrawerContentComponentProps } from "@react-navigation/drawer";
-import { Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { colors, fonts, radius, spacing, typography } from "../constants/theme";
-import { useAppSelector } from "../hooks/redux";
+import { useAppSelector, useAppDispatch } from "../hooks/redux";
+import { logout } from "../redux/authSlice";
+import { firebaseAuth } from "../config/firebase";
+import { signOut } from "firebase/auth";
 
 export function AppDrawerContent(props: DrawerContentComponentProps) {
   const user = useAppSelector((state) => state.auth.user);
+  const dispatch = useAppDispatch();
   const initials = (user?.name || "Shop").slice(0, 2).toUpperCase();
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 1024;
+
+  function handleSignOut() {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await signOut(firebaseAuth);
+          } catch (_) {}
+          dispatch(logout());
+        },
+      },
+    ]);
+  }
 
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.container}>
@@ -32,6 +52,13 @@ export function AppDrawerContent(props: DrawerContentComponentProps) {
       <View style={[styles.list, isDesktop && styles.listDesktop]}>
         <DrawerItemList {...props} />
       </View>
+      <Pressable
+        onPress={handleSignOut}
+        style={({ pressed }) => [styles.signOutBtn, pressed && styles.signOutBtnPressed]}
+      >
+        <Ionicons color="#EF4444" name="log-out-outline" size={18} />
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </Pressable>
     </DrawerContentScrollView>
   );
 }
@@ -105,5 +132,27 @@ const styles = StyleSheet.create({
   listDesktop: {
     paddingBottom: 20,
     paddingTop: 6,
+  },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 12,
+    marginVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(239,68,68,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.18)",
+  },
+  signOutBtnPressed: {
+    opacity: 0.7,
+  },
+  signOutText: {
+    color: "#EF4444",
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

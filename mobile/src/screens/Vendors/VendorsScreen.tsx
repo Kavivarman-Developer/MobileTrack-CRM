@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  content: { alignSelf: "center", maxWidth: 1280, paddingBottom: 88, paddingHorizontal: spacing.md, width: "100%" },
+  content: { width: "100%", paddingBottom: 40 },
 
   // Top Metrics
   metricsRow: {

@@ -869,11 +869,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   content: {
-    alignSelf: "center",
-    maxWidth: 1360,
-    paddingBottom: 96,
-    paddingHorizontal: 16,
     width: "100%",
+    paddingBottom: 40,
   },
 
   /* 1. Summary Cards */

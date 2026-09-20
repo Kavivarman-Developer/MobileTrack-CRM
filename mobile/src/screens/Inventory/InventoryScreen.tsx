@@ -315,9 +315,10 @@ export default function InventoryScreen() {
       />
 
       <FlatList
+        key={isDesktop ? "grid-4" : "grid-2"}
         data={filteredProducts}
         keyExtractor={(item) => item._id}
-        numColumns={2}
+        numColumns={isDesktop ? 4 : 2}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={(
@@ -756,7 +757,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
 
-  listContent: { paddingBottom: 100 },
+  listContent: { paddingBottom: 40 },
   gridRow: { gap: 12, marginBottom: 12 },
   gridCard: {
     backgroundColor: ios.card,

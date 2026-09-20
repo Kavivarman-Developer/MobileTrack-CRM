@@ -360,7 +360,7 @@ function formatMoney(value: number) {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.backgroundDark },
-  container: { alignSelf: "center", maxWidth: 1280, paddingBottom: spacing.xl, paddingHorizontal: spacing.md, width: "100%" },
+  container: { width: "100%", paddingBottom: 40 },
 
   // Top Metrics
   metricsRow: {

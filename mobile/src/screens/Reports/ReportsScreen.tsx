@@ -456,7 +456,7 @@ const webDateInputStyle = {
 } as const;
 
 const styles = StyleSheet.create({
-  container: { alignSelf: "center", maxWidth: 1280, paddingBottom: spacing.xl, paddingHorizontal: spacing.md, width: "100%" },
+  container: { width: "100%", paddingBottom: 40 },
 
   // Top Metrics
   metricsRow: {

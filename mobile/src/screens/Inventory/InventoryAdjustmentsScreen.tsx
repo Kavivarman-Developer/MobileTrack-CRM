@@ -162,7 +162,7 @@ function AdjustmentRow({ item }: { item: InventoryAdjustment }) {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: ios.bg },
-  content: { alignSelf: "center", maxWidth: 1280, paddingBottom: 85, width: "100%", paddingHorizontal: spacing.md },
+  content: { width: "100%", paddingBottom: 40 },
   sectionHead: { alignItems: "center", flexDirection: "row", marginBottom: spacing.xs, marginLeft: spacing.xxs, marginTop: spacing.xxs },
   sectionLabel: { color: ios.secondary, flex: 1, fontFamily: fonts.regular, fontSize: 13 },
   listCount: {

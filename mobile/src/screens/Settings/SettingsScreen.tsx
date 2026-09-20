@@ -281,7 +281,7 @@ function SettingRow({
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: "#F8FAFC" },
-  container: { alignSelf: "center", maxWidth: 960, paddingBottom: 110, width: "100%", paddingHorizontal: spacing.md },
+  container: { width: "100%", paddingBottom: 40 },
 
   // Hero Card
   heroCard: { borderRadius: 20, overflow: "hidden", marginBottom: spacing.lg, ...shadows.md },

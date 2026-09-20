@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { FlatList, Image, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { Empty, IosScreenHeader, IosSearchBar, Screen } from "../../components/Layout";
 import { ios } from "../../constants/ios";
 import { fonts, spacing } from "../../constants/theme";
@@ -10,6 +10,8 @@ import { getProducts, Product } from "../../services/api";
 
 export default function LowStockScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 1024;
   const [search, setSearch] = useState("");
   const products = useQuery({ queryKey: ["products", ""], queryFn: () => getProducts("") });
 
@@ -37,9 +39,10 @@ export default function LowStockScreen() {
       />
 
       <FlatList
+        key={isDesktop ? "grid-4" : "grid-3"}
         data={lowStock}
         keyExtractor={(item) => item._id}
-        numColumns={3}
+        numColumns={isDesktop ? 4 : 3}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={(
@@ -58,6 +61,7 @@ export default function LowStockScreen() {
         )}
         renderItem={({ item }) => (
           <LowStockTile
+            isDesktop={isDesktop}
             item={item}
             onPress={() => navigation.navigate("ProductDetail", { productId: item._id })}
           />
@@ -67,7 +71,7 @@ export default function LowStockScreen() {
   );
 }
 
-function LowStockTile({ item, onPress }: { item: Product; onPress: () => void }) {
+function LowStockTile({ item, onPress, isDesktop }: { item: Product; onPress: () => void; isDesktop?: boolean }) {
   const qty = Number(item.stockQty || 0);
   const limit = Number(item.lowStockThreshold ?? item.reorderPoint ?? 0);
   const out = qty <= 0;
@@ -75,7 +79,7 @@ function LowStockTile({ item, onPress }: { item: Product; onPress: () => void })
   const imageUrl = item.images?.[0];
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.card}>
+    <TouchableOpacity onPress={onPress} style={[styles.card, isDesktop && { maxWidth: "24%" }]}>
       <View style={styles.imageWrap}>
         {imageUrl ? (
           <Image resizeMode="cover" source={{ uri: imageUrl }} style={styles.image} />
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 40,
   },
-  listContent: { paddingBottom: spacing.xxxl },
+  listContent: { paddingBottom: 40 },
   countLabel: {
     color: ios.secondary,
     fontFamily: fonts.medium,

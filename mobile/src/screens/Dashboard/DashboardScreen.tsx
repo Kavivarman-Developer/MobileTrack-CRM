@@ -136,7 +136,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           )}
 
-          <View style={styles.headerCopy}>
+          <View style={[styles.headerCopy, !isDesktop && { marginLeft: 12 }]}>
             <View style={styles.greetingRow}>
               <View style={styles.greetingDot} />
               <Text numberOfLines={1} style={styles.greeting}>{greeting()}</Text>
@@ -615,8 +615,8 @@ const styles = StyleSheet.create({
   },
   content: {
     alignSelf: "center",
-    maxWidth: 1360,
-    paddingBottom: 96,
+    maxWidth: 1280,
+    paddingBottom: 40,
     paddingHorizontal: 16,
     paddingTop: 8,
     width: "100%",
@@ -647,7 +647,6 @@ const styles = StyleSheet.create({
   headerCopy: {
     flex: 1,
     justifyContent: "center",
-    marginHorizontal: 12,
     minWidth: 0,
   },
   greetingRow: {
@@ -1039,7 +1038,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     borderRadius: 18,
     borderWidth: 1,
-    flexBasis: "48%",
+    flexBasis: "23%",
     flexDirection: "row",
     flexGrow: 1,
     gap: 12,
@@ -1089,9 +1088,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     borderRadius: 16,
     borderWidth: 1,
-    flexBasis: "48%",
+    flexBasis: "23%",
     flexGrow: 1,
-    maxWidth: "50%",
     minWidth: 140,
     padding: 10,
     ...Platform.select({
@@ -1223,7 +1221,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     borderRadius: 16,
     borderWidth: 1,
-    flexBasis: "48%",
+    flexBasis: "23%",
     flexGrow: 1,
     minWidth: 140,
     padding: 12,

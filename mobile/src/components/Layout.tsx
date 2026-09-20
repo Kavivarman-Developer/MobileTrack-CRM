@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   screenInner: {
     flex: 1,
     width: "100%",
-    maxWidth: 1360,
+    maxWidth: 1280,
     alignSelf: "center",
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,

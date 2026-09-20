@@ -18,7 +18,15 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .filter(Boolean);
 
 function corsOrigin(origin, callback) {
-  if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+  if (
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    origin.includes("kadaikanakku.in") ||
+    origin.includes("app-kadaikanakku.web.app") ||
+    origin.includes("firebaseapp.com")
+  ) {
+    return callback(null, true);
+  }
   callback(new Error("Not allowed by CORS"));
 }
 

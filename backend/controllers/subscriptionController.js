@@ -28,7 +28,18 @@ async function createActivationOrder(req, res, next) {
     const orderId = "ACT_" + String(org._id).slice(-6) + "_" + Date.now();
     const amount = 1.00;
 
-    const returnUrl = (process.env.APP_BASE_URL || "https://www.kadaikanakku.in") + "/subscription?order_id={order_id}";
+    let clientBaseUrl = "https://app.kadaikanakku.in";
+    if (req.headers.origin) {
+      clientBaseUrl = req.headers.origin;
+    } else if (req.headers.referer) {
+      try {
+        clientBaseUrl = new URL(req.headers.referer).origin;
+      } catch (e) {}
+    } else if (process.env.APP_BASE_URL) {
+      clientBaseUrl = process.env.APP_BASE_URL;
+    }
+
+    const returnUrl = `${clientBaseUrl}/?order_id={order_id}&payment=complete`;
 
     const customer = {
       id: String(user._id || org._id),

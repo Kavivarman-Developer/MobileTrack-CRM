@@ -62,6 +62,15 @@ export function SubscriptionModal({
     return () => window.removeEventListener("message", handleWindowMessage);
   }, [pendingOrderId]);
 
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      const saved = localStorage.getItem("pending_activation_order_id");
+      if (saved && !pendingOrderId) {
+        setPendingOrderId(saved);
+      }
+    }
+  }, []);
+
   async function handlePay() {
     try {
       setLoading(true);
@@ -69,11 +78,26 @@ export function SubscriptionModal({
       const orderId = res.orderId;
       setPendingOrderId(orderId);
 
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("pending_activation_order_id", orderId);
+      }
+
       const baseUrl = API_BASE_URL.replace(/\/api\/?$/, "");
       const fullCheckoutUrl = baseUrl + res.checkoutUrl;
 
-      // Open inline on both Web and Mobile
-      setCheckoutUrl(fullCheckoutUrl);
+      // Navigate directly to Cashfree secure payment page
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.href = fullCheckoutUrl;
+        return;
+      }
+
+      // On native mobile app, launch browser or UPI intent handler
+      const canOpen = await Linking.canOpenURL(fullCheckoutUrl).catch(() => false);
+      if (canOpen) {
+        await Linking.openURL(fullCheckoutUrl);
+      } else {
+        setCheckoutUrl(fullCheckoutUrl);
+      }
     } catch (error: any) {
       Alert.alert(
         "Payment Initiation Failed",
@@ -96,6 +120,9 @@ export function SubscriptionModal({
       if (res.success || res.status === "PAID") {
         setIsSuccess(true);
         setCheckoutUrl(null);
+        if (typeof localStorage !== "undefined") {
+          localStorage.removeItem("pending_activation_order_id");
+        }
         setTimeout(() => {
           onActivated?.();
           onClose();

@@ -57,7 +57,10 @@ export default function DashboardScreen() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try {
         const params = new URLSearchParams(window.location.search);
-        const orderId = params.get("order_id") || params.get("orderId");
+        const orderId =
+          params.get("order_id") ||
+          params.get("orderId") ||
+          localStorage.getItem("pending_activation_order_id");
         if (orderId) {
           verifyActivationOrder(orderId).then((res) => {
             if (res.success || res.status === "PAID") {
@@ -66,6 +69,7 @@ export default function DashboardScreen() {
                 text1: "Shop Activated! 🎉",
                 text2: "Your ₹1 activation was successful. Full access is unlocked.",
               });
+              localStorage.removeItem("pending_activation_order_id");
               dashboard.refetch();
               window.history.replaceState({}, document.title, window.location.pathname);
             }
